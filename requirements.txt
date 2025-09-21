@@ -3,6 +3,7 @@ ipdb==0.13.13
 ipython==9.4.0
 pydantic==2.11.7
 pydantic[email]
+pytest==8.4.2
 SQLAlchemy==2.0.43
 uvicorn==0.35.0
 ruff==0.12.7
