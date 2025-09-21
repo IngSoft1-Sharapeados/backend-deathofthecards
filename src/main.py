@@ -1,8 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
-from game.modelos.db import Base, engine
-
+from game.modelos.db import engine, Base
 
 app = FastAPI()
 
@@ -20,3 +19,4 @@ app.add_middleware(
 async def root():
     return {"message":"HOLA"}
 
+Base.metadata.create_all(bind=engine)
