@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 #from fastapi.responses import HTMLResponse
 from game.modelos.db import engine, Base
+#from game.partidas.services import PartidaService
 
 from api import api_router
 
