@@ -26,14 +26,25 @@ async def crear_partida(partida_info: PartidaData, db=Depends(get_db)
     PartidaResponse
         Respuesta con los datos de la partida creada
     """
-    try:
-        partida_creada = PartidaService(db).crear(partida_dto=partida_info.to_dto())
-    except Exception as e:
+    if (partida_info.maxJugadores > 6):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail="El máximo de jugadores por partida es 6."
         )
-    return PartidaResponse(id_partida=partida_creada.id)
+    elif (partida_info.maxJugadores < 2):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El mínimo de jugadores por partida es 2."
+        )
+    else:
+        try:
+            partida_creada = PartidaService(db).crear(partida_dto=partida_info.to_dto())
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
+        return PartidaResponse(id_partida=partida_creada.id)
 
 
 # endpoint post /partidas crear (devuelve id_partida) faltan unittest
