@@ -36,3 +36,17 @@ class PartidaService:
         self._db.commit()
         self._db.refresh(nueva_partida)
         return nueva_partida
+    
+    def listar(self) -> List[Partida]:
+        """
+        Lista las partidas en la base de datos.
+
+        Returns
+        -------
+        List[Partidas]
+            lista de las partidas
+        """
+        
+        return (self._db.query(Partida)
+                .filter(Partida.iniciada == False)
+                .all())
