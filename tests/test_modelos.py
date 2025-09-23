@@ -1,19 +1,18 @@
 import pytest
-from sqlalchemy import create_engine
 import datetime
-from sqlalchemy.orm import sessionmaker
-from game.modelos.db import Base
+import os
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+from game.modelos.db import Base, get_engine, get_session_local
 from game.jugadores.models import Jugador
 from game.partidas.models import Partida
 from game.cartas.models import Carta
-from settings import settings
 
 # Base de datos en memoria
-engine = create_engine(settings.TEST_DATABASE_URL, connect_args={"check_same_thread": False})
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 @pytest.fixture(scope="function")
 def db():
+    engine = get_engine()
+    TestingSessionLocal = get_session_local(engine)
     # Crear tablas
     Base.metadata.create_all(bind=engine)
     db = TestingSessionLocal()

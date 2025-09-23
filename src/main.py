@@ -1,8 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-#from fastapi.responses import HTMLResponse
-from game.modelos.db import engine, Base
-#from game.partidas.services import PartidaService
+from game.modelos.db import Base, get_engine
 
 from api import api_router
 
@@ -24,4 +22,4 @@ app.include_router(api_router)
 async def root():
     return {"message":"HOLA"}
 
-Base.metadata.create_all(bind=engine)
+Base.metadata.create_all(bind=get_engine())
