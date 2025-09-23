@@ -1,0 +1,26 @@
+from typing import List, Optional
+
+from pydantic import BaseModel
+from game.partidas.dtos import PartidaDTO
+
+class PartidaData(BaseModel):
+    """
+    Schema que representa los datos entrantes de una partida a crear
+    """
+    nombre: str
+    maxJugadores: int
+
+    def to_dto(self) -> PartidaDTO:
+        return PartidaDTO(
+            nombre=self.nombre,
+            maxJugadores=self.maxJugadores
+        )
+
+
+class PartidaResponse(BaseModel):
+    """
+    Clase que representa la response al crear partida
+    """
+    id_partida: int
+
+

@@ -9,11 +9,11 @@ class Partida(Base):
  
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String, nullable=False)
-    nombreDelAnfitrion: Mapped[str] = mapped_column(String, nullable=False)
+    nombreAnfitrion: Mapped[str] = mapped_column(String, nullable=False)
     cantJugadores: Mapped[int] = mapped_column(Integer, nullable=False)
     iniciada: Mapped[bool] = mapped_column(Boolean, default=False)
-    maxJugadores: Mapped[int] = mapped_column(Integer, nullable=False)
- 
+    maxJugadores: Mapped[int] = mapped_column(Integer, nullable=True)
+
     # Relación de 1 a muchos con Jugador
     jugadores: Mapped[List["Jugador"]] = relationship("Jugador", back_populates="partida")
 
