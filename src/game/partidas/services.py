@@ -36,7 +36,24 @@ class PartidaService:
         self._db.commit()
         self._db.refresh(nueva_partida)
         return nueva_partida
-    
+
+    def obtener_por_id(self, id_partida: int) -> Partida:
+        """
+        Obtiene una partida por su ID.
+        
+        Parameters
+        ----------
+        id_partida: int
+            ID de la partida a obtener
+        
+        Returns
+        -------
+        Partida
+            La partida obtenida
+        """
+        partida = self._db.query(Partida).filter(Partida.id == id_partida).first()
+        return partida
+        
     def listar(self) -> List[Partida]:
         """
         Lista las partidas en la base de datos.
@@ -50,3 +67,4 @@ class PartidaService:
         return (self._db.query(Partida)
                 .filter(Partida.iniciada == False)
                 .all())
+    
