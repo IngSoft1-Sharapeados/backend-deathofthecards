@@ -2,7 +2,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from game.partidas.models import Partida
-from game.partidas.schemas import PartidaData, PartidaResponse
+from game.partidas.schemas import PartidaData, PartidaResponse, PartidaOut
 from game.partidas.services import PartidaService
 from game.modelos.db import get_db
 
@@ -46,6 +46,36 @@ async def crear_partida(partida_info: PartidaData, db=Depends(get_db)
             )
         return PartidaResponse(id_partida=partida_creada.id)
 
+#quiero hacer el endpoint obtener partida.
+@partidas_router.get(path="/{id_partida}", status_code=status.HTTP_200_OK)
+async def obtener_datos_partida(id_partida: int, db=Depends(get_db)) -> PartidaOut:
+    """
+    Obtiene los datos de una partida por su ID.
+    
+    Parameters
+    ----------
+    id_partida: int
+        ID de la partida a obtener
+    
+    Returns
+    -------
+    PartidaOut
+        Datos de la partida obtenida
+    """
+    
+    partida_obtenida = PartidaService(db).obtener_por_id(id_partida)
+
+    if partida_obtenida is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No se encontró la partida con ID {id_partida}"
+        )
+    else:
+        return PartidaOut(
+            nombre_partida=partida_obtenida.nombre,
+            iniciada=partida_obtenida.iniciada,
+            maxJugadores=partida_obtenida.maxJugadores
+        )
 
 # endpoint post /partidas crear (devuelve id_partida) faltan unittest
 # endpoint get /partidas listar (devuelve lista de partidas con nombre partida, cantJugadores, lista jugadores)
