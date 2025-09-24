@@ -54,3 +54,17 @@ class PartidaService:
         partida = self._db.query(Partida).filter(Partida.id == id_partida).first()
         return partida
         
+    def listar(self) -> List[Partida]:
+        """
+        Lista las partidas en la base de datos.
+
+        Returns
+        -------
+        List[Partidas]
+            lista de las partidas
+        """
+        
+        return (self._db.query(Partida)
+                .filter(Partida.iniciada == False)
+                .all())
+    
