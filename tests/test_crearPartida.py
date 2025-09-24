@@ -70,3 +70,55 @@ def test_crear_partida_sin_cant_jugadores(mock_PartidaService, session:sessionma
     app.dependency_overrides.clear()
 
     assert response.status_code == 422
+
+# --------------------- TEST OBTENER DATOS PARTIDA OK ---------------------
+@patch('game.partidas.endpoints.PartidaService')
+def test_obtener_datos_partida_ok(mock_PartidaService, datosPartida_1, session: sessionmaker):
+
+    def get_db_override():
+        yield session  
+
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    mock_service = MagicMock()
+    mock_partida = MagicMock()
+    mock_partida.id = 1
+    mock_partida.nombre = datosPartida_1["nombre"]
+    mock_partida.iniciada = False
+    mock_partida.maxJugadores = datosPartida_1["maxJugadores"]
+    mock_service.obtener_por_id.return_value = mock_partida
+    mock_PartidaService.return_value = mock_service
+
+    response = client.get("/partidas/1")
+
+    app.dependency_overrides.clear()
+    
+    assert response.status_code == 200
+    assert response.json() == {
+        "nombre_partida": datosPartida_1["nombre"],
+        "iniciada": False,
+        "maxJugadores": datosPartida_1["maxJugadores"]
+    }
+
+# --------------------- TEST OBTENER DATOS PARTIDA NO ENCONTRADA ---------------------
+@patch('game.partidas.endpoints.PartidaService')
+def test_obtener_datos_partida_no_encontrada(mock_PartidaService, session: sessionmaker):
+
+    def get_db_override():
+        yield session  
+
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    mock_service = MagicMock()
+    mock_service.obtener_por_id.return_value = None
+    mock_PartidaService.return_value = mock_service
+
+    response = client.get("/partidas/999")  # ID que no existe
+
+    app.dependency_overrides.clear()
+    
+    assert response.status_code == 404
+    assert response.json() == {"detail": "No se encontró la partida con ID 999"}
+
