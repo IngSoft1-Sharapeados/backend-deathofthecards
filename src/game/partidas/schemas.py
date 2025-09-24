@@ -23,6 +23,14 @@ class PartidaResponse(BaseModel):
     """
     id_partida: int
 
+class PartidaOut(BaseModel):
+    """
+    Clase que representa los datos salientes de una partida
+    """
+    nombre_partida: str
+    iniciada: bool
+    maxJugadores: int
+
 class PartidaListar(BaseModel):
     """
     Clase que representa la response al listar las partidas
@@ -31,3 +39,5 @@ class PartidaListar(BaseModel):
     nombre: str
     iniciada: bool
     maxJugadores: int
+
+
