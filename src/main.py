@@ -3,9 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from game.modelos.db import Base, get_engine
 
 from api import api_router
+#import os
 
 app = FastAPI()
 
+#if os.path.exists("game.db"):
+ #   os.remove("game.db")
 origins = ["*"]
 
 app.add_middleware(
