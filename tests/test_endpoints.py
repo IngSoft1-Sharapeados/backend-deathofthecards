@@ -40,7 +40,6 @@ def partidas_mock():
 
     return [partida1, partida2]
 
-# --------------------- TESTS CREAR PARTIDA --------------------------------
 
 # usa los ALIASES con guiones como espera PartidaData
 @pytest.fixture
@@ -53,6 +52,7 @@ def datosPartida_1():
         "dia-nacimiento": "2000-10-31"      
     }
 
+# --------------------- TEST CREAR PARTIDA OK --------------------------------
 @patch('game.partidas.endpoints.PartidaService')
 @patch('game.partidas.endpoints.JugadorService')
 def test_crear_partida_ok(mock_JugadorService, mock_PartidaService, datosPartida_1, session):
@@ -93,6 +93,8 @@ def test_crear_partida_ok(mock_JugadorService, mock_PartidaService, datosPartida
     assert response.status_code == 201
     assert response.json() == {"id_partida": 1, "id_jugador": 1}
 
+# --------- TESTS CREAR PARTIDA MAX JUGADORES EXCEDIDOS --------------------------------
+
 def test_crear_partida_max_jugadores_excedido(session):
     """Test cuando se excede el máximo de jugadores"""
     
@@ -116,6 +118,9 @@ def test_crear_partida_max_jugadores_excedido(session):
 
     assert response.status_code == 400
     assert "El máximo de jugadores por partida es 6" in response.json()["detail"]
+
+
+# --------------- TESTS CREAR PARTIDA ERROR SERVICIO --------------------------------
 
 
 @patch('game.partidas.endpoints.PartidaService')
@@ -149,6 +154,8 @@ def test_crear_partida_error_servicio(mock_JugadorService, mock_PartidaService, 
     assert response.status_code == 400
     assert "Error de base de datos" in response.json()["detail"]
 
+# ------------- TESTS CREAR PARTIDA SIN CAMPOS OBLIGATORIOS--------------------------------
+
 def test_crear_partida_sin_campos_obligatorios(session):
     """Test cuando faltan campos obligatorios"""
     
@@ -169,6 +176,9 @@ def test_crear_partida_sin_campos_obligatorios(session):
     app.dependency_overrides.clear()
 
     assert response.status_code == 422  # Unprocessable Entity
+
+# ------------ TESTS CREAR PARTIDA FORMATO FECHA INVALIDO--------------------------------
+
 
 def test_crear_partida_formato_fecha_invalido(session):
     """Test con formato de fecha inválido"""
