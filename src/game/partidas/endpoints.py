@@ -29,21 +29,22 @@ async def crear_partida(partida_info: PartidaData, db=Depends(get_db)
     PartidaResponse
         Respuesta con los datos de la partida creada
     """
-    if (partida_info.maxJugadores > 6):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El máximo de jugadores por partida es 6."
-        )
-    elif (partida_info.maxJugadores < 2 or partida_info.minJugadores > 6):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El mínimo de jugadores por partida es 2."
-        )
-    elif (partida_info.minJugadores > partida_info.maxJugadores):
+    if (partida_info.minJugadores > partida_info.maxJugadores):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El mínimo de jugadores no puede ser mayor al máximo."
         )
+    elif (partida_info.maxJugadores > 6):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El máximo de jugadores por partida es 6."
+        )
+    elif (partida_info.maxJugadores < 2 or partida_info.minJugadores > 6 or partida_info.minJugadores < 2):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El mínimo de jugadores por partida es 2."
+        )
+    
     else:
         try:
             partida_creada = PartidaService(db).crear(partida_dto=partida_info.to_dto())
