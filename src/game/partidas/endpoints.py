@@ -90,21 +90,15 @@ async def listar_partidas(db=Depends(get_db)) -> List[PartidaListar]:
     """
 
     partidas_listadas = PartidaService(db).listar()
-    if not partidas_listadas:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No hay partidas disponibles"
+    return [
+        PartidaListar(
+            id=p.id,
+            nombre=p.nombre,
+            iniciada=p.iniciada,
+            maxJugadores=p.maxJugadores
         )
-    else:
-        return [
-            PartidaListar(
-                id=p.id,
-                nombre=p.nombre,
-                iniciada=p.iniciada,
-                maxJugadores=p.maxJugadores
-            )
-            for p in partidas_listadas
-        ]
+        for p in partidas_listadas
+    ]
 # endpoint post /partidas crear (devuelve id_partida) faltan unittest
 # endpoint get /partidas listar (devuelve lista de partidas con nombre partida, cantJugadores, lista jugadores)
 # endpoint get /partida/{id} info de la partida (devuelve nombre partida, etc)

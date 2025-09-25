@@ -198,5 +198,6 @@ def test_listar_partidas_vacio(mock_PartidaService, session: sessionmaker):
 
     app.dependency_overrides.clear()
 
-    assert response.status_code == 404
-    assert response.json() == {"detail": "No hay partidas disponibles"}
+    assert response.status_code == 200
+    assert response.json() == []
+
