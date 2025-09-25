@@ -26,7 +26,7 @@ class PartidaService:
         """
         nueva_partida = Partida(
             nombre=partida_dto.nombrePartida,
-            nombreAnfitrion="pepito",
+            nombreAnfitrion="pepito", #cada partida creada tiene a pepito afintrion
             cantJugadores=0,
             iniciada=False,
             maxJugadores=partida_dto.maxJugadores,

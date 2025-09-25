@@ -34,7 +34,7 @@ async def crear_partida(partida_info: PartidaData, db=Depends(get_db)
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El máximo de jugadores por partida es 6."
         )
-    elif (partida_info.maxJugadores < 2):
+    elif (partida_info.maxJugadores < 2 or partida_info.minJugadores >= 2):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El mínimo de jugadores por partida es 2."
