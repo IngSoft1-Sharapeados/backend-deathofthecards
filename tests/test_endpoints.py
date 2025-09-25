@@ -24,6 +24,21 @@ def dbTesting_fixture():
     with TestingSessionLocal() as session:
         yield session
 
+@pytest.fixture
+def partidas_mock():
+    partida1 = MagicMock()
+    partida1.id = 1
+    partida1.nombre = "PartidaUno"
+    partida1.iniciada = False
+    partida1.maxJugadores = 4
+
+    partida2 = MagicMock()
+    partida2.id = 2
+    partida2.nombre = "PartidaDos"
+    partida2.iniciada = True
+    partida2.maxJugadores = 5
+
+    return [partida1, partida2]
 
 # --------------------- TESTS CREAR PARTIDA --------------------------------
 
@@ -214,9 +229,9 @@ def test_obtener_datos_partida_ok(mock_PartidaService, datosPartida_1, session: 
     mock_service = MagicMock()
     mock_partida = MagicMock()
     mock_partida.id = 1
-    mock_partida.nombre = datosPartida_1["nombre"]
+    mock_partida.nombre = datosPartida_1["nombre-partida"]
     mock_partida.iniciada = False
-    mock_partida.maxJugadores = datosPartida_1["maxJugadores"]
+    mock_partida.maxJugadores = datosPartida_1["max-jugadores"]
     mock_service.obtener_por_id.return_value = mock_partida
     mock_PartidaService.return_value = mock_service
 
@@ -226,9 +241,9 @@ def test_obtener_datos_partida_ok(mock_PartidaService, datosPartida_1, session: 
     
     assert response.status_code == 200
     assert response.json() == {
-        "nombre_partida": datosPartida_1["nombre"],
+        "nombre_partida": datosPartida_1["nombre-partida"],
         "iniciada": False,
-        "maxJugadores": datosPartida_1["maxJugadores"]
+        "maxJugadores": datosPartida_1["max-jugadores"]
     }
 
 # --------------------- TEST OBTENER DATOS PARTIDA NO ENCONTRADA ---------------------
