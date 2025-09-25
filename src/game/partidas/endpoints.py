@@ -99,6 +99,39 @@ async def listar_partidas(db=Depends(get_db)) -> List[PartidaListar]:
         )
         for p in partidas_listadas
     ]
+
+# endpoint post unir jugador a partida
+@partidas_router.post(path="/{id_partida}", status_code=status.HTTP_200_OK)
+async def unir_jugador_a_partida(id_partida: int, db=Depends(get_db)
+) -> PartidaOut:
+
+    """
+    Une un jugador a una partida existente.
+    
+    Parameters
+    ----------
+    id_partida: int
+        ID de la partida a la que se unirá el jugador
+    
+    Returns
+    -------
+    PartidaOut
+        Datos de la partida actualizada con el jugador creado
+    """
+    
+    try:
+        partida_actualizada = PartidaService(db).unir_jugador(id_partida)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    
+    return PartidaOut(
+        nombre_partida=partida_actualizada.nombre,
+        iniciada=partida_actualizada.iniciada,
+        maxJugadores=partida_actualizada.maxJugadores
+    )
 # endpoint post /partidas crear (devuelve id_partida) faltan unittest
 # endpoint get /partidas listar (devuelve lista de partidas con nombre partida, cantJugadores, lista jugadores)
 # endpoint get /partida/{id} info de la partida (devuelve nombre partida, etc)
