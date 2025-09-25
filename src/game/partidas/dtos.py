@@ -7,6 +7,10 @@ from typing import List
 
 @dataclass
 class PartidaDTO:
-    nombre: str
+    nombrePartida: str
     maxJugadores: int
+    minJugadores: int
+    nombreJugador: str
+    fechaNacimiento: str
+    
     #jugadores: List["Jugador"] = dataclass_field(default_factory=list)

@@ -4,6 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from game.partidas.models import Partida
 from game.partidas.schemas import PartidaData, PartidaResponse
 from game.partidas.services import PartidaService
+from game.jugadores.models import Jugador
+from game.jugadores.schemas import JugadorData, JugadorResponse
+from game.jugadores.services import JugadorService
 from game.modelos.db import get_db
 
 
@@ -39,12 +42,13 @@ async def crear_partida(partida_info: PartidaData, db=Depends(get_db)
     else:
         try:
             partida_creada = PartidaService(db).crear(partida_dto=partida_info.to_dto())
+            jugador_creado = JugadorService(db).crear(jugador_dto=partida_info.to_dto())
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=str(e)
             )
-        return PartidaResponse(id_partida=partida_creada.id)
+        return PartidaResponse(id_partida=partida_creada.id, id_jugador=jugador_creado.id)
 
 
 # endpoint post /partidas crear (devuelve id_partida) faltan unittest
