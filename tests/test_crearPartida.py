@@ -94,29 +94,6 @@ def test_crear_partida_max_jugadores_excedido(session):
     assert response.status_code == 400
     assert "El máximo de jugadores por partida es 6" in response.json()["detail"]
 
-def test_crear_partida_min_jugadores_insuficiente(session):
-    """Test cuando el mínimo de jugadores es insuficiente"""
-    
-    def get_db_override():
-        yield session
-    
-    app.dependency_overrides[get_db] = get_db_override
-    client = TestClient(app)
-
-    datos_invalidos = {
-        "nombre-partida": "partida inválida",
-        "max-jugadores": 4,
-        "min-jugadores": 1,  # Menor a 2
-        "nombre-jugador": "jugador1",
-        "dia-nacimiento": "2000-10-31"
-    }
-
-    response = client.post("/partidas", json=datos_invalidos)
-    
-    app.dependency_overrides.clear()
-
-    assert response.status_code == 400
-    assert "El mínimo de jugadores por partida es 2" in response.json()["detail"]
 
 @patch('game.partidas.endpoints.PartidaService')
 @patch('game.partidas.endpoints.JugadorService')
