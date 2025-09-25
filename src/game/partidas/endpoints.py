@@ -2,7 +2,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from game.partidas.models import Partida
-from game.partidas.schemas import PartidaData, PartidaResponse, PartidaOut
+from game.partidas.schemas import PartidaData, PartidaResponse, PartidaOut, PartidaListar
 from game.partidas.services import PartidaService
 from game.modelos.db import get_db
 
@@ -77,6 +77,28 @@ async def obtener_datos_partida(id_partida: int, db=Depends(get_db)) -> PartidaO
             maxJugadores=partida_obtenida.maxJugadores
         )
 
+@partidas_router.get(path="", status_code = status.HTTP_200_OK)
+async def listar_partidas(db=Depends(get_db)) -> List[PartidaListar]:
+
+    """
+    Lista las partidas no iniciadas de la base de datos.
+    
+    Returns
+    -------
+    List[PartidaListar]
+        Respuesta con la lista de las partidas.
+    """
+
+    partidas_listadas = PartidaService(db).listar()
+    return [
+        PartidaListar(
+            id=p.id,
+            nombre=p.nombre,
+            iniciada=p.iniciada,
+            maxJugadores=p.maxJugadores
+        )
+        for p in partidas_listadas
+    ]
 # endpoint post /partidas crear (devuelve id_partida) faltan unittest
 # endpoint get /partidas listar (devuelve lista de partidas con nombre partida, cantJugadores, lista jugadores)
 # endpoint get /partida/{id} info de la partida (devuelve nombre partida, etc)
