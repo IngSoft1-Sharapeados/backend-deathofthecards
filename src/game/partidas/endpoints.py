@@ -1,13 +1,15 @@
 from typing import List, Optional
 
+from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status
 from game.partidas.models import Partida
 from game.partidas.schemas import PartidaData, PartidaResponse, PartidaOut, PartidaListar
 from game.partidas.services import PartidaService
 from game.jugadores.models import Jugador
-from game.jugadores.schemas import JugadorData, JugadorResponse
+from game.jugadores.schemas import JugadorData, JugadorResponse, JugadorOut
 from game.jugadores.services import JugadorService
 from game.modelos.db import get_db
+
 
 
 partidas_router = APIRouter()
@@ -142,6 +144,41 @@ async def unir_jugador_a_partida(id_partida: int, db=Depends(get_db)
         iniciada=partida_actualizada.iniciada,
         maxJugadores=partida_actualizada.maxJugadores
     )
+
+# endpoint post unir jugador a partida
+@partidas_router.post(path="/{id_partida}", status_code=status.HTTP_200_OK)
+async def unir_jugador_a_partida(id_partida: int, jugador_info: JugadorData, db=Depends(get_db)) -> JugadorOut                                                                                                                              :
+
+    """
+    Une un jugador a una partida existente.
+    
+    Parameters
+    ----------
+    id_partida: int
+        ID de la partida a la que se unirá el jugador
+    
+    Returns
+    -------
+    PartidaOut
+        Datos de la partida actualizada con el jugador creado
+    """
+    
+    try:
+        jugador_creado = JugadorService(db).crear(id_partida, jugador_dto=jugador_info.to_dto())
+        PartidaService(db).unir_jugador(id_partida, id_jugador=jugador_creado.id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    
+    return JugadorOut(
+        id_jugador=jugador_creado.id,
+        nombre_jugador=jugador_creado.nombre,
+        fecha_nacimiento=jugador_creado.fecha_nacimiento
+    )
+
+
 # endpoint post /partidas crear (devuelve id_partida) faltan unittest
 # endpoint get /partidas listar (devuelve lista de partidas con nombre partida, cantJugadores, lista jugadores)
 # endpoint get /partida/{id} info de la partida (devuelve nombre partida, etc)

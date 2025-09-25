@@ -71,7 +71,7 @@ class PartidaService:
                 .filter(Partida.iniciada == False)
                 .all())
     # servicio unir jugador a partida
-    def unir_jugador(id_partida):
+    def unir_jugador(id_partida, id_jugador):
         """
         Une un jugador a una partida.
 
@@ -82,12 +82,13 @@ class PartidaService:
         """
         
         partida = self.obtener_por_id(id_partida)
+        jugador = self._db.query(Jugador).filter(Jugador.id == id_jugador).first()
         # agregar jugador a la partida
         if partida.cantJugadores < partida.maxJugadores:
-            
+            # uso crear jugador del servicio jugador
+            self.add(jugador)
             partida.cantJugadores += 1
             self._db.commit()
             self._db.refresh(partida)
-            return partida
         else:
             raise Exception("La partida ya está llena.")
