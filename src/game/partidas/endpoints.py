@@ -39,10 +39,15 @@ async def crear_partida(partida_info: PartidaData, db=Depends(get_db)
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El mínimo de jugadores por partida es 2."
         )
+    elif (partida_info.minJugadores > partida_info.maxJugadores):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El mínimo de jugadores no puede ser mayor al máximo."
+        )
     else:
         try:
             partida_creada = PartidaService(db).crear(partida_dto=partida_info.to_dto())
-            jugador_creado = JugadorService(db).crear(jugador_dto=partida_info.to_dto())
+            jugador_creado = JugadorService(db).crear(partida_creada.id, jugador_dto=partida_info.to_dto())
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

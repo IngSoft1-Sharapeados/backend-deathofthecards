@@ -27,11 +27,15 @@ def dbTesting_fixture():
 def datosPartida_1():
     return {
         "nombre": "partiditaTEST",
-        "maxJugadores": 4
+        "maxJugadores": 4,
+        "minJugadores": 2,
+        "nombreJugador": "jugador1TEST",
+        "fechaNacimiento": (2000,10,31)
     }
 
 @patch('game.partidas.endpoints.PartidaService')
-def test_crear_partida_ok(mock_PartidaService, datosPartida_1, session:sessionmaker):
+@patch('game.partidas.endpoints.JugadorService')
+def test_crear_partida_ok(mock_PartidaService, mock_JugadorService, datosPartida_1, session:sessionmaker):
 
     def get_db_override():
         yield session  
@@ -39,18 +43,23 @@ def test_crear_partida_ok(mock_PartidaService, datosPartida_1, session:sessionma
     app.dependency_overrides[get_db] = get_db_override
     client = TestClient(app)
 
-    mock_service = MagicMock()
+    mock_Pservice = MagicMock()
+    mock_Jservice = MagicMock()
     mock_partida = MagicMock()
+    mock_jugador = MagicMock()
     mock_partida.id = 1
-    mock_service.crear.return_value = mock_partida
-    mock_PartidaService.return_value = mock_service
+    mock_jugador.id = 1
+    # mock_Pservice.crear.return_value = {mock_partida, mock_jugador}
+    # mock_Jservice.crear.return_value = mock_jugador
+    # mock_JugadorService.return_value = mock_Jservice
+    # mock_PartidaService.return_value = mock_Pservice
 
     response = client.post("/partidas", json=datosPartida_1)
 
     app.dependency_overrides.clear()
     
     assert response.status_code == 201
-    assert response.json() == {"id_partida": 1}
+    assert response.json() == {"id_partida": 1, "id_jugador": 1}
 
 @patch('game.partidas.endpoints.PartidaService')
 def test_crear_partida_sin_cant_jugadores(mock_PartidaService, session:sessionmaker):
