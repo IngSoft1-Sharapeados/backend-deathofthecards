@@ -4,6 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from game.partidas.models import Partida
 from game.partidas.schemas import PartidaData, PartidaResponse, PartidaOut, PartidaListar
 from game.partidas.services import PartidaService
+from game.jugadores.models import Jugador
+from game.jugadores.schemas import JugadorData, JugadorResponse
+from game.jugadores.services import JugadorService
 from game.modelos.db import get_db
 
 
@@ -26,25 +29,32 @@ async def crear_partida(partida_info: PartidaData, db=Depends(get_db)
     PartidaResponse
         Respuesta con los datos de la partida creada
     """
-    if (partida_info.maxJugadores > 6):
+    if (partida_info.minJugadores > partida_info.maxJugadores):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El mínimo de jugadores no puede ser mayor al máximo."
+        )
+    elif (partida_info.maxJugadores > 6):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El máximo de jugadores por partida es 6."
         )
-    elif (partida_info.maxJugadores < 2):
+    elif (partida_info.maxJugadores < 2 or partida_info.minJugadores > 6 or partida_info.minJugadores < 2):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El mínimo de jugadores por partida es 2."
         )
+    
     else:
         try:
             partida_creada = PartidaService(db).crear(partida_dto=partida_info.to_dto())
+            jugador_creado = JugadorService(db).crear(partida_creada.id, jugador_dto=partida_info.to_dto())
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=str(e)
             )
-        return PartidaResponse(id_partida=partida_creada.id)
+        return PartidaResponse(id_partida=partida_creada.id, id_jugador=jugador_creado.id)
 
 #quiero hacer el endpoint obtener partida.
 @partidas_router.get(path="/{id_partida}", status_code=status.HTTP_200_OK)

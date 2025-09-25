@@ -25,11 +25,12 @@ class PartidaService:
             La partida creada
         """
         nueva_partida = Partida(
-            nombre=partida_dto.nombre,
-            nombreAnfitrion="pepito",
+            nombre=partida_dto.nombrePartida,
+            nombreAnfitrion="pepito", #cada partida creada tiene a pepito afintrion
             cantJugadores=0,
             iniciada=False,
             maxJugadores=partida_dto.maxJugadores,
+            minJugadores=partida_dto.minJugadores,
         )
         self._db.add(nueva_partida)
         self._db.flush()
