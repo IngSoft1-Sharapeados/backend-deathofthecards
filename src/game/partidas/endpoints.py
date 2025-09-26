@@ -114,8 +114,8 @@ async def listar_partidas(db=Depends(get_db)) -> List[PartidaListar]:
 
 # endpoint post unir jugador a partida
 @partidas_router.post(path="/{id_partida}", status_code=status.HTTP_200_OK)
-async def unir_jugador_a_partida(id_partida: int, db=Depends(get_db)
-) -> PartidaOut:
+async def unir_jugador_a_partida(id_partida: int, jugador_info: JugadorData, db=Depends(get_db)
+) -> JugadorOut:
 
     """
     Une un jugador a una partida existente.
@@ -130,20 +130,30 @@ async def unir_jugador_a_partida(id_partida: int, db=Depends(get_db)
     PartidaOut
         Datos de la partida actualizada con el jugador creado
     """
-    
-    try:
-        partida_actualizada = PartidaService(db).unir_jugador(id_partida)
-    except ValueError as e:
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    print(f'cantidad actual de jugadores: {partida.cantJugadores}')
+    if(partida.cantJugadores == partida.maxJugadores):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            status_code=status.HTTP_409_CONFLICT,
+            detail="La partida ya tiene el máximo de jugadores."
         )
+    else:
+        try:
+            jugador_creado = JugadorService(db).crear_unir(id_partida, jugador_dto=jugador_info.to_dto())
+            PartidaService(db).unir_jugador(id_partida, jugador_creado)
+        
+            return JugadorOut(
+                id_jugador = jugador_creado.id,
+            nombre_jugador = jugador_creado.nombre,
+            fecha_nacimiento = jugador_creado.fecha_nacimiento
+            )
+        
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
     
-    return PartidaOut(
-        nombre_partida=partida_actualizada.nombre,
-        iniciada=partida_actualizada.iniciada,
-        maxJugadores=partida_actualizada.maxJugadores
-    )
 
 # endpoint post unir jugador a partida
 @partidas_router.post(path="/{id_partida}", status_code=status.HTTP_200_OK)

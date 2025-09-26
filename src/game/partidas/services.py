@@ -3,6 +3,7 @@ from typing import List, Optional
 from game.partidas.dtos import PartidaDTO
 from game.partidas.models import Partida
 from game.jugadores.models import Jugador
+from game.jugadores.schemas import JugadorDTO
 
 
 class PartidaService:
@@ -27,7 +28,7 @@ class PartidaService:
         nueva_partida = Partida(
             nombre=partida_dto.nombrePartida,
             nombreAnfitrion="pepito", #cada partida creada tiene a pepito afintrion
-            cantJugadores=0,
+            cantJugadores=1,
             iniciada=False,
             maxJugadores=partida_dto.maxJugadores,
             minJugadores=partida_dto.minJugadores,
@@ -71,7 +72,7 @@ class PartidaService:
                 .filter(Partida.iniciada == False)
                 .all())
     # servicio unir jugador a partida
-    def unir_jugador(id_partida, id_jugador):
+    def unir_jugador(self, id_partida, jugador_creado: Jugador):
         """
         Une un jugador a una partida.
 
@@ -81,12 +82,12 @@ class PartidaService:
             La partida actualizada con el nuevo jugador
         """
         
-        partida = self.obtener_por_id(id_partida)
-        jugador = self._db.query(Jugador).filter(Jugador.id == id_jugador).first()
+        partida = self._db.query(Partida).filter(Partida.id == id_partida).first()
+        jugador = self._db.query(Jugador).filter(Jugador.id == jugador_creado.id).first()
         # agregar jugador a la partida
         if partida.cantJugadores < partida.maxJugadores:
             # uso crear jugador del servicio jugador
-            self.add(jugador)
+            self._db.add(jugador)
             partida.cantJugadores += 1
             self._db.commit()
             self._db.refresh(partida)

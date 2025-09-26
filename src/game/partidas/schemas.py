@@ -3,6 +3,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 from game.partidas.dtos import PartidaDTO
 from datetime import date
+from game.jugadores.dtos import JugadorDTO
 
 class PartidaData(BaseModel):
     """
