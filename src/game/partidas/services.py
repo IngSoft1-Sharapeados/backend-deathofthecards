@@ -27,7 +27,7 @@ class PartidaService:
         nueva_partida = Partida(
             nombre=partida_dto.nombrePartida,
             nombreAnfitrion="pepito", #cada partida creada tiene a pepito afintrion
-            cantJugadores=0,
+            cantJugadores=1, #al crear la partida hay 1 jugador (el anfitrion)
             iniciada=False,
             maxJugadores=partida_dto.maxJugadores,
             minJugadores=partida_dto.minJugadores,
@@ -69,3 +69,21 @@ class PartidaService:
                 .filter(Partida.iniciada == False)
                 .all())
     
+    def iniciar_partida(self, id_partida: int) -> None:
+        """
+        Inicia una partida por su ID.
+        
+        Parameters
+        ----------
+        id_partida: int
+            ID de la partida a iniciar
+        """
+        partida = self._db.query(Partida).filter(Partida.id == id_partida).first()
+        if partida is None:
+            raise ValueError(f"No se encontró la partida con ID {id_partida}")
+        if partida.iniciada:
+            raise ValueError(f"La partida con ID {id_partida} ya está iniciada")
+        partida.iniciada = True
+        self._db.commit()
+        self._db.refresh(partida)
+        return partida
