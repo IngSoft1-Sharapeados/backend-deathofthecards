@@ -93,6 +93,7 @@ def test_crear_partida_ok(mock_JugadorService, mock_PartidaService, datosPartida
 
     # Limpiar
     app.dependency_overrides.clear()
+    print("response:", response.json())
     
     assert response.status_code == 201
     assert response.json() == {"id_partida": 1, "id_jugador": 1, "id_Anfitrion": 1}
@@ -231,18 +232,17 @@ def test_partida_data_model():
     assert partida_data.fechaNacimiento == date(2000, 10, 31)
 
 # --------------------- TEST OBTENER DATOS PARTIDA OK ---------------------
+@patch('game.partidas.endpoints.listar_jugadores') 
 @patch('game.partidas.endpoints.PartidaService')
-def test_obtener_datos_partida_ok(mock_PartidaService, datosPartida_1, session: sessionmaker):
-
+def test_obtener_datos_partida_ok(mock_PartidaService, mock_listar_jugadores, datosPartida_1, session):
+    """Test para obtener los datos de una partida exitosamente"""
     def get_db_override():
         yield session  
 
     app.dependency_overrides[get_db] = get_db_override
     client = TestClient(app)
 
-    mock_service = MagicMock()
     mock_partida = MagicMock()
-    mock_partida.id = 1
     mock_partida.nombre = datosPartida_1["nombre-partida"]
     mock_partida.iniciada = False
     mock_partida.maxJugadores = datosPartida_1["max-jugadores"]
@@ -258,7 +258,7 @@ def test_obtener_datos_partida_ok(mock_PartidaService, datosPartida_1, session: 
     
     assert response.status_code == 200
     assert response.json() == {
-        "nombre_partida": datosPartida_1["nombre-partida"],
+        "nombre_partida": "partiditaTEST",
         "iniciada": False,
         "maxJugadores": datosPartida_1["max-jugadores"],
         "minJugadores": datosPartida_1["min-jugadores"],
