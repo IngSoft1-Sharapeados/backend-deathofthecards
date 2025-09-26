@@ -9,7 +9,7 @@ class Partida(Base):
  
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String, nullable=False)
-    nombreAnfitrion: Mapped[str] = mapped_column(String, nullable=False)
+    anfitrionId: Mapped[int] = mapped_column(Integer, nullable=False)
     cantJugadores: Mapped[int] = mapped_column(Integer, nullable=False)
     iniciada: Mapped[bool] = mapped_column(Boolean, default=False)
     maxJugadores: Mapped[int] = mapped_column(Integer, nullable=True)
