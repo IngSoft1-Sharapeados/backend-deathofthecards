@@ -13,11 +13,18 @@ class JugadorData(BaseModel):
 
     def to_dto(self) -> JugadorDTO:
         return JugadorDTO(
-            nombreJugador=self.nombreJugador,
-            fechaNacimiento=self.fechaNacimiento,
+            nombre=self.nombreJugador,
+            fecha_nacimiento=self.fechaNacimiento,
             
         )
 
+class JugadorOut(BaseModel):
+    """
+    Clase que representa los datos salientes de un jugador
+    """
+    id_jugador: int
+    nombre_jugador: str
+    fecha_nacimiento: date
 
 class JugadorResponse(BaseModel):
     """

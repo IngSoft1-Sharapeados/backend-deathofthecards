@@ -1,13 +1,16 @@
 from typing import List, Optional
 
+from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status
 from game.partidas.models import Partida
 from game.partidas.schemas import PartidaData, PartidaResponse, PartidaOut, PartidaListar
 from game.partidas.services import PartidaService
 from game.jugadores.models import Jugador
-from game.jugadores.schemas import JugadorData, JugadorResponse
+from game.jugadores.schemas import JugadorData, JugadorResponse, JugadorOut
 from game.jugadores.services import JugadorService
 from game.modelos.db import get_db
+from game.partidas.utils import listar_jugadores
+
 
 
 partidas_router = APIRouter()
@@ -72,19 +75,28 @@ async def obtener_datos_partida(id_partida: int, db=Depends(get_db)) -> PartidaO
     PartidaOut
         Datos de la partida obtenida
     """
-    
-    partida_obtenida = PartidaService(db).obtener_por_id(id_partida)
-
+    try:
+        partida_obtenida = PartidaService(db).obtener_por_id(id_partida)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=("No existe la partida con el ID proporcionado.")
+        )
     if partida_obtenida is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No se encontró la partida con ID {id_partida}"
         )
     else:
+        listaJ = listar_jugadores(partida_obtenida)
+
         return PartidaOut(
             nombre_partida=partida_obtenida.nombre,
             iniciada=partida_obtenida.iniciada,
-            maxJugadores=partida_obtenida.maxJugadores
+            maxJugadores=partida_obtenida.maxJugadores,
+            minJugadores=partida_obtenida.minJugadores,
+            listaJugadores=listaJ,
+            cantidad_jugadores=partida_obtenida.cantJugadores
         )
 
 @partidas_router.get(path="", status_code = status.HTTP_200_OK)
@@ -105,10 +117,65 @@ async def listar_partidas(db=Depends(get_db)) -> List[PartidaListar]:
             id=p.id,
             nombre=p.nombre,
             iniciada=p.iniciada,
-            maxJugadores=p.maxJugadores
+            maxJugadores=p.maxJugadores,
+            minJugadores=p.minJugadores,
+            cantJugadores=p.cantJugadores
         )
         for p in partidas_listadas
     ]
+
+# endpoint post unir jugador a partida
+@partidas_router.post(path="/{id_partida}", status_code=status.HTTP_200_OK)
+async def unir_jugador_a_partida(id_partida: int, jugador_info: JugadorData, db=Depends(get_db)
+) -> JugadorOut:
+
+    """
+    Une un jugador a una partida existente.
+    
+    Parameters
+    ----------
+    id_partida: int
+        ID de la partida a la que se unirá el jugador
+    
+    Returns
+    -------
+    PartidaOut
+        Datos de la partida actualizada con el jugador creado
+    """
+    try:
+        partida = PartidaService(db).obtener_por_id(id_partida)
+        print(f'cantidad de jugadores en la partida con el ID: {id_partida} = {partida.cantJugadores}')
+    
+        if(partida.cantJugadores == partida.maxJugadores):
+            print("ac'a entro al if que esta llena la partida")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="La partida ya tiene el máximo de jugadores."
+            )
+        try:
+            jugador_creado = JugadorService(db).crear_unir(id_partida, jugador_dto=jugador_info.to_dto())
+            PartidaService(db).unir_jugador(id_partida, jugador_creado)
+        
+            return JugadorOut(
+                id_jugador = jugador_creado.id,
+            nombre_jugador = jugador_creado.nombre,
+            fecha_nacimiento = jugador_creado.fecha_nacimiento
+            )
+    
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(f'No se encontro la partida con el ID {id_partida}.')
+        )
+        
 # endpoint post /partidas crear (devuelve id_partida) faltan unittest
 # endpoint get /partidas listar (devuelve lista de partidas con nombre partida, cantJugadores, lista jugadores)
 # endpoint get /partida/{id} info de la partida (devuelve nombre partida, etc)

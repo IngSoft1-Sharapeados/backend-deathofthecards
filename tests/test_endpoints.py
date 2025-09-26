@@ -31,14 +31,32 @@ def partidas_mock():
     partida1.nombre = "PartidaUno"
     partida1.iniciada = False
     partida1.maxJugadores = 4
+    partida1.minJugadores=2
+    partida1.cantJugadores=3
 
     partida2 = MagicMock()
     partida2.id = 2
     partida2.nombre = "PartidaDos"
-    partida2.iniciada = True
+    partida2.iniciada = False
     partida2.maxJugadores = 5
+    partida2.minJugadores=3
+    partida2.cantJugadores=4
 
     return [partida1, partida2]
+
+@pytest.fixture
+def jugadores_mock():
+    j1 = MagicMock()
+    j1.id = 1
+    j1.nombre = "Pepito"
+    j1.fecha_nacimiento = date(2023, 2, 2)
+
+    j2 = MagicMock()
+    j2.id = 2
+    j2.nombre = "Raul"
+    j2.fecha_nacimiento = date(1023, 3, 12)
+
+    return [j1, j2]
 
 
 # usa los ALIASES con guiones como espera PartidaData
@@ -228,7 +246,8 @@ def test_partida_data_model():
 
 # --------------------- TEST OBTENER DATOS PARTIDA OK ---------------------
 @patch('game.partidas.endpoints.PartidaService')
-def test_obtener_datos_partida_ok(mock_PartidaService, datosPartida_1, session: sessionmaker):
+def test_obtener_datos_partida_ok(mock_PartidaService, datosPartida_1, 
+                                    session: sessionmaker, jugadores_mock):
 
     def get_db_override():
         yield session  
@@ -242,6 +261,9 @@ def test_obtener_datos_partida_ok(mock_PartidaService, datosPartida_1, session: 
     mock_partida.nombre = datosPartida_1["nombre-partida"]
     mock_partida.iniciada = False
     mock_partida.maxJugadores = datosPartida_1["max-jugadores"]
+    mock_partida.minJugadores = datosPartida_1["min-jugadores"]
+    mock_partida.cantJugadores = len(jugadores_mock)
+    mock_partida.jugadores = jugadores_mock
     mock_service.obtener_por_id.return_value = mock_partida
     mock_PartidaService.return_value = mock_service
 
@@ -253,7 +275,13 @@ def test_obtener_datos_partida_ok(mock_PartidaService, datosPartida_1, session: 
     assert response.json() == {
         "nombre_partida": datosPartida_1["nombre-partida"],
         "iniciada": False,
-        "maxJugadores": datosPartida_1["max-jugadores"]
+        "maxJugadores": datosPartida_1["max-jugadores"],
+        "minJugadores": 2,
+        "listaJugadores": [
+            {"id_jugador": 1, "nombre_jugador": "Pepito", "fecha_nacimiento": "2023-02-02"},
+            {"id_jugador": 2, "nombre_jugador": "Raul", "fecha_nacimiento": "1023-03-12"}
+        ],
+        "cantidad_jugadores": 2
     }
 
 # --------------------- TEST OBTENER DATOS PARTIDA NO ENCONTRADA ---------------------
@@ -306,12 +334,16 @@ def test_listar_partidas_ok(mock_PartidaService, partidas_mock, session: session
             "nombre": "PartidaUno",
             "iniciada": False,
             "maxJugadores": 4,
+            "minJugadores": 2,
+            "cantJugadores":3,
         },
         {
             "id": 2,
             "nombre": "PartidaDos",
-            "iniciada": True,
+            "iniciada": False,
             "maxJugadores": 5,
+            "minJugadores": 3,
+            "cantJugadores":4,
         },
     ]
 
@@ -337,4 +369,82 @@ def test_listar_partidas_vacio(mock_PartidaService, session: sessionmaker):
 
     assert response.status_code == 200
     assert response.json() == []
+    
+    # ---------------- FIXTURE ----------------
+@pytest.fixture
+def jugador_data():
+    return {
+        "nombreJugador": "Jtest",
+        "fechaNacimiento": "2000-10-31"
+    }
 
+# ---------------- TEST OK ----------------
+@patch("game.partidas.endpoints.PartidaService")
+@patch("game.partidas.endpoints.JugadorService")
+def test_unir_jugador_a_partida_ok(mock_JugadorService, mock_PartidaService, jugador_data, session):
+    def get_db_override():
+        yield session
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    # Mock de partida con espacio disponible
+    mock_partida = MagicMock()
+    mock_partida.id = 1
+    mock_partida.cantJugadores = 2
+    mock_partida.maxJugadores = 4
+    mock_PartidaService.return_value.obtener_por_id.return_value = mock_partida
+
+    # Mock de jugador creado
+    mock_jugador = MagicMock()
+    mock_jugador.id = 99
+    mock_jugador.nombre = "Jtest"
+    mock_jugador.fecha_nacimiento = "2000-10-31"
+    mock_JugadorService.return_value.crear_unir.return_value = mock_jugador
+
+    # Mock de unir_jugador (no devuelve nada relevante)
+    mock_PartidaService.return_value.unir_jugador.return_value = None
+
+    response = client.post("/partidas/1", json=jugador_data)
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "id_jugador": 99,
+        "nombre_jugador": "Jtest",
+        "fecha_nacimiento": "2000-10-31"
+    }
+    
+# ---------------- TEST PARTIDA LLENA ----------------
+@patch("game.partidas.endpoints.PartidaService")
+def test_unir_jugador_partida_llena(mock_PartidaService, jugador_data, session):
+    def get_db_override():
+        yield session
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    mock_partida = MagicMock()
+    mock_partida.cantJugadores = 4
+    mock_partida.maxJugadores = 4
+    mock_PartidaService.return_value.obtener_por_id.return_value = mock_partida
+
+    response = client.post("/partidas/1", json=jugador_data)
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "La partida ya tiene el máximo de jugadores."
+
+# ---------------- TEST PARTIDA NO ENCONTRADA ----------------
+@patch("game.partidas.endpoints.PartidaService")
+def test_unir_jugador_partida_no_encontrada(mock_PartidaService, jugador_data, session):
+    def get_db_override():
+        yield session
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    mock_PartidaService.return_value.obtener_por_id.side_effect = Exception("No se encontró")
+
+    response = client.post("/partidas/999", json=jugador_data)
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 404
+    assert "No se encontro la partida" in response.json()["detail"]
