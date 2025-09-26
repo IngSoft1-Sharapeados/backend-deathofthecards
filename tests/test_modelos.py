@@ -23,7 +23,7 @@ def db():
         Base.metadata.drop_all(bind=engine)
 
 def test_crear_partida(db):
-    partida = Partida(nombre="partida1", nombreAnfitrion="Anfi", cantJugadores=1, iniciada=False, maxJugadores=5)
+    partida = Partida(nombre="partida1", anfitrionId=1, cantJugadores=1, iniciada=False, maxJugadores=4, minJugadores=2)
     db.add(partida)
     db.commit()
     db.refresh(partida)
@@ -41,7 +41,7 @@ def test_crear_jugador(db):
 
 def test_relaciones(db):
     nacimiento2 = datetime.date(2010, 1, 31)
-    partida = Partida(nombre="partida2", nombreAnfitrion="Anfi2", cantJugadores=1, iniciada=False, maxJugadores=2)
+    partida = Partida(nombre="partida2", anfitrionId=2, cantJugadores=1, iniciada=False, maxJugadores=5, minJugadores=2)
     jugador = Jugador(nombre="jugador2", fecha_nacimiento=nacimiento2, partida=partida)
     carta = Carta(nombre="You're the murderer", tipo="Secreto", jugador=jugador)
     db.add(partida)

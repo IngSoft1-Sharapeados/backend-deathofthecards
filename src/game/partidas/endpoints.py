@@ -58,7 +58,7 @@ async def crear_partida(partida_info: PartidaData, db=Depends(get_db)
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=str(e)
             )
-        return PartidaResponse(id_partida=partida_creada.id, id_jugador=jugador_creado.id, id_Anfitreon=jugador_creado.id)
+        return PartidaResponse(id_partida=partida_creada.id, id_jugador=jugador_creado.id, id_Anfitrion=jugador_creado.id)
 
 #quiero hacer el endpoint obtener partida.
 @partidas_router.get(path="/{id_partida}", status_code=status.HTTP_200_OK)
@@ -97,7 +97,8 @@ async def obtener_datos_partida(id_partida: int, db=Depends(get_db)) -> PartidaO
             maxJugadores=partida_obtenida.maxJugadores,
             minJugadores=partida_obtenida.minJugadores,
             listaJugadores=listaJ,
-            cantidad_jugadores=partida_obtenida.cantJugadores
+            cantidad_jugadores=partida_obtenida.cantJugadores,
+            id_anfitrion = partida_obtenida.anfitrionId,
         )
 
 @partidas_router.get(path="", status_code = status.HTTP_200_OK)
