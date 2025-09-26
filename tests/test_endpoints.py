@@ -31,12 +31,16 @@ def partidas_mock():
     partida1.nombre = "PartidaUno"
     partida1.iniciada = False
     partida1.maxJugadores = 4
+    partida1.minJugadores = 2
+    partida1.cantJugadores = 3
 
     partida2 = MagicMock()
     partida2.id = 2
     partida2.nombre = "PartidaDos"
     partida2.iniciada = True
     partida2.maxJugadores = 5
+    partida2.minJugadores = 2
+    partida2.cantJugadores = 5
 
     return [partida1, partida2]
 
@@ -89,9 +93,10 @@ def test_crear_partida_ok(mock_JugadorService, mock_PartidaService, datosPartida
 
     # Limpiar
     app.dependency_overrides.clear()
+    print("response:", response.json())
     
     assert response.status_code == 201
-    assert response.json() == {"id_partida": 1, "id_jugador": 1}
+    assert response.json() == {"id_Anfitreon":1, "id_partida": 1, "id_jugador": 1}
 
 # --------- TESTS CREAR PARTIDA MAX JUGADORES EXCEDIDOS --------------------------------
 
@@ -227,23 +232,26 @@ def test_partida_data_model():
     assert partida_data.fechaNacimiento == date(2000, 10, 31)
 
 # --------------------- TEST OBTENER DATOS PARTIDA OK ---------------------
+@patch('game.partidas.endpoints.listar_jugadores') 
 @patch('game.partidas.endpoints.PartidaService')
-def test_obtener_datos_partida_ok(mock_PartidaService, datosPartida_1, session: sessionmaker):
-
+def test_obtener_datos_partida_ok(mock_PartidaService, mock_listar_jugadores, datosPartida_1, session):
+    """Test para obtener los datos de una partida exitosamente"""
     def get_db_override():
         yield session  
 
     app.dependency_overrides[get_db] = get_db_override
     client = TestClient(app)
 
-    mock_service = MagicMock()
     mock_partida = MagicMock()
-    mock_partida.id = 1
     mock_partida.nombre = datosPartida_1["nombre-partida"]
     mock_partida.iniciada = False
     mock_partida.maxJugadores = datosPartida_1["max-jugadores"]
-    mock_service.obtener_por_id.return_value = mock_partida
-    mock_PartidaService.return_value = mock_service
+    mock_partida.minJugadores = datosPartida_1["min-jugadores"] 
+    mock_partida.anfitrion_id = 1  
+    mock_partida.cantJugadores = 1
+
+    mock_PartidaService.return_value.obtener_por_id.return_value = mock_partida
+    mock_listar_jugadores.return_value = []
 
     response = client.get("/partidas/1")
 
@@ -251,9 +259,13 @@ def test_obtener_datos_partida_ok(mock_PartidaService, datosPartida_1, session: 
     
     assert response.status_code == 200
     assert response.json() == {
-        "nombre_partida": datosPartida_1["nombre-partida"],
+        "nombre_partida": "partiditaTEST",
         "iniciada": False,
-        "maxJugadores": datosPartida_1["max-jugadores"]
+        "maxJugadores": 4,
+        "minJugadores": 2,
+        "id_anfitrion": 1,
+        "listaJugadores": [],
+        "cantidad_jugadores": 1
     }
 
 # --------------------- TEST OBTENER DATOS PARTIDA NO ENCONTRADA ---------------------
@@ -306,12 +318,16 @@ def test_listar_partidas_ok(mock_PartidaService, partidas_mock, session: session
             "nombre": "PartidaUno",
             "iniciada": False,
             "maxJugadores": 4,
+            "minJugadores": 2,
+            "cantJugadores": 3
         },
         {
             "id": 2,
             "nombre": "PartidaDos",
             "iniciada": True,
             "maxJugadores": 5,
+            "minJugadores": 2,
+            "cantJugadores": 5
         },
     ]
 
