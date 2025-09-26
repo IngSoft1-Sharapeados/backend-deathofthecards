@@ -369,4 +369,82 @@ def test_listar_partidas_vacio(mock_PartidaService, session: sessionmaker):
 
     assert response.status_code == 200
     assert response.json() == []
+    
+    # ---------------- FIXTURE ----------------
+@pytest.fixture
+def jugador_data():
+    return {
+        "nombreJugador": "Jtest",
+        "fechaNacimiento": "2000-10-31"
+    }
 
+# ---------------- TEST OK ----------------
+@patch("game.partidas.endpoints.PartidaService")
+@patch("game.partidas.endpoints.JugadorService")
+def test_unir_jugador_a_partida_ok(mock_JugadorService, mock_PartidaService, jugador_data, session):
+    def get_db_override():
+        yield session
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    # Mock de partida con espacio disponible
+    mock_partida = MagicMock()
+    mock_partida.id = 1
+    mock_partida.cantJugadores = 2
+    mock_partida.maxJugadores = 4
+    mock_PartidaService.return_value.obtener_por_id.return_value = mock_partida
+
+    # Mock de jugador creado
+    mock_jugador = MagicMock()
+    mock_jugador.id = 99
+    mock_jugador.nombre = "Jtest"
+    mock_jugador.fecha_nacimiento = "2000-10-31"
+    mock_JugadorService.return_value.crear_unir.return_value = mock_jugador
+
+    # Mock de unir_jugador (no devuelve nada relevante)
+    mock_PartidaService.return_value.unir_jugador.return_value = None
+
+    response = client.post("/partidas/1", json=jugador_data)
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "id_jugador": 99,
+        "nombre_jugador": "Jtest",
+        "fecha_nacimiento": "2000-10-31"
+    }
+    
+# ---------------- TEST PARTIDA LLENA ----------------
+@patch("game.partidas.endpoints.PartidaService")
+def test_unir_jugador_partida_llena(mock_PartidaService, jugador_data, session):
+    def get_db_override():
+        yield session
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    mock_partida = MagicMock()
+    mock_partida.cantJugadores = 4
+    mock_partida.maxJugadores = 4
+    mock_PartidaService.return_value.obtener_por_id.return_value = mock_partida
+
+    response = client.post("/partidas/1", json=jugador_data)
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "La partida ya tiene el máximo de jugadores."
+
+# ---------------- TEST PARTIDA NO ENCONTRADA ----------------
+@patch("game.partidas.endpoints.PartidaService")
+def test_unir_jugador_partida_no_encontrada(mock_PartidaService, jugador_data, session):
+    def get_db_override():
+        yield session
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    mock_PartidaService.return_value.obtener_por_id.side_effect = Exception("No se encontró")
+
+    response = client.post("/partidas/999", json=jugador_data)
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 404
+    assert "No se encontro la partida" in response.json()["detail"]
