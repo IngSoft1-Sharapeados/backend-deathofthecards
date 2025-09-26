@@ -95,6 +95,8 @@ async def listar_partidas(db=Depends(get_db)) -> List[PartidaListar]:
             id=p.id,
             nombre=p.nombre,
             iniciada=p.iniciada,
+            cantJugadores=p.cantJugadores,
+            minJugadores=p.minJugadores,
             maxJugadores=p.maxJugadores
         )
         for p in partidas_listadas
