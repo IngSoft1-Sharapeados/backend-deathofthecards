@@ -30,6 +30,7 @@ class PartidaResponse(BaseModel):
     """
     id_partida: int
     id_jugador: int
+    id_Anfitreon: int
 
 class PartidaOut(BaseModel):
     """

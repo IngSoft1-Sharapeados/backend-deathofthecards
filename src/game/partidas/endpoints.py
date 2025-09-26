@@ -54,7 +54,7 @@ async def crear_partida(partida_info: PartidaData, db=Depends(get_db)
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=str(e)
             )
-        return PartidaResponse(id_partida=partida_creada.id, id_jugador=jugador_creado.id)
+        return PartidaResponse(id_partida=partida_creada.id, id_jugador=jugador_creado.id, id_Anfitreon=jugador_creado.id)
 
 #quiero hacer el endpoint obtener partida.
 @partidas_router.get(path="/{id_partida}", status_code=status.HTTP_200_OK)
@@ -109,6 +109,56 @@ async def listar_partidas(db=Depends(get_db)) -> List[PartidaListar]:
         )
         for p in partidas_listadas
     ]
+
+
+#endpoint iniciar partida
+@partidas_router.put(path="", status_code=status.HTTP_200_OK)
+async def iniciar_partida(id_partida: int, db=Depends(get_db)) -> None:
+    """
+    Inicia una partida si el jugador es el anfitrión y se cumplen las condiciones.
+    
+    Parameters
+    ----------
+    id_partida: int
+        ID de la partida a iniciar
+    id_jugador: int
+        ID del jugador que intenta iniciar la partida
+    
+    Returns
+    -------
+    None
+        No retorna nada, solo cambia el estado de la partida a iniciada
+    """
+    partida_a_iniciar = PartidaService(db).obtener_por_id(id_partida)
+
+    if partida_a_iniciar is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No se encontró la partida con ID {id_partida}"
+        )
+    
+    if partida_a_iniciar.iniciada:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La partida ya ha sido iniciada."
+        )
+
+    if (partida_a_iniciar.cantJugadores < partida_a_iniciar.minJugadores):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se puede iniciar la partida. No se ha alcanzado el mínimo de jugadores."
+        )
+
+    try:
+        PartidaService(db).iniciar_partida(id_partida)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    return None
+
+
 # endpoint post /partidas crear (devuelve id_partida) faltan unittest
 # endpoint get /partidas listar (devuelve lista de partidas con nombre partida, cantJugadores, lista jugadores)
 # endpoint get /partida/{id} info de la partida (devuelve nombre partida, etc)
