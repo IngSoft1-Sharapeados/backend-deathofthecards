@@ -177,8 +177,6 @@ async def unir_jugador_a_partida(id_partida: int, jugador_info: JugadorData, db=
             status_code=status.HTTP_404_NOT_FOUND,
             detail=(f'No se encontro la partida con el ID {id_partida}.')
         )
-    
-
 # endpoint post unir jugador a partida
 @partidas_router.post(path="/{id_partida}", status_code=status.HTTP_200_OK)
 async def unir_jugador_a_partida(id_partida: int, jugador_info: JugadorData, db=Depends(get_db)) -> JugadorOut                                                                                                                              :
@@ -247,11 +245,4 @@ async def iniciar_partida(id_partida: int, data: IniciarPartidaData, db=Depends(
         )
 
 
-
-# endpoint post /partidas crear (devuelve id_partida) faltan unittest
-# endpoint get /partidas listar (devuelve lista de partidas con nombre partida, cantJugadores, lista jugadores)
-# endpoint get /partida/{id} info de la partida (devuelve nombre partida, etc)
-# endpoint post /jugadores crear jugador (nombre. fecha nacimiento) devuelve id_jugador
-# endpoint get /jugadores/{id} info del jugador (devuelve nombre, fecha nac, id_jugador)
-# endpoint put /partidas/{id_partida}/{id_jugador}
 
