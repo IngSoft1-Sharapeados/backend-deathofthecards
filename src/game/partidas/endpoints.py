@@ -96,7 +96,6 @@ async def obtener_datos_partida(id_partida: int, db=Depends(get_db)) -> PartidaO
             iniciada=partida_obtenida.iniciada,
             maxJugadores=partida_obtenida.maxJugadores,
             minJugadores=partida_obtenida.minJugadores,
-            id_anfitrion=partida_obtenida.anfitrionId,
             listaJugadores=listaJ,
             cantidad_jugadores=partida_obtenida.cantJugadores,
             id_anfitrion = partida_obtenida.anfitrionId,

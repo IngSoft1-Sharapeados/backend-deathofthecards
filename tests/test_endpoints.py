@@ -242,7 +242,9 @@ def test_obtener_datos_partida_ok(mock_PartidaService, mock_listar_jugadores, da
     app.dependency_overrides[get_db] = get_db_override
     client = TestClient(app)
 
+    mock_service = MagicMock()
     mock_partida = MagicMock()
+    mock_partida.id = 1
     mock_partida.nombre = datosPartida_1["nombre-partida"]
     mock_partida.iniciada = False
     mock_partida.maxJugadores = datosPartida_1["max-jugadores"]
