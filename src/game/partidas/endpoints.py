@@ -100,12 +100,15 @@ async def listar_partidas(db=Depends(get_db)) -> List[PartidaListar]:
     """
 
     partidas_listadas = PartidaService(db).listar()
+    partidas_listadas = PartidaService(db).listar()
     return [
         PartidaListar(
             id=p.id,
             nombre=p.nombre,
             iniciada=p.iniciada,
-            maxJugadores=p.maxJugadores
+            minJugadores=p.minJugadores,
+            maxJugadores=p.maxJugadores,
+            cantJugadores=p.cantJugadores +1, #aca sin el +1 nos mandan la tabla jugador que esta vacia por algun motivo
         )
         for p in partidas_listadas
     ]

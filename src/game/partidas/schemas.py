@@ -46,6 +46,10 @@ class PartidaListar(BaseModel):
     id: int
     nombre: str
     iniciada: bool
+    minJugadores: int
     maxJugadores: int
+    cantJugadores: int
 
+    class Config:
+        orm_mode = True
 
