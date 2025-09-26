@@ -54,8 +54,8 @@ class PartidaService:
             La partida obtenida
         """
         partida = self._db.query(Partida).filter(Partida.id == id_partida).first()
-        if not partida:
-            raise Exception("No se encontró la partida con el ID proporcionado.")
+        # if not partida:
+        #     raise Exception("No se encontró la partida con el ID proporcionado.")
         return partida
         
     def listar(self) -> List[Partida]:

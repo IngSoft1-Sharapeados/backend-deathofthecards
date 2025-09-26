@@ -3,7 +3,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 from game.partidas.dtos import PartidaDTO
 from datetime import date
-from game.jugadores.dtos import JugadorDTO
+from game.jugadores.schemas import JugadorOut
 
 class PartidaData(BaseModel):
     """
@@ -39,6 +39,9 @@ class PartidaOut(BaseModel):
     nombre_partida: str
     iniciada: bool
     maxJugadores: int
+    minJugadores: int
+    listaJugadores: List[JugadorOut]
+    cantidad_jugadores: int
 
 class PartidaListar(BaseModel):
     """
@@ -48,5 +51,7 @@ class PartidaListar(BaseModel):
     nombre: str
     iniciada: bool
     maxJugadores: int
+    minJugadores: int
+    cantJugadores: int
 
 
