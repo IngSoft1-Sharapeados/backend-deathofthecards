@@ -31,6 +31,7 @@ class PartidaResponse(BaseModel):
     """
     id_partida: int
     id_jugador: int
+    id_Anfitrion: int
 
 class PartidaOut(BaseModel):
     """
@@ -42,6 +43,13 @@ class PartidaOut(BaseModel):
     minJugadores: int
     listaJugadores: List[JugadorOut]
     cantidad_jugadores: int
+    id_anfitrion: int
+
+class IniciarPartidaData(BaseModel):
+    """
+    Schema para los datos de la petición de iniciar partida
+    """
+    id_jugador: int
 
 class PartidaListar(BaseModel):
     """

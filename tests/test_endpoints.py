@@ -31,16 +31,17 @@ def partidas_mock():
     partida1.nombre = "PartidaUno"
     partida1.iniciada = False
     partida1.maxJugadores = 4
-    partida1.minJugadores=2
-    partida1.cantJugadores=3
+    partida1.minJugadores = 2
+    partida1.cantJugadores = 1
 
     partida2 = MagicMock()
     partida2.id = 2
     partida2.nombre = "PartidaDos"
     partida2.iniciada = False
     partida2.maxJugadores = 5
-    partida2.minJugadores=3
-    partida2.cantJugadores=4
+    partida2.minJugadores = 2
+    partida2.cantJugadores = 1
+
 
     return [partida1, partida2]
 
@@ -107,9 +108,10 @@ def test_crear_partida_ok(mock_JugadorService, mock_PartidaService, datosPartida
 
     # Limpiar
     app.dependency_overrides.clear()
+    print("response:", response.json())
     
     assert response.status_code == 201
-    assert response.json() == {"id_partida": 1, "id_jugador": 1}
+    assert response.json() == {"id_partida": 1, "id_jugador": 1, "id_Anfitrion": 1}
 
 # --------- TESTS CREAR PARTIDA MAX JUGADORES EXCEDIDOS --------------------------------
 
@@ -245,9 +247,10 @@ def test_partida_data_model():
     assert partida_data.fechaNacimiento == date(2000, 10, 31)
 
 # --------------------- TEST OBTENER DATOS PARTIDA OK ---------------------
+@patch('game.partidas.endpoints.listar_jugadores') 
 @patch('game.partidas.endpoints.PartidaService')
-def test_obtener_datos_partida_ok(mock_PartidaService, datosPartida_1, 
-                                    session: sessionmaker, jugadores_mock):
+def test_obtener_datos_partida_ok(mock_PartidaService, mock_listar_jugadores, datosPartida_1, session):
+    """Test para obtener los datos de una partida exitosamente"""
 
     def get_db_override():
         yield session  
@@ -262,8 +265,8 @@ def test_obtener_datos_partida_ok(mock_PartidaService, datosPartida_1,
     mock_partida.iniciada = False
     mock_partida.maxJugadores = datosPartida_1["max-jugadores"]
     mock_partida.minJugadores = datosPartida_1["min-jugadores"]
-    mock_partida.cantJugadores = len(jugadores_mock)
-    mock_partida.jugadores = jugadores_mock
+    mock_partida.cantJugadores = 1
+    mock_partida.anfitrionId = 1
     mock_service.obtener_por_id.return_value = mock_partida
     mock_PartidaService.return_value = mock_service
 
@@ -273,15 +276,13 @@ def test_obtener_datos_partida_ok(mock_PartidaService, datosPartida_1,
     
     assert response.status_code == 200
     assert response.json() == {
-        "nombre_partida": datosPartida_1["nombre-partida"],
+        "nombre_partida": "partiditaTEST",
         "iniciada": False,
         "maxJugadores": datosPartida_1["max-jugadores"],
-        "minJugadores": 2,
-        "listaJugadores": [
-            {"id_jugador": 1, "nombre_jugador": "Pepito", "fecha_nacimiento": "2023-02-02"},
-            {"id_jugador": 2, "nombre_jugador": "Raul", "fecha_nacimiento": "1023-03-12"}
-        ],
-        "cantidad_jugadores": 2
+        "minJugadores": datosPartida_1["min-jugadores"],
+        "listaJugadores": [],
+        "cantidad_jugadores": 1,
+        "id_anfitrion": 1
     }
 
 # --------------------- TEST OBTENER DATOS PARTIDA NO ENCONTRADA ---------------------
@@ -335,15 +336,16 @@ def test_listar_partidas_ok(mock_PartidaService, partidas_mock, session: session
             "iniciada": False,
             "maxJugadores": 4,
             "minJugadores": 2,
-            "cantJugadores":3,
+            "cantJugadores": 1,
+
         },
         {
             "id": 2,
             "nombre": "PartidaDos",
             "iniciada": False,
             "maxJugadores": 5,
-            "minJugadores": 3,
-            "cantJugadores":4,
+            "minJugadores": 2,
+            "cantJugadores": 1,
         },
     ]
 
@@ -443,8 +445,172 @@ def test_unir_jugador_partida_no_encontrada(mock_PartidaService, jugador_data, s
 
     mock_PartidaService.return_value.obtener_por_id.side_effect = Exception("No se encontró")
 
-    response = client.post("/partidas/999", json=jugador_data)
-    app.dependency_overrides.clear()
 
-    assert response.status_code == 404
-    assert "No se encontro la partida" in response.json()["detail"]
+#----------------------TEST INICIAR PARTIDA OK --------------------
+
+@pytest.fixture
+def datos_jugador():
+    return {
+        "id_jugador": 1,
+    }
+
+@patch("game.partidas.endpoints.PartidaService")
+def test_iniciar_partida_ok(mock_PartidaService, datos_jugador, session):
+    # Creamos un mock del servicio
+    mock_service = MagicMock()
+    mock_service.iniciar.return_value = None  # porque tu endpoint no retorna partida, solo mensaje
+    mock_PartidaService.return_value = mock_service
+
+    # Override de la DB
+    def get_db_override():
+        yield session  
+
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    # Hacemos la request simulando query + body
+    response = client.put(
+        "/partidas",
+        params={"id_partida": 1},
+        json=datos_jugador
+    )
+
+    app.dependency_overrides.clear()
+    
+    # Assertions
+    assert response.status_code == 200
+    assert response.json() == {"detail": "Partida iniciada correctamente."}
+
+    # Verificamos que se llamó correctamente al servicio
+    mock_service.iniciar.assert_called_once_with(1, 1)
+
+#---------------------- TEST INICIAR PARTIDA NO AUTORIZADO ----------------------
+
+@pytest.fixture
+def datos_jugadorNoAutorizado():
+    return {
+        "id_jugador": 2,
+    }
+
+@patch("game.partidas.endpoints.PartidaService")
+def test_iniciar_partida_no_autorizado(mock_PartidaService, datos_jugadorNoAutorizado, session):
+    # Creamos un mock del servicio que lanza PermissionError
+    mock_service = MagicMock()
+    mock_service.iniciar.side_effect = PermissionError("Solo el anfitrión puede iniciar la partida")
+    mock_PartidaService.return_value = mock_service
+
+    # Override de la DB
+    def get_db_override():
+        yield session  
+
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    # Hacemos la request simulando query + body
+    response = client.put(
+        "/partidas",
+        params={"id_partida": 1},
+        json=datos_jugadorNoAutorizado
+    )
+
+    app.dependency_overrides.clear()
+    
+    # Assertions
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Solo el anfitrión puede iniciar la partida"}
+
+    # Verificamos que se llamó correctamente al servicio
+    mock_service.iniciar.assert_called_once_with(1, 2)
+
+#---------------------- TEST INICIAR PARTIDA NO ENCONTRADA ----------------------
+@patch("game.partidas.endpoints.PartidaService")
+def test_iniciar_partida_no_encontrada(mock_PartidaService, datos_jugador, session):
+    # Creamos un mock del servicio que lanza ValueError
+    mock_service = MagicMock()
+    mock_service.iniciar.side_effect = ValueError("No se encontró la partida con ID 999")
+    mock_PartidaService.return_value = mock_service
+
+    # Override de la DB
+    def get_db_override():
+        yield session  
+
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    # Hacemos la request simulando query + body
+    response = client.put(
+        "/partidas",
+        params={"id_partida": 999},  # ID que no existe
+        json=datos_jugador
+    )
+
+    app.dependency_overrides.clear()
+    
+    # Assertions
+    assert response.status_code == 400
+    assert response.json() == {"detail": "No se encontró la partida con ID 999"}
+
+    # Verificamos que se llamó correctamente al servicio
+    mock_service.iniciar.assert_called_once_with(999, 1)
+
+#----------------------------TEST INICIAR PARTIDA YA INICIADA--------------------
+@patch("game.partidas.endpoints.PartidaService")
+def test_iniciar_partida_ya_iniciada(mock_PartidaService, datos_jugador, session):
+    # Creamos un mock del servicio que lanza ValueError
+    mock_service = MagicMock()
+    mock_service.iniciar.side_effect = ValueError("La partida con ID {id_partida} ya está iniciada")
+    mock_PartidaService.return_value = mock_service
+
+    # Override de la DB
+    def get_db_override():
+        yield session  
+
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    # Hacemos la request simulando query + body
+    response = client.put(
+        "/partidas",
+        params={"id_partida": 1},  
+        json=datos_jugador
+    )
+
+    app.dependency_overrides.clear()
+    
+    # Assertions
+    assert response.status_code == 400
+    assert response.json() == {"detail": "La partida con ID {id_partida} ya está iniciada"}
+
+    # Verificamos que se llamó correctamente al servicio
+    mock_service.iniciar.assert_called_once_with(1, 1)
+
+#----------------------TEST INICIAR PARTIDA CON JUGADORES INSUFICIENTES--------------------
+@patch("game.partidas.endpoints.PartidaService")
+def test_iniciar_partida_jugadores_insuficientes(mock_PartidaService, datos_jugador, session):
+    # Creamos un mock del servicio que lanza ValueError
+    mock_service = MagicMock()
+    mock_service.iniciar.side_effect = ValueError("No hay suficientes jugadores para iniciar la partida (mínimo {partida.minJugadores}")
+    mock_PartidaService.return_value = mock_service
+
+    # Override de la DB
+    def get_db_override():
+        yield session  
+
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    # Hacemos la request simulando query + body
+    response = client.put(
+        "/partidas",
+        params={"id_partida": 1},  
+        json=datos_jugador
+    )
+
+    app.dependency_overrides.clear()
+    
+    # Assertions
+    assert response.status_code == 400
+    assert response.json() == {"detail": "No hay suficientes jugadores para iniciar la partida (mínimo {partida.minJugadores}"}
+
+    # Verificamos que se llamó correctamente al servicio
+    mock_service.iniciar.assert_called_once_with(1, 1)

@@ -3,7 +3,7 @@ from typing import List, Optional
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status
 from game.partidas.models import Partida
-from game.partidas.schemas import PartidaData, PartidaResponse, PartidaOut, PartidaListar
+from game.partidas.schemas import PartidaData, PartidaResponse, PartidaOut, PartidaListar, IniciarPartidaData
 from game.partidas.services import PartidaService
 from game.jugadores.models import Jugador
 from game.jugadores.schemas import JugadorData, JugadorResponse, JugadorOut
@@ -52,12 +52,13 @@ async def crear_partida(partida_info: PartidaData, db=Depends(get_db)
         try:
             partida_creada = PartidaService(db).crear(partida_dto=partida_info.to_dto())
             jugador_creado = JugadorService(db).crear(partida_creada.id, jugador_dto=partida_info.to_dto())
+            PartidaService(db).asignar_anfitrion(partida_creada, jugador_creado.id)
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=str(e)
             )
-        return PartidaResponse(id_partida=partida_creada.id, id_jugador=jugador_creado.id)
+        return PartidaResponse(id_partida=partida_creada.id, id_jugador=jugador_creado.id, id_Anfitrion=jugador_creado.id)
 
 #quiero hacer el endpoint obtener partida.
 @partidas_router.get(path="/{id_partida}", status_code=status.HTTP_200_OK)
@@ -96,7 +97,8 @@ async def obtener_datos_partida(id_partida: int, db=Depends(get_db)) -> PartidaO
             maxJugadores=partida_obtenida.maxJugadores,
             minJugadores=partida_obtenida.minJugadores,
             listaJugadores=listaJ,
-            cantidad_jugadores=partida_obtenida.cantJugadores
+            cantidad_jugadores=partida_obtenida.cantJugadores,
+            id_anfitrion = partida_obtenida.anfitrionId,
         )
 
 @partidas_router.get(path="", status_code = status.HTTP_200_OK)
@@ -175,11 +177,72 @@ async def unir_jugador_a_partida(id_partida: int, jugador_info: JugadorData, db=
             status_code=status.HTTP_404_NOT_FOUND,
             detail=(f'No se encontro la partida con el ID {id_partida}.')
         )
-        
-# endpoint post /partidas crear (devuelve id_partida) faltan unittest
-# endpoint get /partidas listar (devuelve lista de partidas con nombre partida, cantJugadores, lista jugadores)
-# endpoint get /partida/{id} info de la partida (devuelve nombre partida, etc)
-# endpoint post /jugadores crear jugador (nombre. fecha nacimiento) devuelve id_jugador
-# endpoint get /jugadores/{id} info del jugador (devuelve nombre, fecha nac, id_jugador)
-# endpoint put /partidas/{id_partida}/{id_jugador}
+# endpoint post unir jugador a partida
+@partidas_router.post(path="/{id_partida}", status_code=status.HTTP_200_OK)
+async def unir_jugador_a_partida(id_partida: int, jugador_info: JugadorData, db=Depends(get_db)) -> JugadorOut                                                                                                                              :
+
+    """
+    Une un jugador a una partida existente.
+    
+    Parameters
+    ----------
+    id_partida: int
+        ID de la partida a la que se unirá el jugador
+    
+    Returns
+    -------
+    PartidaOut
+        Datos de la partida actualizada con el jugador creado
+    """
+    
+    try:
+        jugador_creado = JugadorService(db).crear(id_partida, jugador_dto=jugador_info.to_dto())
+        PartidaService(db).unir_jugador(id_partida, id_jugador=jugador_creado.id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    
+    return JugadorOut(
+        id_jugador=jugador_creado.id,
+        nombre_jugador=jugador_creado.nombre,
+        fecha_nacimiento=jugador_creado.fecha_nacimiento
+    )
+
+
+
+
+#endpoint iniciar partida
+@partidas_router.put(path="", status_code=status.HTTP_200_OK)
+async def iniciar_partida(id_partida: int, data: IniciarPartidaData, db=Depends(get_db)) -> None:
+    """
+    Inicia una partida si el jugador es el anfitrión y se cumplen las condiciones.
+    
+    Parameters
+    ----------
+    id_partida: int
+        ID de la partida a iniciar
+    id_jugador: int
+        ID del jugador que intenta iniciar la partida
+    
+    Returns
+    -------
+    Status 200 OK si la partida se inicia correctamente, de lo contrario lanza una excepción HTTP.
+    """
+    try:
+        partida = PartidaService(db).iniciar(id_partida, data.id_jugador)
+        return {"detail": "Partida iniciada correctamente."}
+    except PermissionError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e)
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
 
