@@ -52,6 +52,7 @@ async def crear_partida(partida_info: PartidaData, db=Depends(get_db)
         try:
             partida_creada = PartidaService(db).crear(partida_dto=partida_info.to_dto())
             jugador_creado = JugadorService(db).crear(partida_creada.id, jugador_dto=partida_info.to_dto())
+            print(f"ID jugador creado: {jugador_creado.id}")
             PartidaService(db).asignar_anfitrion(partida_creada, jugador_creado.id)
         except Exception as e:
             raise HTTPException(
@@ -78,6 +79,7 @@ async def obtener_datos_partida(id_partida: int, db=Depends(get_db)) -> PartidaO
     """
     try:
         partida_obtenida = PartidaService(db).obtener_por_id(id_partida)
+       ## print(f"anfitrionId en BD: {partida_obtenida.anfitrionId}")
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -216,7 +218,7 @@ async def unir_jugador_a_partida(id_partida: int, jugador_info: JugadorData, db=
 
 
 #endpoint iniciar partida
-@partidas_router.put(path="", status_code=status.HTTP_200_OK)
+@partidas_router.put(path="/{id_partida}", status_code=status.HTTP_200_OK)
 async def iniciar_partida(id_partida: int, data: IniciarPartidaData, db=Depends(get_db)) -> None:
     """
     Inicia una partida si el jugador es el anfitrión y se cumplen las condiciones.
