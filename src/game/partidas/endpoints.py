@@ -8,6 +8,7 @@ from game.partidas.services import PartidaService
 from game.jugadores.models import Jugador
 from game.jugadores.schemas import JugadorData, JugadorResponse, JugadorOut
 from game.jugadores.services import JugadorService
+from game.cartas.services import CartaService
 from game.modelos.db import get_db
 from game.partidas.utils import listar_jugadores
 
@@ -230,8 +231,11 @@ async def iniciar_partida(id_partida: int, data: IniciarPartidaData, db=Depends(
     -------
     Status 200 OK si la partida se inicia correctamente, de lo contrario lanza una excepción HTTP.
     """
+    
     try:
         partida = PartidaService(db).iniciar(id_partida, data.id_jugador)
+        mazo_partida = CartaService(db).crear_mazo_inicial(id_partida)
+        CartaService(db).repartir_cartas_iniciales(mazo_partida, partida.jugadores)
         return {"detail": "Partida iniciada correctamente."}
     except PermissionError as e:
         raise HTTPException(
@@ -243,6 +247,4 @@ async def iniciar_partida(id_partida: int, data: IniciarPartidaData, db=Depends(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
-
-
 

@@ -17,3 +17,6 @@ class Carta(Base):
     jugador_id: Mapped[int] = mapped_column(Integer, ForeignKey("jugadores.id"))
     jugador: Mapped["Jugador"] = relationship("Jugador", back_populates="cartas")
 
+    # Relacion de muchos a 1 con partida
+    partida_id: Mapped[int] = mapped_column(Integer, ForeignKey("partidas.id"))
+    partida: Mapped["Partida"] = relationship("Partida", back_populates="cartas")

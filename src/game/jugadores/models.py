@@ -1,6 +1,6 @@
 """Modelo Jugador"""
 
-from sqlalchemy import Column, Integer, String, Table, ForeignKey, Date
+from sqlalchemy import Column, Integer, String, Table, ForeignKey, Date, Boolean
 from sqlalchemy.orm import relationship, mapped_column
 from sqlalchemy.orm import Mapped
 from game.modelos.db import Base
@@ -14,6 +14,7 @@ class Jugador(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String, nullable=False)
     fecha_nacimiento: Mapped[date] = mapped_column(Date, nullable=False)
+    en_turno: Mapped[bool] = mapped_column(Boolean, default=False)
  
     # Relación de 1 a muchos con Carta
     cartas: Mapped[List["Carta"]] = relationship("Carta", back_populates="jugador", cascade="all, delete-orphan")
