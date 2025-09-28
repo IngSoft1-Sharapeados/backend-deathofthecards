@@ -1,16 +1,20 @@
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import date
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+
 import os
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 from game.modelos.db import Base, get_db, get_engine, get_session_local
 from settings import settings
 from main import app
-from game.partidas.models import Partida
+from game.partidas.endpoints import get_manager
 from fastapi import WebSocketDisconnect
 import json
+from starlette.websockets import WebSocket
+from sqlalchemy.pool import StaticPool
 
 #from game.jugadores.models import Jugador
 #from game.partidas.models import Partida
@@ -19,8 +23,15 @@ import json
 # Base de datos en memoria
 @pytest.fixture(name="session")
 def dbTesting_fixture():
-    engine = get_engine()
+    #engine = get_engine()
     #engine = get_engine(settings.TEST_DATABASE_URL)
+    engine = (
+        create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool
+        )
+    )
     TestingSessionLocal = get_session_local(engine)
     Base.metadata.create_all(bind=engine)
     with TestingSessionLocal() as session:
@@ -72,6 +83,37 @@ def datosPartida_1():
         "nombre-jugador": "jugador1TEST",   
         "dia-nacimiento": "2000-10-31"      
     }
+
+@pytest.fixture(name="client")
+def client_fixture(session):
+    """
+    Fixture que crea el TestClient de FastAPI y anula la dependencia de la DB
+    para usar la sesión de prueba (session). Además, limpia el override al finalizar.
+    """
+    
+    # 1. Función de override que usa el fixture 'session'
+    def get_db_override():
+        try:
+            yield session 
+        finally:
+            # Puedes omitir session.close() aquí, ya que el fixture 'session' lo hace al final
+            pass 
+
+    # 2. Aplicar el override antes de crear el cliente
+    app.dependency_overrides[get_db] = get_db_override
+    
+    # 3. Limpiar el ConnectionManager global para aislar tests de WebSocket (Opcional, pero recomendado)
+    from game.partidas.endpoints import manager 
+    manager.active_connections.clear() 
+    manager.active_connections_personal.clear()
+    
+    # 4. Crear el TestClient
+    client = TestClient(app)
+    
+    yield client
+    
+    # 5. Limpieza final: Quitar el override al finalizar el test
+    app.dependency_overrides.clear()
 
 # --------------------- TEST CREAR PARTIDA OK --------------------------------
 @patch('game.partidas.endpoints.PartidaService')
@@ -611,4 +653,135 @@ def test_iniciar_partida_jugadores_insuficientes(mock_PartidaService, datos_juga
 
     # Verificamos que se llamó correctamente al servicio
     mock_service.iniciar.assert_called_once_with(1, 1)
+
+
+# La ruta para crear la partida es /partidas/
+CREATE_PARTIDA_PATH = "/partidas" 
+
+def test_websocket_broadcast_al_unir_jugador(session):
+    """
+    Verifica que al unirse un segundo jugador mediante el endpoint HTTP, 
+    el primer jugador conectado al WebSocket reciba el mensaje de broadcast.
+    """
+    # Override de la DB
+    def get_db_override():
+        yield session  
+
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    jugador1_data = {
+        "nombre-partida": "PartidaUnidad",
+        "max-jugadores": 4,
+        "min-jugadores": 2,
+        "nombre-jugador": "Jugador1_Oye",
+        "dia-nacimiento": "2000-01-01"
+    }
+    
+    response_creacion = client.post(CREATE_PARTIDA_PATH, json=jugador1_data)
+    print("Status code:", response_creacion.status_code)
+    print("Response body:", response_creacion.text)
+    assert response_creacion.status_code == 201
+    
+    data_creacion = response_creacion.json()
+    partida_id = data_creacion["id_partida"]
+    jugador1_id = data_creacion["id_jugador"]
+    
+    with client.websocket_connect(f"/partidas/ws/{partida_id}/{jugador1_id}") as ws_oyente:
+        
+        jugador2_data = {
+            "nombreJugador": "Jugador2_Nuevo",
+            "fechaNacimiento": "2001-02-02"
+        }
+
+        union_path = f"{CREATE_PARTIDA_PATH}/{partida_id}"
+        response_union = client.post(union_path, json=jugador2_data)
+        assert response_union.status_code == 200
+        
+        data_union = response_union.json()
+        jugador2_id = data_union["id_jugador"]
+        nombre_jugador2 = data_union["nombre_jugador"]
+        
+        try:
+            message = ws_oyente.receive_json() 
+            
+            assert message["evento"] == "union-jugador"
+            assert message["id_jugador"] == jugador2_id
+            assert message["nombre_jugador"] == nombre_jugador2
+
+            app.dependency_overrides.clear()
+            
+        except TimeoutError:
+            assert False, "El WebSocket del Jugador 1 no recibió el mensaje de 'union-jugador' dentro del tiempo límite."
+        except json.JSONDecodeError:
+            assert False, "El mensaje recibido no era JSON válido."
+
+
+
+# Ruta del endpoint HTTP que dispara el broadcast
+UNIR_JUGADOR_PATH = "/partidas/{id_partida}" 
+
+@patch("game.partidas.endpoints.JugadorService")
+@patch("game.partidas.endpoints.PartidaService")
+def test_unir_jugador_triggea_broadcast_mockedCHATGPT(
+    mock_PartidaService, 
+    mock_JugadorService, 
+    session
+):
+    
+    def get_db_override():
+        yield session
+    app.dependency_overrides[get_db] = get_db_override
+
+    # mock manager
+    mock_manager_instance = MagicMock()
+    mock_manager_instance.broadcast = AsyncMock()
+
+    def get_manager_override():
+        return mock_manager_instance
+    app.dependency_overrides[get_manager] = get_manager_override
+
+    client = TestClient(app)
+
+    PARTIDA_ID = 42
+    JUGADOR_ID_NUEVO = 99
+    NOMBRE_JUGADOR_NUEVO = "JugadorMockeado"
+    FECHA_NAC_JUGADOR = date(2000,1, 31)
+
+    # Mock partida
+    mock_partida = MagicMock()
+    mock_partida.cantJugadores = 2
+    mock_partida.maxJugadores = 4
+    mock_partida.minJugadores = 2
+    mock_partida.iniciada = False
+    mock_PartidaService.return_value.obtener_por_id.return_value = mock_partida
+
+    # Mock jugador
+    mock_jugador = MagicMock()
+    mock_jugador.id = JUGADOR_ID_NUEVO
+    mock_jugador.nombre = NOMBRE_JUGADOR_NUEVO
+    mock_jugador.fecha_nacimiento = FECHA_NAC_JUGADOR
+    mock_JugadorService.return_value.crear_unir.return_value = mock_jugador
+
+    mock_PartidaService.return_value.unir_jugador.return_value = None
+
+    jugador2_data = {
+        "nombreJugador": NOMBRE_JUGADOR_NUEVO,
+        "fechaNacimiento": "2001-02-02"
+    }
+
+    response = client.post(f"{UNIR_JUGADOR_PATH.format(id_partida=PARTIDA_ID)}", json=jugador2_data)
+
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+
+    expected_message = json.dumps({
+        "evento": "union-jugador",
+        "id_jugador": JUGADOR_ID_NUEVO,
+        "nombre_jugador": NOMBRE_JUGADOR_NUEVO
+    })
+
+    mock_manager_instance.broadcast.assert_awaited_once_with(PARTIDA_ID, expected_message)
 
