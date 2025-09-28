@@ -1,6 +1,6 @@
 from typing import List
 from collections import defaultdict
-
+from fastapi import Body
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi import WebSocket, WebSocketException, WebSocketDisconnect
@@ -260,8 +260,8 @@ async def iniciar_partida(id_partida: int, data: IniciarPartidaData, db=Depends(
         
         mazo_partida = CartaService(db).crear_mazo_inicial(id_partida)
         CartaService(db).repartir_cartas_iniciales(mazo_partida, partida.jugadores)
-                
-        await manager.broadcast(id_partida, json.dumps({"evento": "iniciar-partida"}))
+        #turnos = PartidaService.orden_turnos(0)
+        await manager.broadcast(id_partida, json.dumps({"evento": "iniciar-partida", "turnos": ["TURNOS IDs"]}))
         return {"detail": "Partida iniciada correctamente."}
     except PermissionError as e:
         raise HTTPException(
@@ -332,4 +332,30 @@ async def obtener_mano(id_partida: int, id_jugador: int, db=Depends(get_db)):
             detail=f"No se pudo obtener la mano para el jugador {id_jugador} en la partida {id_partida}. Error: {e}"
         )
         
-    
+
+
+# endpoint descartar carta/s . front manda lista de IDs para ubicar en el diccionario, sacar relacion.devolver 200 OK
+
+# endpoint reponer cartas (id_partida, id_jugador) metodo en service obtener_cartas_restantes
+# if cartas_restantes > cartas_a_reponer then devovler lista de cartas para reponer
+# else broadcast TERIMNAR PARTIDA
+
+
+# endpoint get remaining cards devuelve INT el numero de cartas restantes del mazo
+
+#endpoint 
+
+# endpoint obtener_turno_actual (partida_id) return INT ID del jugador que tiene el turno actual
+
+
+
+@partidas_router.put(path='/descarte/{id_partida}')
+def descarte_cartas (id_partida, id_jugador: int, cartas_descarte: list[int]= Body(...), db=Depends(get_db)):
+    try:
+        CartaService(db).descartar_cartas(id_partida, id_jugador, cartas_descarte)
+        return {"detail": "Descarte exitoso"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
