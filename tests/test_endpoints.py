@@ -9,6 +9,8 @@ from game.modelos.db import Base, get_db, get_engine, get_session_local
 from settings import settings
 from main import app
 from game.partidas.models import Partida
+from fastapi import WebSocketDisconnect
+import json
 
 #from game.jugadores.models import Jugador
 #from game.partidas.models import Partida
@@ -470,8 +472,7 @@ def test_iniciar_partida_ok(mock_PartidaService, datos_jugador, session):
 
     # Hacemos la request simulando query + body
     response = client.put(
-        "/partidas",
-        params={"id_partida": 1},
+        "/partidas/1",
         json=datos_jugador
     )
 
@@ -508,8 +509,7 @@ def test_iniciar_partida_no_autorizado(mock_PartidaService, datos_jugadorNoAutor
 
     # Hacemos la request simulando query + body
     response = client.put(
-        "/partidas",
-        params={"id_partida": 1},
+        "/partidas/1",
         json=datos_jugadorNoAutorizado
     )
 
@@ -539,8 +539,7 @@ def test_iniciar_partida_no_encontrada(mock_PartidaService, datos_jugador, sessi
 
     # Hacemos la request simulando query + body
     response = client.put(
-        "/partidas",
-        params={"id_partida": 999},  # ID que no existe
+        "/partidas/999",
         json=datos_jugador
     )
 
@@ -570,8 +569,7 @@ def test_iniciar_partida_ya_iniciada(mock_PartidaService, datos_jugador, session
 
     # Hacemos la request simulando query + body
     response = client.put(
-        "/partidas",
-        params={"id_partida": 1},  
+        "/partidas/1",
         json=datos_jugador
     )
 
@@ -601,8 +599,7 @@ def test_iniciar_partida_jugadores_insuficientes(mock_PartidaService, datos_juga
 
     # Hacemos la request simulando query + body
     response = client.put(
-        "/partidas",
-        params={"id_partida": 1},  
+        "/partidas/1",
         json=datos_jugador
     )
 
@@ -614,3 +611,4 @@ def test_iniciar_partida_jugadores_insuficientes(mock_PartidaService, datos_juga
 
     # Verificamos que se llamó correctamente al servicio
     mock_service.iniciar.assert_called_once_with(1, 1)
+

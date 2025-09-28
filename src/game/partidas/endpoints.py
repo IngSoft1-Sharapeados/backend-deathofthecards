@@ -62,6 +62,7 @@ async def crear_partida(partida_info: PartidaData, db=Depends(get_db)
                 detail=str(e)
             )
         manager.active_connections.update({partida_creada.id: []})
+        print(f'conexion nueva partida. {manager.active_connections[partida_creada.id]}')
         return PartidaResponse(id_partida=partida_creada.id, id_jugador=jugador_creado.id, id_Anfitrion=jugador_creado.id)
 
 #quiero hacer el endpoint obtener partida.
@@ -162,7 +163,12 @@ async def unir_jugador_a_partida(id_partida: int, jugador_info: JugadorData, db=
             jugador_creado = JugadorService(db).crear_unir(id_partida, jugador_dto=jugador_info.to_dto())
             PartidaService(db).unir_jugador(id_partida, jugador_creado)
         
-            await manager.broadcast(id_partida, f"Jugador {jugador_creado.id} se ha conectado.")
+            await manager.broadcast(id_partida, json.dumps({
+                    "evento": "union-jugador", 
+                    "id_jugador": jugador_creado.id, 
+                    "nombre_jugador": jugador_creado.nombre
+                }))
+            
             return JugadorOut(
                 id_jugador = jugador_creado.id,
             nombre_jugador = jugador_creado.nombre,
@@ -237,7 +243,8 @@ async def iniciar_partida(id_partida: int, data: IniciarPartidaData, db=Depends(
     """
     try:
         partida = PartidaService(db).iniciar(id_partida, data.id_jugador)
-        await manager.broadcast(id_partida, f"PARITDA INICIADA.")
+        await manager.broadcast(id_partida, json.dumps({"evento": "iniciar-partida"}))
+        
         return {"detail": "Partida iniciada correctamente."}
     except PermissionError as e:
         raise HTTPException(
@@ -261,65 +268,90 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket, id_partida: int, id_jugador: int):
         await websocket.accept()
         print(f"Jugador {id_jugador} se ha conectado a la partida {id_partida}.")
+        
         if websocket not in self.active_connections[id_partida]:
             self.active_connections[id_partida].append(websocket)
         self.active_connections_personal[id_jugador] = websocket
-        jugador = PartidaService(get_db()).ultimo_jugador(id_partida)
-        if jugador is not None:
-            evento = {
-                "evento": "union-jugador",
-                "nombre_jugador" : jugador.nombre,
-                #probablemente tenga que mandar todo el jugador???
-            }
-            await self.broadcast(id_partida, json.dumps(evento))
     
-    def disconnect(self, websocket, id_partida: int,id_jugador: int):
+    def disconnect(self, websocket: WebSocket, id_partida: int, id_jugador: int):
         print(f"Jugador {id_jugador} se ha desconectado de la partida {id_partida}.")
-        if id_partida in self.active_connections:
-            if websocket in self.active_connections[id_partida]:
-                self.active_connections[id_partida].remove(websocket)
-            
-        self.active_connections_personal.pop(id_jugador)
+        if id_partida in self.active_connections and websocket in self.active_connections[id_partida]:
+            self.active_connections[id_partida].remove(websocket)
+        if id_jugador in self.active_connections_personal:
+            self.active_connections_personal.pop(id_jugador)
 
-    async def send_personal_message(self, message: str, id_jugador: int):
-        await self.active_connections_personal[id_jugador].send_text(message)
-
-    async def broadcast(self, id_partida: int,message: str):
+    async def broadcast(self, id_partida: int, message: str):
         print(f"Enviando mensaje a la partida {id_partida}: {message}")
-        for connection in self.active_connections[id_partida]:
+        for connection in list(self.active_connections[id_partida]):
             try:
                 await connection.send_text(message)
-            except Exception:
+            except WebSocketDisconnect:
+                self.active_connections[id_partida].remove(connection)
+            except Exception as e:
+                print(f"Error enviando mensaje: {e}")
                 continue
+    
 
 manager = ConnectionManager()
+    
+def get_manager():
+    return manager
 
 
-#websocket endpoint
 @partidas_router.websocket("/ws/{id_partida}/{id_jugador}")
-async def websocket_endpoint(websocket: WebSocket, id_partida: int, id_jugador: int):
+async def websocket_endpoint(websocket: WebSocket, id_partida: int, id_jugador: int, db=Depends(get_db)):
     await manager.connect(websocket, id_partida, id_jugador)
-    db = get_db()
-    partida_service = PartidaService(db)
-    jugador_service = JugadorService(db)
+    
     try:
         while True:
             data = await websocket.receive_text()
-            print(f"Mensaje recibido del jugador {id_jugador}: {data}")
+            print(f"Mensaje recibido del jugador {id_jugador} en la partida {id_partida}: {data}")
             pass
 
     except WebSocketDisconnect:
+        partida_service = PartidaService(db)
+        jugador_service = JugadorService(db)
+        
+        jugador = jugador_service.obtener_jugador(id_jugador) 
         partida = partida_service.obtener_por_id(id_partida)
-        jugador = jugador_service.obtener_jugador(id_jugador)
 
         if partida and jugador and not partida.iniciada:
-            #eliminamos al jugador de la partida
             partida.cantJugadores -= 1
-            #eliminamos al jugador de la base de datos
             db.delete(jugador)
             db.commit()
-            db.refresh(partida)
+            
+            await manager.broadcast(id_partida, json.dumps({
+                "evento": "desconexion-jugador",
+                "id_jugador": id_jugador,
+                "nombre_jugador": jugador.nombre
+            }))
 
         manager.disconnect(websocket, id_partida, id_jugador)
-        await manager.broadcast(id_partida, f"Jugador {id_jugador} se ha desconectado.")
+    
+    
+    # except WebSocketDisconnect:
+    #     print(f"Iniciando limpieza para jugador {id_jugador} en partida {id_partida}")
+    #     try:
+    #         partida_service = PartidaService(db)
+    #         jugador_service = JugadorService(db)
 
+    #         jugador = jugador_service.obtener_jugador(id_jugador) 
+    #         partida = partida_service.obtener_por_id(id_partida)
+
+    #         if partida and jugador and not partida.iniciada:
+    #             print(f"Eliminando al jugador {jugador.nombre} de la partida.")
+    #             partida.cantJugadores -= 1
+    #             db.delete(jugador)
+    #             db.commit()
+
+    #             await manager.broadcast(id_partida, json.dumps({
+    #                 "evento": "desconexion-jugador",
+    #                 "id_jugador": id_jugador,
+    #                 "nombre_jugador": jugador.nombre
+    #             }))
+    #     except Exception as e:
+    #         # ESTO TE DIRÁ EXACTAMENTE QUÉ FALLÓ
+    #         print(f"!!!!!! ERROR DURANTE LA LIMPIEZA DEL WEBSOCKET: {e} !!!!!!")
+    #         db.rollback() # Revertir cambios si algo falló
+    #     finally:
+    #         manager.disconnect(websocket, id_partida, id_jugador)
