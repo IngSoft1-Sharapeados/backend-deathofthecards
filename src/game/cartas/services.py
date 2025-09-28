@@ -38,7 +38,8 @@ class CartaService:
                     bocaArriba=carta["bocaArriba"],
                     ubicacion=carta["ubicacion"],
                     jugador_id=0,
-                    partida_id=id_partida
+                    partida_id=id_partida,
+                    id_carta=carta["id"]
                     )
                 cantidad -= 1
                 mazo_nuevo.append(cartita)
@@ -63,16 +64,13 @@ class CartaService:
         random.shuffle(mazo)
         # Una carta "Not so fast" por jugador
         for jugador in jugadores_en_partida:
-            print("se reparte la carta nsf al jugador con id: ", jugador.id)
             for carta in mazo:
                 if carta.nombre.lower() == "not so fast" and carta.jugador_id == 0:
                     carta.jugador_id = jugador.id
                     carta.ubicacion = "mano"
                     break  # pasamos al siguiente jugador
-        print("se repartio la carta not so fast")
         # Luego, repartir hasta 6 cartas por jugador
         for jugador in jugadores_en_partida:
-            print("se reparten las cartas de jugador: ", jugador.nombre)
             cartas_jugador = 0
             for carta in mazo:
                 if carta.jugador_id == 0:
@@ -87,7 +85,7 @@ class CartaService:
         print("se repartieron las cartas hasta 6")
        
                     
-    def mazo_de_robo(self, id_partida: int) -> list[Carta]:
+    def obtener_mazo_de_robo(self, id_partida: int) -> list[Carta]:
         """
         Obtiene el mazo de robo para una partida específica.
         
@@ -103,6 +101,26 @@ class CartaService:
         """
         mazo_robo = self._db.query(Carta).filter_by(partida_id=id_partida, ubicacion="mazo_robo").all()
         return mazo_robo
+    
+    def obtener_mano_jugador(self, id_jugador:  int, id_partida: int) -> list[Carta]:
+        """
+        Obtiene la mano de cartas de un jugador en una partida específica.
+        
+        Parameters
+        ----------
+        id_jugador: int
+            ID del jugador para el cual se obtiene la mano de cartas.
+        
+        id_partida: int
+            ID de la partida para la cual se obtiene la mano de cartas.
+        
+        Returns
+        -------
+        List[Carta]
+            Lista de objetos Carta que representan la mano del jugador.
+        """
+        mano_jugador = self._db.query(Carta).filter_by(partida_id=id_partida, jugador_id=id_jugador, ubicacion="mano").all()
+        return mano_jugador
 
     def descarte(self, id_partida: int, jugador:Jugador, carta: Carta):
         """
