@@ -3,6 +3,9 @@ from game.jugadores.models import Jugador
 from game.cartas.models import Carta
 from game.jugadores.dtos import JugadorDTO
 
+from typing import List, Optional
+from game.partidas.services import PartidaService
+
 class JugadorService:
     def __init__(self,db):
         self._db = db
@@ -60,3 +63,27 @@ class JugadorService:
         self._db.commit()
         self._db.refresh(nuevo_jugador)
         return nuevo_jugador
+    
+    def obtener_jugador(self, id_jugador: int) -> Optional[Jugador]:
+        """
+        Obtiene un jugador por su ID .
+        
+        Parameters
+        ----------
+            id_jugador: int
+            ID del jugador
+        
+        Returns
+        -------
+        Optional[Jugador]
+            El jugador si se encuentra, o None si no existe.
+        """
+        #db = get_db()
+        # partida = PartidaService(db).obtener_por_id(id_partida)
+        # if partida:
+        #     for jugador in partida.jugadores:
+        #         if jugador.id == id_jugador:
+        #             return jugador
+        jugador = self._db.query(Jugador).filter(Jugador.id == id_jugador).first()
+        return jugador
+
