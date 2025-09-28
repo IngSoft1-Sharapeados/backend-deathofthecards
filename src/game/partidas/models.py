@@ -18,3 +18,5 @@ class Partida(Base):
     # Relación de 1 a muchos con Jugador
     jugadores: Mapped[List["Jugador"]] = relationship("Jugador", back_populates="partida")
 
+    # relacion 1 a muchos con Carta
+    cartas: Mapped[List["Carta"]] = relationship("Carta", back_populates="partida", cascade="all, delete-orphan")

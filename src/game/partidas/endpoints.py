@@ -215,7 +215,7 @@ async def unir_jugador_a_partida(id_partida: int, jugador_info: JugadorData, db=
 
 
 #endpoint iniciar partida
-@partidas_router.put(path="", status_code=status.HTTP_200_OK)
+@partidas_router.put(path="", status_code=status.HTTP_200_OK) 
 async def iniciar_partida(id_partida: int, data: IniciarPartidaData, db=Depends(get_db)) -> None:
     """
     Inicia una partida si el jugador es el anfitrión y se cumplen las condiciones.
@@ -233,9 +233,13 @@ async def iniciar_partida(id_partida: int, data: IniciarPartidaData, db=Depends(
     """
     
     try:
+        print("partida iniciando")
         partida = PartidaService(db).iniciar(id_partida, data.id_jugador)
+        print("el mazo se esta creando")
         mazo_partida = CartaService(db).crear_mazo_inicial(id_partida)
+        print("el mazo se creo")
         CartaService(db).repartir_cartas_iniciales(mazo_partida, partida.jugadores)
+        print("las cartas se repartieron")
         return {"detail": "Partida iniciada correctamente."}
     except PermissionError as e:
         raise HTTPException(

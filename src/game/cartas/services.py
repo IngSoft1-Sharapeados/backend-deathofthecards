@@ -33,10 +33,11 @@ class CartaService:
             cantidad = carta["cantidad"]
             while cantidad > 0:
                 cartita = Carta(
-                    nombre=carta["nombre"],
+                    nombre=carta["carta"],
                     tipo=carta["tipo"],
-                    bocaArriba=False,
-                    ubicacion="mazo",
+                    bocaArriba=carta["bocaArriba"],
+                    ubicacion=carta["ubicacion"],
+                    jugador_id=0,
                     partida_id=id_partida
                     )
                 cantidad -= 1
@@ -62,23 +63,29 @@ class CartaService:
         random.shuffle(mazo)
         # Una carta "Not so fast" por jugador
         for jugador in jugadores_en_partida:
+            print("se reparte la carta nsf al jugador con id: ", jugador.id)
             for carta in mazo:
-                if carta.nombre.lower() == "not so fast" and carta.jugador_id is None:
+                if carta.nombre.lower() == "not so fast" and carta.jugador_id == 0:
                     carta.jugador_id = jugador.id
                     carta.ubicacion = "mano"
-                    self._db.refresh(carta)
                     break  # pasamos al siguiente jugador
-
+        print("se repartio la carta not so fast")
         # Luego, repartir hasta 6 cartas por jugador
         for jugador in jugadores_en_partida:
-            while len([c for c in jugador.cartas if c.ubicacion == "mano"]) <= 6:
-                for carta in mazo:
-                    if carta.jugador_id is None:
-                        carta.jugador_id = jugador.id
-                        carta.ubicacion = "mano"
-                        self._db.refresh(carta)
-                        break
+            print("se reparten las cartas de jugador: ", jugador.nombre)
+            cartas_jugador = 0
+            for carta in mazo:
+                if carta.jugador_id == 0:
+                    carta.jugador_id = jugador.id
+                    carta.ubicacion = "mano"
+                    cartas_jugador += 1
+                    if cartas_jugador == 5:
+                        break  # pasamos al siguiente jugador
         self._db.commit()
+        self._db.refresh(carta)
+            
+        print("se repartieron las cartas hasta 6")
+       
                     
     def mazo_de_robo(self, id_partida: int) -> list[Carta]:
         """
