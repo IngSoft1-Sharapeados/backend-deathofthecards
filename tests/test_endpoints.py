@@ -785,3 +785,78 @@ def test_unir_jugador_triggea_broadcast_mockedCHATGPT(
 
     mock_manager_instance.broadcast.assert_awaited_once_with(PARTIDA_ID, expected_message)
 
+#--------------- TEST OBTENER MANO ------------------------
+
+@patch("game.partidas.endpoints.CartaService")
+def test_obtener_mano_ok(mock_CartaService, session):
+    """Test para obtener mano de un jugador exitosamente"""
+
+    # Override de DB con la sesión de prueba
+    def get_db_override():
+        yield session
+
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    # 1. Crear mocks de cartas (similar a mock_partida, mock_jugador en otros tests)
+    mock_carta1 = MagicMock()
+    mock_carta1.id_carta = 16
+    mock_carta1.nombre = "Not so fast"
+
+    mock_carta2 = MagicMock()
+    mock_carta2.id_carta = 9
+    mock_carta2.nombre = "Mr Satterthwaite"
+
+    # 2. Configurar instancia mock de CartaService
+    mock_carta_service_instance = MagicMock()
+    mock_carta_service_instance.obtener_mano_jugador.return_value = [mock_carta1, mock_carta2]
+    mock_CartaService.return_value = mock_carta_service_instance
+
+    # 3. Act
+    response = client.get("partidas/1/mano", params={"id_jugador": 1})
+
+    # 4. Limpieza
+    app.dependency_overrides.clear()
+
+    # 5. Assert
+    assert response.status_code == 200
+    assert response.json() == [
+        {"id": 16, "nombre": "Not so fast"},
+        {"id": 9, "nombre": "Mr Satterthwaite"},
+    ]
+
+    # Verificamos que el método se llamó correctamente
+    mock_carta_service_instance.obtener_mano_jugador.assert_called_once_with(1, 1)
+
+#---------------- TEST NO SE PUDO OBTENER MANO----------------
+
+@patch("game.partidas.endpoints.CartaService")
+def test_obtener_mano_error(mock_CartaService, session):
+    """Test cuando no se pudo obtener la mano de un jugador (404)"""
+
+    # Override de DB
+    def get_db_override():
+        yield session
+
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    # Mock del servicio
+    mock_instance = MagicMock()
+    # Para que el endpoint entre al except y devuelva 404
+    mock_instance.obtener_mano_jugador.side_effect = Exception("Error inesperado")
+    mock_CartaService.return_value = mock_instance
+
+    # Act: llamar al endpoint
+    response = client.get("/partidas/1/mano", params={"id_jugador": 999})
+
+    # Limpieza
+    app.dependency_overrides.clear()
+
+    # Assert
+    assert response.status_code == 404
+    assert "No se pudo obtener la mano" in response.json()["detail"]
+    assert "Error inesperado" in response.json()["detail"]
+
+    # Verificación de llamada
+    mock_instance.obtener_mano_jugador.assert_called_once_with(999, 1)
