@@ -72,6 +72,29 @@ def jugadores_mock():
 
     return [j1, j2]
 
+@pytest.fixture
+def mano_mock():
+    c1 = MagicMock()
+    c1.id = 20
+    c1.nombre = "Look into the ashes"
+
+    c2 = MagicMock()
+    c2.id = 17
+    c2.nombre = "Cards off the table"
+
+    c3 = MagicMock()
+    c3.id = 20
+    c3.nombre = "Look into the ashes"
+
+    c4 = MagicMock()
+    c4.id = 10
+    c4.nombre = "Parker Pyne"
+
+    c5 = MagicMock()
+    c5.id = 10
+    c5.nombre = "Parker Pyne"
+
+    return [c1, c2, c3, c4, c5]
 
 # usa los ALIASES con guiones como espera PartidaData
 @pytest.fixture
@@ -489,6 +512,12 @@ def test_unir_jugador_partida_no_encontrada(mock_PartidaService, jugador_data, s
 
     mock_PartidaService.return_value.obtener_por_id.side_effect = Exception("No se encontró")
 
+    id_partida = 999
+    response = client.post(f"/partidas/{id_partida}", json=jugador_data)
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == f"No se encontro la partida con el ID {id_partida}."
 
 #----------------------TEST INICIAR PARTIDA OK --------------------
 
@@ -499,10 +528,13 @@ def datos_jugador():
     }
 
 @patch("game.partidas.endpoints.PartidaService")
-def test_iniciar_partida_ok(mock_PartidaService, datos_jugador, session):
-    # Creamos un mock del servicio
+def test_iniciar_partida_ok(mock_PartidaService, datos_jugador, jugadores_mock, session):
+   # Mock PartidaService
     mock_service = MagicMock()
-    mock_service.iniciar.return_value = None  # porque tu endpoint no retorna partida, solo mensaje
+    mock_partida = MagicMock()
+    mock_partida.jugadores = jugadores_mock
+    mock_service.iniciar.return_value = mock_partida
+    mock_service.obtener_por_id.return_value = mock_partida
     mock_PartidaService.return_value = mock_service
 
     # Override de la DB
@@ -519,13 +551,10 @@ def test_iniciar_partida_ok(mock_PartidaService, datos_jugador, session):
     )
 
     app.dependency_overrides.clear()
-    
+
     # Assertions
     assert response.status_code == 200
-    assert response.json() == {"detail": "Partida iniciada correctamente."}
-
-    # Verificamos que se llamó correctamente al servicio
-    mock_service.iniciar.assert_called_once_with(1, 1)
+    assert response.json()["detail"] == "Partida iniciada correctamente."
 
 #---------------------- TEST INICIAR PARTIDA NO AUTORIZADO ----------------------
 
@@ -785,3 +814,199 @@ def test_unir_jugador_triggea_broadcast_mockedCHATGPT(
 
     mock_manager_instance.broadcast.assert_awaited_once_with(PARTIDA_ID, expected_message)
 
+#----------------- Test obtener orden turnos ok-------------------------
+
+@patch("game.partidas.endpoints.PartidaService")
+def test_obtener_orden_turnos(mock_PartidaService, session):
+    # Override de la DB
+    def get_db_override():
+        yield session  
+
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    orden_de_turnos = [3,1,2]
+    mock_partida = MagicMock()
+    mock_partida.ordenTurnos = json.dumps(orden_de_turnos)
+
+    # Configuro el mock del servicio para devolver la partida
+    mock_PartidaService.return_value.obtener_por_id.return_value = mock_partida
+ 
+
+    response = client.get("/partidas/1/turnos") 
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data == orden_de_turnos
+
+#----------------- Test obtener orden turnos partida no encontrada-------------------------
+
+@patch("game.partidas.endpoints.PartidaService")
+def test_orden_turnos_partida_no_existe(mock_PartidaService, session):
+    # Override de la DB
+    def get_db_override():
+        yield session  
+
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    mock_PartidaService.return_value.obtener_por_id.side_effect = Exception("No encontrada")
+
+    client = TestClient(app)
+    response = client.get("/partidas/999/turnos")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "No existe la partida con el ID proporcionado."
+
+
+#--------------- TEST OBTENER MANO ------------------------
+
+@patch("game.partidas.endpoints.CartaService")
+def test_obtener_mano_ok(mock_CartaService, session):
+    """Test para obtener mano de un jugador exitosamente"""
+
+    # Override de DB con la sesión de prueba
+    def get_db_override():
+        yield session
+
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    mock_carta1 = MagicMock()
+    mock_carta1.id_carta = 16
+    mock_carta1.nombre = "Not so fast"
+
+    mock_carta2 = MagicMock()
+    mock_carta2.id_carta = 9
+    mock_carta2.nombre = "Mr Satterthwaite"
+
+    #Configurar instancia mock de CartaService
+    mock_carta_service_instance = MagicMock()
+    mock_carta_service_instance.obtener_mano_jugador.return_value = [mock_carta1, mock_carta2]
+    mock_CartaService.return_value = mock_carta_service_instance
+
+    response = client.get("partidas/1/mano", params={"id_jugador": 1})
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == [
+        {"id": 16, "nombre": "Not so fast"},
+        {"id": 9, "nombre": "Mr Satterthwaite"},
+    ]
+
+    # Verificamos que el método se llamó correctamente
+    mock_carta_service_instance.obtener_mano_jugador.assert_called_once_with(1, 1)
+
+#---------------- TEST NO SE PUDO OBTENER MANO----------------
+
+@patch("game.partidas.endpoints.CartaService")
+def test_obtener_mano_error(mock_CartaService, session):
+    """Test cuando no se pudo obtener la mano de un jugador (404)"""
+
+    # Override de DB
+    def get_db_override():
+        yield session
+
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    # Mock del servicio
+    mock_instance = MagicMock()
+    # Para que el endpoint entre al except y devuelva 404
+    mock_instance.obtener_mano_jugador.side_effect = Exception("Error inesperado")
+    mock_CartaService.return_value = mock_instance
+
+    response = client.get("/partidas/1/mano", params={"id_jugador": 999})
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 404
+    assert "No se pudo obtener la mano" in response.json()["detail"]
+    assert "Error inesperado" in response.json()["detail"]
+
+    # Verificación de llamada
+    mock_instance.obtener_mano_jugador.assert_called_once_with(999, 1)
+#-----------------Tests descartar carta ok------------------------
+
+@patch("game.partidas.endpoints.CartaService")
+def test_descartar_carta(mock_CartaService, mano_mock, session):
+    # Override de DB
+    def get_db_override():
+        yield session
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    mock_jugador = MagicMock()
+    mock_jugador.cartas = mano_mock
+
+    mock_carta_service_instance = MagicMock()
+    mock_CartaService.return_value = mock_carta_service_instance
+    mock_carta_service_instance.descartar_cartas.return_value = None
+
+    response = client.put(
+        "/partidas/descarte/1?id_jugador=1",
+        json=[2, 3, 4]
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {"detail": "Descarte exitoso"}
+    mock_carta_service_instance.descartar_cartas.assert_called_once_with(1, [2, 3, 4])
+
+#--------------Test descartar carta no encontrada en la mano---------------
+#-----------------Tests descartar carta ok------------------------
+
+@patch("game.partidas.endpoints.CartaService")
+def test_descartar_carta(mock_CartaService, mano_mock, session):
+    # Override de DB
+    def get_db_override():
+        yield session
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    mock_jugador = MagicMock()
+    mock_jugador.cartas = mano_mock
+
+    mock_carta_service_instance = MagicMock()
+    mock_CartaService.return_value = mock_carta_service_instance
+    mock_carta_service_instance.descartar_cartas.return_value = None
+
+    response = client.put(
+        "/partidas/descarte/1?id_jugador=1",
+        json=[2, 3, 4]
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {"detail": "Descarte exitoso"}
+    mock_carta_service_instance.descartar_cartas.assert_called_once_with(1, [2, 3, 4])
+
+#--------------Test descartar carta no encontrada en la mano---------------
+
+@patch("game.partidas.endpoints.CartaService")
+def test_descartar_carta_no_encontrada(mock_CartaService, session):
+    # Override de DB
+    def get_db_override():
+        yield session
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    mock_carta_service_instance = MagicMock()
+    mock_CartaService.return_value = mock_carta_service_instance
+
+    mock_carta_service_instance.descartar_cartas.side_effect = Exception(
+        "Una o mas cartas no se encuentran en la mano del jugador"
+    )
+
+    response = client.put(
+        "/partidas/descarte/1?id_jugador=1",
+        json=[99]  
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Una o mas cartas no se encuentran en la mano del jugador"

@@ -44,9 +44,9 @@ def test_crear_jugador(db):
 
 def test_relaciones(db):
     nacimiento2 = datetime.date(2010, 1, 31)
-    partida = Partida(nombre="partida2", anfitrionId=2, cantJugadores=1, iniciada=False, maxJugadores=5, minJugadores=2)
+    partida = Partida(nombre="partida2", anfitrionId=2, cantJugadores=1, iniciada=False, maxJugadores=5, minJugadores=2, id=1)
     jugador = Jugador(nombre="jugador2", fecha_nacimiento=nacimiento2, partida=partida)
-    carta = Carta(nombre="You're the murderer", tipo="Secreto", jugador=jugador)
+    carta = Carta(nombre="You're the murderer", tipo="Secreto", jugador=jugador, partida_id=partida.id)
     db.add(partida)
     db.add(jugador)
     db.add(carta)
