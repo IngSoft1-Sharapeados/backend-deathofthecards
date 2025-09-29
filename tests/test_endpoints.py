@@ -72,6 +72,29 @@ def jugadores_mock():
 
     return [j1, j2]
 
+@pytest.fixture
+def mano_mock():
+    c1 = MagicMock()
+    c1.id = 20
+    c1.nombre = "Look into the ashes"
+
+    c2 = MagicMock()
+    c2.id = 17
+    c2.nombre = "Cards off the table"
+
+    c3 = MagicMock()
+    c3.id = 20
+    c3.nombre = "Look into the ashes"
+
+    c4 = MagicMock()
+    c4.id = 10
+    c4.nombre = "Parker Pyne"
+
+    c5 = MagicMock()
+    c5.id = 10
+    c5.nombre = "Parker Pyne"
+
+    return [c1, c2, c3, c4, c5]
 
 # usa los ALIASES con guiones como espera PartidaData
 @pytest.fixture
@@ -904,3 +927,110 @@ def test_obtener_mano_error(mock_CartaService, session):
 
     # Verificación de llamada
     mock_instance.obtener_mano_jugador.assert_called_once_with(999, 1)
+    
+#-----------------Tests descartar carta ok------------------------
+
+@patch("game.partidas.endpoints.CartaService")
+def test_descartar_carta(mock_CartaService, mano_mock, session):
+    # Override de DB
+    def get_db_override():
+        yield session
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    mock_jugador = MagicMock()
+    mock_jugador.cartas = mano_mock
+
+    mock_carta_service_instance = MagicMock()
+    mock_CartaService.return_value = mock_carta_service_instance
+    mock_carta_service_instance.descartar_cartas.return_value = None
+
+    response = client.put(
+        "/partidas/descarte/1?id_jugador=1",
+        json=[2, 3, 4]
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {"detail": "Descarte exitoso"}
+    mock_carta_service_instance.descartar_cartas.assert_called_once_with(1, [2, 3, 4])
+
+#--------------Test descartar carta no encontrada en la mano---------------
+#-----------------Tests descartar carta ok------------------------
+
+@patch("game.partidas.endpoints.CartaService")
+def test_descartar_carta(mock_CartaService, mano_mock, session):
+    # Override de DB
+    def get_db_override():
+        yield session
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    mock_jugador = MagicMock()
+    mock_jugador.cartas = mano_mock
+
+    mock_carta_service_instance = MagicMock()
+    mock_CartaService.return_value = mock_carta_service_instance
+    mock_carta_service_instance.descartar_cartas.return_value = None
+
+    response = client.put(
+        "/partidas/descarte/1?id_jugador=1",
+        json=[2, 3, 4]
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {"detail": "Descarte exitoso"}
+    mock_carta_service_instance.descartar_cartas.assert_called_once_with(1, [2, 3, 4])
+
+#--------------Test descartar carta no encontrada en la mano---------------
+
+@patch("game.partidas.endpoints.CartaService")
+def test_descartar_carta_no_encontrada(mock_CartaService, session):
+    # Override de DB
+    def get_db_override():
+        yield session
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    mock_carta_service_instance = MagicMock()
+    mock_CartaService.return_value = mock_carta_service_instance
+
+    mock_carta_service_instance.descartar_cartas.side_effect = Exception(
+        "Una o mas cartas no se encuentran en la mano del jugador"
+    )
+
+    response = client.put(
+        "/partidas/descarte/1?id_jugador=1",
+        json=[99]  
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Una o mas cartas no se encuentran en la mano del jugador"
+    
+# ------------------ TEST OBTENER CARTAS RESTANTES ------------------
+
+@patch("game.partidas.endpoints.CartaService")
+def test_obtener_cartas_restantes_ok(mock_CartaService, session):
+    """Test para verificar que se obtiene la cantidad de cartas restantes en el mazo"""
+
+    def get_db_override():
+        yield session
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    # Mock de servicio que devuelve 42 cartas
+    mock_service_instance = MagicMock()
+    mock_service_instance.obtener_cantidad_mazo.return_value = 42
+    mock_CartaService.return_value = mock_service_instance
+
+    response = client.get("/partidas/1/mazo")
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == 42

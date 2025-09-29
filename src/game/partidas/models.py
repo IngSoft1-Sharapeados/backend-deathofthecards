@@ -24,4 +24,3 @@ class Partida(Base):
     jugadores: Mapped[List["Jugador"]] = relationship("Jugador", back_populates="partida")
 
     cartas: Mapped[List["Carta"]] = relationship("Carta", back_populates="partida")
-
