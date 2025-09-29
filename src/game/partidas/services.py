@@ -4,6 +4,11 @@ from game.partidas.dtos import PartidaDTO
 from game.partidas.models import Partida
 from game.jugadores.models import Jugador
 from game.jugadores.schemas import JugadorDTO
+import random
+
+from datetime import date
+from game.partidas.utils import distancia_fechas
+import json
 
 
 class PartidaService:
@@ -123,3 +128,39 @@ class PartidaService:
         self._db.commit()
         self._db.refresh(partida)
         return partida
+        
+    def orden_turnos(self, id_partida: int, jugadores: list[Jugador]) -> list[int]:
+        """
+        Genera un orden de turnos para los jugadores en la partida.
+
+        Parameters
+        ----------
+        jugadores: list[Jugador]
+            Lista de jugadores en la partida
+
+        Returns
+        -------
+        dict[int, int]
+            Diccionario con el orden de turnos (clave: turno, valor: id del jugador)
+        """
+        partida = self._db.query(Partida).filter(Partida.id == id_partida).first()
+        # primer_turno = min(jugadores, key=lambda jugador: distancia_fechas(jugador.fecha_nacimiento))
+        min_dist = 365    
+        for jugador in jugadores:
+            dist_jug = distancia_fechas(jugador.fecha_nacimiento)
+            if dist_jug < min_dist:
+                min_dist = dist_jug
+                jugador_turno_inicial = jugador
+            elif dist_jug == min_dist:
+                jugador_min = random.choice([jugador_turno_inicial, jugador])
+                jugador_turno_inicial = jugador_min
+        jugadores_copy = jugadores.copy()
+        jugadores_copy.remove(jugador_turno_inicial)
+        orden_de_turnos = [jugador_turno_inicial.id] 
+        random.shuffle(jugadores_copy)
+        for jugador in jugadores_copy:
+            orden_de_turnos.append(jugador.id)
+        partida.ordenTurnos = json.dumps(orden_de_turnos)
+        self._db.commit()
+        self._db.refresh(partida)
+        return orden_de_turnos

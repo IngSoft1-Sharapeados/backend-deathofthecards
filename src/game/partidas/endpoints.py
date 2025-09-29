@@ -257,12 +257,19 @@ async def iniciar_partida(id_partida: int, data: IniciarPartidaData, db=Depends(
     try:
         print("partida iniciando")
         partida = PartidaService(db).iniciar(id_partida, data.id_jugador)
-        
         mazo_partida = CartaService(db).crear_mazo_inicial(id_partida)
         CartaService(db).repartir_cartas_iniciales(mazo_partida, partida.jugadores)
-        #turnos = PartidaService.orden_turnos(0)
-        await manager.broadcast(id_partida, json.dumps({"evento": "iniciar-partida", "turnos": ["TURNOS IDs"]}))
+        print("cartas repartidas")
+        turnos = PartidaService(db).orden_turnos(id_partida, partida.jugadores)
+        print(f"turnos generados: {turnos}")
+        await manager.broadcast(id_partida, json.dumps({"evento": "iniciar-partida", "turnos": turnos}))
         return {"detail": "Partida iniciada correctamente."}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=("No existe la partida con el ID proporcionado.")
+        )            
+        
     except PermissionError as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -274,6 +281,36 @@ async def iniciar_partida(id_partida: int, data: IniciarPartidaData, db=Depends(
             detail=str(e)
         )
 
+# Endpoint obtener orden de turnos
+@partidas_router.get(path="/{id_partida}/turnos", status_code=status.HTTP_200_OK)
+async def obtener_orden_turnos(id_partida: int, db=Depends(get_db)) -> List[int]:
+    """
+    Obtiene el orden de turnos de los jugadores en una partida.
+    
+    Parameters
+    ----------
+    id_partida: int
+        ID de la partida
+    
+    Returns
+    -------
+    List[int]
+        Lista con el orden de turnos (IDs de jugadores)
+    """
+    try:
+        partida = PartidaService(db).obtener_por_id(id_partida)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=("No existe la partida con el ID proporcionado.")
+        )
+    if not partida.ordenTurnos:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No se ha generado el orden de turnos para la partida con ID {id_partida}."
+        )
+    orden = json.loads(partida.ordenTurnos)
+    return orden
 
 @partidas_router.websocket("/ws/{id_partida}/{id_jugador}")
 async def websocket_endpoint(websocket: WebSocket, id_partida: int, id_jugador: int, db=Depends(get_db)):
