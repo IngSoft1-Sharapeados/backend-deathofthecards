@@ -332,30 +332,3 @@ async def obtener_mano(id_partida: int, id_jugador: int, db=Depends(get_db)):
             detail=f"No se pudo obtener la mano para el jugador {id_jugador} en la partida {id_partida}. Error: {e}"
         )
         
-
-
-# endpoint descartar carta/s . front manda lista de IDs para ubicar en el diccionario, sacar relacion.devolver 200 OK
-
-# endpoint reponer cartas (id_partida, id_jugador) metodo en service obtener_cartas_restantes
-# if cartas_restantes > cartas_a_reponer then devovler lista de cartas para reponer
-# else broadcast TERIMNAR PARTIDA
-
-
-# endpoint get remaining cards devuelve INT el numero de cartas restantes del mazo
-
-#endpoint 
-
-# endpoint obtener_turno_actual (partida_id) return INT ID del jugador que tiene el turno actual
-
-
-
-@partidas_router.put(path='/descarte/{id_partida}')
-def descarte_cartas (id_partida, id_jugador: int, cartas_descarte: list[int]= Body(...), db=Depends(get_db)):
-    try:
-        CartaService(db).descartar_cartas(id_partida, id_jugador, cartas_descarte)
-        return {"detail": "Descarte exitoso"}
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
