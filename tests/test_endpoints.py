@@ -785,3 +785,46 @@ def test_unir_jugador_triggea_broadcast_mockedCHATGPT(
 
     mock_manager_instance.broadcast.assert_awaited_once_with(PARTIDA_ID, expected_message)
 
+#----------------- Test obtener orden turnos ok-------------------------
+
+@patch("game.partidas.endpoints.PartidaService")
+def test_obtener_orden_turnos(mock_PartidaService, session):
+    # Override de la DB
+    def get_db_override():
+        yield session  
+
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    orden_de_turnos = [3,1,2]
+    mock_partida = MagicMock()
+    mock_partida.ordenTurnos = json.dumps(orden_de_turnos)
+
+    # Configuro el mock del servicio para devolver la partida
+    mock_PartidaService.return_value.obtener_por_id.return_value = mock_partida
+ 
+
+    response = client.get("/partidas/1/turnos") 
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data == orden_de_turnos
+
+#----------------- Test obtener orden turnos partida no encontrada-------------------------
+
+@patch("game.partidas.endpoints.PartidaService")
+def test_orden_turnos_partida_no_existe(mock_PartidaService, session):
+    # Override de la DB
+    def get_db_override():
+        yield session  
+
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    mock_PartidaService.return_value.obtener_por_id.side_effect = Exception("No encontrada")
+
+    client = TestClient(app)
+    response = client.get("/partidas/999/turnos")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "No existe la partida con el ID proporcionado."
