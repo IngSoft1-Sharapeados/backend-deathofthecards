@@ -348,10 +348,7 @@ async def websocket_endpoint(websocket: WebSocket, id_partida: int, id_jugador: 
 
         manager.disconnect(websocket, id_partida, id_jugador)
     
-@partidas_router.get(
-    path="/{id_partida}/mano",
-    status_code=status.HTTP_200_OK
-)
+@partidas_router.get(path="/{id_partida}/mano", status_code=status.HTTP_200_OK)
 async def obtener_mano(id_partida: int, id_jugador: int, db=Depends(get_db)):
     """
     Obtiene la mano inicial de un jugador específico para una partida.

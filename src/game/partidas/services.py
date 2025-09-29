@@ -37,6 +37,7 @@ class PartidaService:
             iniciada=False,
             maxJugadores=partida_dto.maxJugadores,
             minJugadores=partida_dto.minJugadores,
+            turno_id=1,
         )
         self._db.add(nueva_partida)
         self._db.flush()

@@ -125,3 +125,38 @@ class CartaService:
         mano_jugador = self._db.query(Carta).filter_by(partida_id=id_partida, jugador_id=id_jugador, ubicacion="mano").all()
         return mano_jugador
 
+
+    def descartar_cartas(self, id_jugador, cartas_descarte_id):
+        """
+        DOC
+        """
+        print("ACA POR AGARRAR EL JUGADOR")
+        jugador = JugadorService(self._db).obtener_jugador(id_jugador)
+        print("YA AGARRE EL JUGADOR")
+
+
+        tiene_cartas = True
+        cartas_mano = jugador.cartas
+        for carta_id in cartas_descarte_id:
+            enMano = False
+            for carta in cartas_mano:
+                if (carta_id == carta.id_carta):
+                    enMano = enMano or True 
+            tiene_cartas = tiene_cartas and enMano
+
+        if not tiene_cartas:
+            raise Exception("Una o mas cartas no se encuentran en la mano del jugador")
+        
+        
+        for carta in cartas_descarte_id:
+            carta_descarte = self._db.query(Carta).filter(Carta.id_carta == carta, Carta.jugador_id == id_jugador).first()
+            carta_descarte.jugador_id = 0
+            carta_descarte.ubicacion = "descarte"
+            carta_descarte.bocaArriba = False
+            self._db.commit()
+            print(f'Se descarto la carta con id {carta_descarte.id} y nombre {carta_descarte.nombre}.')
+
+
+    def obtener_cantidad_mazo(self, id_partida):
+        partida = PartidaService(self._db).obtener_por_id(id_partida)
+        return len(self.obtener_mazo_de_robo(partida.id))
