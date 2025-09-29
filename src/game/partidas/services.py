@@ -32,6 +32,7 @@ class PartidaService:
             iniciada=False,
             maxJugadores=partida_dto.maxJugadores,
             minJugadores=partida_dto.minJugadores,
+            turno_id=1,
         )
         self._db.add(nueva_partida)
         self._db.flush()
@@ -123,3 +124,7 @@ class PartidaService:
         self._db.commit()
         self._db.refresh(partida)
         return partida
+
+    def turno_actual(self, id_partida) -> int:
+        partida = PartidaService(self._db).obtener_por_id(id_partida)
+        return partida.turno_id

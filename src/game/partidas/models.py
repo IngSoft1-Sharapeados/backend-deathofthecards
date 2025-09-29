@@ -14,7 +14,10 @@ class Partida(Base):
     iniciada: Mapped[bool] = mapped_column(Boolean, default=False)
     maxJugadores: Mapped[int] = mapped_column(Integer, nullable=True)
     minJugadores: Mapped[int] = mapped_column(Integer, nullable=True)
-
+    turno_id: Mapped[int] = mapped_column(Integer,nullable=True)
+    
     # Relación de 1 a muchos con Jugador
     jugadores: Mapped[List["Jugador"]] = relationship("Jugador", back_populates="partida")
+
+    cartas: Mapped[List["Carta"]] = relationship("Carta", back_populates="partida")
 

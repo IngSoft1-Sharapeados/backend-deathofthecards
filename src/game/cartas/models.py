@@ -12,7 +12,11 @@ class Carta(Base):
     bocaArriba: Mapped[bool] = mapped_column(Boolean, default=True)
     ubicacion: Mapped[str] = mapped_column(String, nullable=True)
     descripcion: Mapped[str] = mapped_column(String, nullable=True)
- 
+    id_carta: Mapped[int] = mapped_column(Integer, nullable=True)
+
+    partida_id: Mapped[int] = mapped_column(Integer, ForeignKey("partidas.id"))
+    partida: Mapped["Partida"] = relationship("Partida", back_populates="cartas")
+
     # Relación de muchos a 1 con Jugador
     jugador_id: Mapped[int] = mapped_column(Integer, ForeignKey("jugadores.id"))
     jugador: Mapped["Jugador"] = relationship("Jugador", back_populates="cartas")
