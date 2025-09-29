@@ -433,11 +433,13 @@ async def obtener_cartas_restantes(id_partida, db=Depends(get_db), manager=Depen
     }
     # Enviar como texto JSON por WebSocket
     await manager.broadcast(id_partida, json.dumps(evento))
+
     return cantidad_restante
 
 
 @partidas_router.get(path='/{id_partida}/turno')
 async def obtener_turno_actual(id_partida, db=Depends(get_db), manager=Depends(get_manager)):
+
     turno = PartidaService(db).obtener_turno_actual(id_partida)
     evento = {
         "evento": "turno-actual",
@@ -445,4 +447,3 @@ async def obtener_turno_actual(id_partida, db=Depends(get_db), manager=Depends(g
     }
     await manager.broadcast(id_partida, json.dumps(evento))
     return turno
-

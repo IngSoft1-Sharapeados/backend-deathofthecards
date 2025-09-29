@@ -160,4 +160,3 @@ class CartaService:
     def obtener_cantidad_mazo(self, id_partida):
         partida = PartidaService(self._db).obtener_por_id(id_partida)
         return len(self.obtener_mazo_de_robo(partida.id))
-

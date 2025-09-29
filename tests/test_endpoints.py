@@ -927,6 +927,7 @@ def test_obtener_mano_error(mock_CartaService, session):
 
     # Verificación de llamada
     mock_instance.obtener_mano_jugador.assert_called_once_with(999, 1)
+    
 #-----------------Tests descartar carta ok------------------------
 
 @patch("game.partidas.endpoints.CartaService")
@@ -1033,4 +1034,3 @@ def test_obtener_cartas_restantes_ok(mock_CartaService, session):
 
     assert response.status_code == 200
     assert response.json() == 42
-    
