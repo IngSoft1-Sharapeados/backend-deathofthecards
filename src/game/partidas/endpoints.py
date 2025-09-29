@@ -397,9 +397,26 @@ async def obtener_mano(id_partida: int, id_jugador: int, db=Depends(get_db)):
 
 
 @partidas_router.put(path='/descarte/{id_partida}')
-def descarte_cartas(id_partida, id_jugador: int, cartas_descarte: list[int]= Body(...), db=Depends(get_db)):
+def descarte_cartas(id_partida, id_jugador: int, cartas_descarte: list[int]= Body(...), db=Depends(get_db), manager=Depends(get_manager)):
     try:
         CartaService(db).descartar_cartas(id_jugador, cartas_descarte)
+        # Emitimos actualización del mazo (por si alguna lógica futura mueve entre mazos)
+        cantidad_restante = CartaService(db).obtener_cantidad_mazo(id_partida)
+        evento = {
+            "evento": "actualizacion-mazo",
+            "cantidad-restante-mazo": cantidad_restante,
+        }
+        # broadcast espera texto
+        import json as _json
+        # Enviamos como texto JSON a todos en la partida
+        import asyncio
+        async def _broadcast():
+            await manager.broadcast(id_partida, _json.dumps(evento))
+        try:
+            asyncio.get_event_loop().create_task(_broadcast())
+        except RuntimeError:
+            # En contexto sin loop (por ejemplo, pruebas), ignoramos
+            pass
         return {"detail": "Descarte exitoso"}
     except Exception as e:
         raise HTTPException(
@@ -408,22 +425,67 @@ def descarte_cartas(id_partida, id_jugador: int, cartas_descarte: list[int]= Bod
         )
 
 @partidas_router.get(path='/{id_partida}/mazo')
-async def obtener_cartas_restantes(id_partida, db=Depends(get_db)):
+async def obtener_cartas_restantes(id_partida, db=Depends(get_db), manager=Depends(get_manager)):
     cantidad_restante = CartaService(db).obtener_cantidad_mazo(id_partida)
     evento = {
         "evento":"actualizacion-mazo",
         "cantidad-restante-mazo": cantidad_restante,
     }
-    await manager.broadcast(id_partida, evento)
+    # Enviar como texto JSON por WebSocket
+    await manager.broadcast(id_partida, json.dumps(evento))
     return cantidad_restante
 
 
 @partidas_router.get(path='/{id_partida}/turno')
-async def obtener_turno_actual(id_partida, db=Depends(get_db)):
+async def obtener_turno_actual(id_partida, db=Depends(get_db), manager=Depends(get_manager)):
     turno = PartidaService(db).obtener_turno_actual(id_partida)
     evento = {
         "evento": "turno-actual",
         "turno-actual": turno
     }
-    await manager.broadcast(id_partida, evento)
+    await manager.broadcast(id_partida, json.dumps(evento))
     return turno
+
+# Endpoint robar/reponer cartas
+@partidas_router.post(path='/{id_partida}/robar', status_code=status.HTTP_200_OK)
+async def robar_cartas(id_partida: int, id_jugador: int, cantidad: int = 1, db=Depends(get_db), manager=Depends(get_manager)):
+    try:
+        # Validar turno actual
+        turno_actual = PartidaService(db).obtener_turno_actual(id_partida)
+        if turno_actual != id_jugador:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No es tu turno")
+
+        # Calcular cuántas cartas faltan para llegar a 6
+        mano = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
+        faltantes = max(0, 6 - len(mano))
+        # Si el cliente pidió más, capear a faltantes
+        a_robar = min(cantidad, faltantes) if faltantes > 0 else 0
+        if a_robar == 0:
+            # Nada que robar, simplemente retornar
+            return []
+
+        cartas = CartaService(db).robar_cartas(id_partida=id_partida, id_jugador=id_jugador, cantidad=a_robar)
+
+        # Notificar actualización del mazo
+        cantidad_restante = CartaService(db).obtener_cantidad_mazo(id_partida)
+        await manager.broadcast(id_partida, json.dumps({
+            "evento": "actualizacion-mazo",
+            "cantidad-restante-mazo": cantidad_restante,
+        }))
+
+        # Si la mano quedó en 6 tras robar, avanzar turno
+        mano_final = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
+        if len(mano_final) >= 6:
+            nuevo_turno = PartidaService(db).avanzar_turno(id_partida)
+            await manager.broadcast(id_partida, json.dumps({
+                "evento": "turno-actual",
+                "turno-actual": nuevo_turno,
+            }))
+
+        return cartas
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

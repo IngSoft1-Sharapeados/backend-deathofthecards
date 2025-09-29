@@ -141,6 +141,23 @@ class PartidaService:
         self._db.refresh(partida)
         return id_jugador
     
+    def avanzar_turno(self, id_partida: int) -> int:
+        """
+        Avanza al siguiente jugador según el orden de turnos y retorna el nuevo id de turno.
+        """
+        partida = self.obtener_por_id(id_partida)
+        if not partida or not partida.ordenTurnos:
+            raise ValueError("No existe orden de turnos para la partida")
+        orden = json.loads(partida.ordenTurnos)
+        if partida.turno_id not in orden:
+            # si no está, setear el primero
+            nuevo = orden[0]
+            return self.set_turno_actual(id_partida, nuevo)
+        idx = orden.index(partida.turno_id)
+        nuevo_idx = (idx + 1) % len(orden)
+        nuevo = orden[nuevo_idx]
+        return self.set_turno_actual(id_partida, nuevo)
+    
     def orden_turnos(self, id_partida: int, jugadores: list[Jugador]) -> list[int]:
         """
         Genera un orden de turnos para los jugadores en la partida.

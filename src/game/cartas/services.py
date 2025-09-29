@@ -160,3 +160,29 @@ class CartaService:
     def obtener_cantidad_mazo(self, id_partida):
         partida = PartidaService(self._db).obtener_por_id(id_partida)
         return len(self.obtener_mazo_de_robo(partida.id))
+
+    def robar_cartas(self, id_partida: int, id_jugador: int, cantidad: int = 1):
+        if cantidad <= 0:
+            raise ValueError("La cantidad a robar debe ser mayor a 0")
+
+        # Obtener mazo de robo
+        mazo = self.obtener_mazo_de_robo(id_partida)
+        if len(mazo) < cantidad:
+            raise ValueError("No hay suficientes cartas en el mazo para robar")
+
+        # Mezclar para simular robo aleatorio y tomar 'cantidad'
+        random.shuffle(mazo)
+        cartas_a_robar = mazo[:cantidad]
+
+        # Asignar cartas al jugador
+        for carta in cartas_a_robar:
+            carta.jugador_id = id_jugador
+            carta.ubicacion = "mano"
+
+        self._db.commit()
+
+        # Retornar información mínima al frontend
+        return [
+            {"id": carta.id_carta, "nombre": carta.nombre}
+            for carta in cartas_a_robar
+        ]
