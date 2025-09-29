@@ -1,6 +1,6 @@
 """Modelo Jugador"""
 
-from sqlalchemy import Column, Integer, String, Table, ForeignKey, Date
+from sqlalchemy import Column, Integer, String, Table, ForeignKey, Date, Boolean
 from sqlalchemy.orm import relationship, mapped_column
 from sqlalchemy.orm import Mapped
 from game.modelos.db import Base

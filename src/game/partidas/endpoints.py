@@ -1,6 +1,6 @@
 from typing import List
 from collections import defaultdict
-
+from fastapi import Body
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi import WebSocket, WebSocketException, WebSocketDisconnect
@@ -10,9 +10,12 @@ from game.partidas.services import PartidaService
 from game.jugadores.models import Jugador
 from game.jugadores.schemas import JugadorData, JugadorResponse, JugadorOut
 from game.jugadores.services import JugadorService
+from game.cartas.services import CartaService
 from game.modelos.db import get_db
 from game.partidas.utils import listar_jugadores
 import json
+import traceback
+
 
 partidas_router = APIRouter()
 
@@ -49,6 +52,7 @@ class ConnectionManager:
                 continue
     
     async def send_personal_message(self, id_jugador: int, message:str):
+        print(f"Enviando mensaje personal al jugador {id_jugador}: {message}")
         await self.active_connections_personal[id_jugador].send_text(message)
 
 manager = ConnectionManager()
@@ -236,7 +240,7 @@ async def unir_jugador_a_partida(id_partida: int, jugador_info: JugadorData, db=
 
 # Endpoint iniciar partida
 @partidas_router.put(path="/{id_partida}", status_code=status.HTTP_200_OK)
-async def iniciar_partida(id_partida: int, data: IniciarPartidaData, db=Depends(get_db)) -> None:
+async def iniciar_partida(id_partida: int, data: IniciarPartidaData, db=Depends(get_db)):
     """
     Inicia una partida si el jugador es el anfitrión y se cumplen las condiciones.
     
@@ -251,11 +255,20 @@ async def iniciar_partida(id_partida: int, data: IniciarPartidaData, db=Depends(
     -------
     Status 200 OK si la partida se inicia correctamente, de lo contrario lanza una excepción HTTP.
     """
+    
     try:
+        print("partida iniciando")
         partida = PartidaService(db).iniciar(id_partida, data.id_jugador)
+        mazo_partida = CartaService(db).crear_mazo_inicial(id_partida)
+        CartaService(db).repartir_cartas_iniciales(mazo_partida, partida.jugadores)
+        print("cartas repartidas")
+        turnos = PartidaService(db).orden_turnos(id_partida, partida.jugadores)
+        print(f"turnos generados: {turnos}")
+        PartidaService(db).set_turno_actual(id_partida, turnos[0])
+        print(f"turno actual seteado: {turnos[0]}")
         await manager.broadcast(id_partida, json.dumps({"evento": "iniciar-partida"}))
-        
         return {"detail": "Partida iniciada correctamente."}
+    
     except PermissionError as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -266,7 +279,49 @@ async def iniciar_partida(id_partida: int, data: IniciarPartidaData, db=Depends(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(f'No se encontro la partida con el ID {id_partida}.')
+        )
+    except Exception as e:
+        print("ERROR en iniciar_partida:")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error inesperado: {e}"
+        )
 
+# Endpoint obtener orden de turnos
+@partidas_router.get(path="/{id_partida}/turnos", status_code=status.HTTP_200_OK)
+async def obtener_orden_turnos(id_partida: int, db=Depends(get_db)) -> List[int]:
+    """
+    Obtiene el orden de turnos de los jugadores en una partida.
+    
+    Parameters
+    ----------
+    id_partida: int
+        ID de la partida
+    
+    Returns
+    -------
+    List[int]
+        Lista con el orden de turnos (IDs de jugadores)
+    """
+    try:
+        partida = PartidaService(db).obtener_por_id(id_partida)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=("No existe la partida con el ID proporcionado.")
+        )
+    if not partida.ordenTurnos:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No se ha generado el orden de turnos para la partida con ID {id_partida}."
+        )
+    orden = json.loads(partida.ordenTurnos)
+    return orden
 
 @partidas_router.websocket("/ws/{id_partida}/{id_jugador}")
 async def websocket_endpoint(websocket: WebSocket, id_partida: int, id_jugador: int, db=Depends(get_db)):
@@ -298,3 +353,77 @@ async def websocket_endpoint(websocket: WebSocket, id_partida: int, id_jugador: 
 
         manager.disconnect(websocket, id_partida, id_jugador)
     
+@partidas_router.get(path="/{id_partida}/mano", status_code=status.HTTP_200_OK)
+async def obtener_mano(id_partida: int, id_jugador: int, db=Depends(get_db)):
+    """
+    Obtiene la mano inicial de un jugador específico para una partida.
+    """
+    try:
+        mano_jugador = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
+
+        if not mano_jugador:
+            return []
+
+        cartas_a_enviar = [
+            {"id": carta.id_carta, "nombre": carta.nombre}
+            for carta in mano_jugador
+        ]
+        
+        return cartas_a_enviar
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No se pudo obtener la mano para el jugador {id_jugador} en la partida {id_partida}. Error: {e}"
+        )
+        
+
+
+
+
+# DONE endpoint descartar carta/s . front manda lista de IDs para ubicar en el diccionario, sacar relacion.devolver 200 OK
+
+# endpoint reponer cartas (id_partida, id_jugador) metodo en service obtener_cartas_restantes
+# if cartas_restantes > cartas_a_reponer then devovler lista de cartas para reponer
+# else broadcast TERIMNAR PARTIDA
+
+
+# DONE endpoint get remaining cards devuelve INT el numero de cartas restantes del mazo
+
+# DONE endpoint obtener_turno_actual (partida_id) return INT ID del jugador que tiene el turno actual
+
+# endpoint terminar turno ???????????????????????????????????????
+
+
+
+@partidas_router.put(path='/descarte/{id_partida}')
+def descarte_cartas(id_partida, id_jugador: int, cartas_descarte: list[int]= Body(...), db=Depends(get_db)):
+    try:
+        CartaService(db).descartar_cartas(id_jugador, cartas_descarte)
+        return {"detail": "Descarte exitoso"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+@partidas_router.get(path='/{id_partida}/mazo')
+async def obtener_cartas_restantes(id_partida, db=Depends(get_db)):
+    cantidad_restante = CartaService(db).obtener_cantidad_mazo(id_partida)
+    evento = {
+        "evento":"actualizacion-mazo",
+        "cantidad-restante-mazo": cantidad_restante,
+    }
+    await manager.broadcast(id_partida, evento)
+    return cantidad_restante
+
+
+@partidas_router.get(path='/{id_partida}/turno')
+async def obtener_turno_actual(id_partida, db=Depends(get_db)):
+    turno = PartidaService(db).obtener_turno_actual(id_partida)
+    evento = {
+        "evento": "turno-actual",
+        "turno-actual": turno
+    }
+    await manager.broadcast(id_partida, evento)
+    return turno
