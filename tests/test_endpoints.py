@@ -1010,3 +1010,27 @@ def test_descartar_carta_no_encontrada(mock_CartaService, session):
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Una o mas cartas no se encuentran en la mano del jugador"
+    
+# ------------------ TEST OBTENER CARTAS RESTANTES ------------------
+
+@patch("game.partidas.endpoints.CartaService")
+def test_obtener_cartas_restantes_ok(mock_CartaService, session):
+    """Test para verificar que se obtiene la cantidad de cartas restantes en el mazo"""
+
+    def get_db_override():
+        yield session
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    # Mock de servicio que devuelve 42 cartas
+    mock_service_instance = MagicMock()
+    mock_service_instance.obtener_cantidad_mazo.return_value = 42
+    mock_CartaService.return_value = mock_service_instance
+
+    response = client.get("/partidas/1/mazo")
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == 42
+    
