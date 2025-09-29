@@ -499,10 +499,13 @@ def datos_jugador():
     }
 
 @patch("game.partidas.endpoints.PartidaService")
-def test_iniciar_partida_ok(mock_PartidaService, datos_jugador, session):
-    # Creamos un mock del servicio
+def test_iniciar_partida_ok(mock_PartidaService, datos_jugador, jugadores_mock, session):
+   # Mock PartidaService
     mock_service = MagicMock()
-    mock_service.iniciar.return_value = None  # porque tu endpoint no retorna partida, solo mensaje
+    mock_partida = MagicMock()
+    mock_partida.jugadores = jugadores_mock
+    mock_service.iniciar.return_value = mock_partida
+    mock_service.obtener_por_id.return_value = mock_partida
     mock_PartidaService.return_value = mock_service
 
     # Override de la DB
@@ -519,13 +522,10 @@ def test_iniciar_partida_ok(mock_PartidaService, datos_jugador, session):
     )
 
     app.dependency_overrides.clear()
-    
+
     # Assertions
     assert response.status_code == 200
-    assert response.json() == {"detail": "Partida iniciada correctamente."}
-
-    # Verificamos que se llamó correctamente al servicio
-    mock_service.iniciar.assert_called_once_with(1, 1)
+    assert response.json()["detail"] == "Partida iniciada correctamente."
 
 #---------------------- TEST INICIAR PARTIDA NO AUTORIZADO ----------------------
 

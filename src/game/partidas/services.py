@@ -106,7 +106,7 @@ class PartidaService:
         else:
             raise Exception("La partida ya está llena.")    
         
-    def iniciar(self, id_partida: int, id_jugar_solicitante) -> None:
+    def iniciar(self, id_partida: int, id_jugar_solicitante) -> Partida:
         """
         Inicia una partida por su ID.
         

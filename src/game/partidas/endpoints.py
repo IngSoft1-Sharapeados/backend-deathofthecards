@@ -280,7 +280,12 @@ async def iniciar_partida(id_partida: int, data: IniciarPartidaData, db=Depends(
             detail=str(e)
         )
     except Exception as e:
-        print("🔥 ERROR en iniciar_partida:")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(f'No se encontro la partida con el ID {id_partida}.')
+        )
+    except Exception as e:
+        print("ERROR en iniciar_partida:")
         traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
