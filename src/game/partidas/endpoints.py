@@ -260,8 +260,8 @@ async def iniciar_partida(id_partida: int, data: IniciarPartidaData, db=Depends(
         
         mazo_partida = CartaService(db).crear_mazo_inicial(id_partida)
         CartaService(db).repartir_cartas_iniciales(mazo_partida, partida.jugadores)
-        
-        #await manager.broadcast(id_partida, json.dumps({"evento": "iniciar-partida", "turnos": ["TURNOS IDs"]}))
+        #turnos = PartidaService.orden_turnos(0)
+        await manager.broadcast(id_partida, json.dumps({"evento": "iniciar-partida", "turnos": ["TURNOS IDs"]}))
         return {"detail": "Partida iniciada correctamente."}
     except PermissionError as e:
         raise HTTPException(
