@@ -167,8 +167,11 @@ class CartaService:
 
         # Obtener mazo de robo
         mazo = self.obtener_mazo_de_robo(id_partida)
+        # Si no hay suficientes, robar tantas como haya
+        if len(mazo) == 0:
+            return []
         if len(mazo) < cantidad:
-            raise ValueError("No hay suficientes cartas en el mazo para robar")
+            cantidad = len(mazo)
 
         # Mezclar para simular robo aleatorio y tomar 'cantidad'
         random.shuffle(mazo)
