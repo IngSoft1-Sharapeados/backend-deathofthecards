@@ -16,8 +16,11 @@ class Partida(Base):
     minJugadores: Mapped[int] = mapped_column(Integer, nullable=True)
     turno_id: Mapped[int] = mapped_column(Integer,nullable=True)
     
+    ordenTurnos: Mapped[str] = mapped_column(String, nullable=True)  # Almacena el orden de turnos como una cadena separada por comas
+    turno_id: Mapped[int] = mapped_column(Integer, nullable=True)  # ID del jugador cuyo turno es actualmente
+    
+
     # Relación de 1 a muchos con Jugador
     jugadores: Mapped[List["Jugador"]] = relationship("Jugador", back_populates="partida")
 
     cartas: Mapped[List["Carta"]] = relationship("Carta", back_populates="partida")
-
