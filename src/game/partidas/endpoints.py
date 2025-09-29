@@ -14,6 +14,8 @@ from game.cartas.services import CartaService
 from game.modelos.db import get_db
 from game.partidas.utils import listar_jugadores
 import json
+import traceback
+
 
 partidas_router = APIRouter()
 
@@ -238,7 +240,7 @@ async def unir_jugador_a_partida(id_partida: int, jugador_info: JugadorData, db=
 
 # Endpoint iniciar partida
 @partidas_router.put(path="/{id_partida}", status_code=status.HTTP_200_OK)
-async def iniciar_partida(id_partida: int, data: IniciarPartidaData, db=Depends(get_db)) -> None:
+async def iniciar_partida(id_partida: int, data: IniciarPartidaData, db=Depends(get_db)):
     """
     Inicia una partida si el jugador es el anfitrión y se cumplen las condiciones.
     
@@ -262,14 +264,11 @@ async def iniciar_partida(id_partida: int, data: IniciarPartidaData, db=Depends(
         print("cartas repartidas")
         turnos = PartidaService(db).orden_turnos(id_partida, partida.jugadores)
         print(f"turnos generados: {turnos}")
-        await manager.broadcast(id_partida, json.dumps({"evento": "iniciar-partida", "turnos": turnos}))
+        PartidaService(db).set_turno_actual(id_partida, turnos[0])
+        print(f"turno actual seteado: {turnos[0]}")
+        await manager.broadcast(id_partida, json.dumps({"evento": "iniciar-partida"}))
         return {"detail": "Partida iniciada correctamente."}
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=("No existe la partida con el ID proporcionado.")
-        )            
-        
+    
     except PermissionError as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -279,6 +278,13 @@ async def iniciar_partida(id_partida: int, data: IniciarPartidaData, db=Depends(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
+        )
+    except Exception as e:
+        print("🔥 ERROR en iniciar_partida:")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error inesperado: {e}"
         )
 
 # Endpoint obtener orden de turnos
@@ -369,3 +375,53 @@ async def obtener_mano(id_partida: int, id_jugador: int, db=Depends(get_db)):
             detail=f"No se pudo obtener la mano para el jugador {id_jugador} en la partida {id_partida}. Error: {e}"
         )
         
+
+
+
+
+# DONE endpoint descartar carta/s . front manda lista de IDs para ubicar en el diccionario, sacar relacion.devolver 200 OK
+
+# endpoint reponer cartas (id_partida, id_jugador) metodo en service obtener_cartas_restantes
+# if cartas_restantes > cartas_a_reponer then devovler lista de cartas para reponer
+# else broadcast TERIMNAR PARTIDA
+
+
+# DONE endpoint get remaining cards devuelve INT el numero de cartas restantes del mazo
+
+# DONE endpoint obtener_turno_actual (partida_id) return INT ID del jugador que tiene el turno actual
+
+# endpoint terminar turno ???????????????????????????????????????
+
+
+
+@partidas_router.put(path='/descarte/{id_partida}')
+def descarte_cartas(id_partida, id_jugador: int, cartas_descarte: list[int]= Body(...), db=Depends(get_db)):
+    try:
+        CartaService(db).descartar_cartas(id_jugador, cartas_descarte)
+        return {"detail": "Descarte exitoso"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+@partidas_router.get(path='/{id_partida}/mazo')
+async def obtener_cartas_restantes(id_partida, db=Depends(get_db)):
+    cantidad_restante = CartaService(db).obtener_cantidad_mazo(id_partida)
+    evento = {
+        "evento":"actualizacion-mazo",
+        "cantidad-restante-mazo": cantidad_restante,
+    }
+    await manager.broadcast(id_partida, evento)
+    return cantidad_restante
+
+
+@partidas_router.get(path='/{id_partida}/turno')
+async def obtener_turno_actual(id_partida, db=Depends(get_db)):
+    turno = PartidaService(db).obtener_turno_actual(id_partida)
+    evento = {
+        "evento": "turno-actual",
+        "turno-actual": turno
+    }
+    await manager.broadcast(id_partida, evento)
+    return turno

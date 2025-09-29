@@ -128,7 +128,18 @@ class PartidaService:
         self._db.commit()
         self._db.refresh(partida)
         return partida
-        
+
+    def obtener_turno_actual(self, id_partida) -> int:
+        partida = PartidaService(self._db).obtener_por_id(id_partida)
+        return partida.turno_id
+    
+    def set_turno_actual(self, id_partida: int, id_jugador: int):
+        partida = self.obtener_por_id(id_partida)
+        partida.turno_id = id_jugador
+        self._db.commit()        # usar self._db
+        self._db.refresh(partida)
+        return id_jugador
+    
     def orden_turnos(self, id_partida: int, jugadores: list[Jugador]) -> list[int]:
         """
         Genera un orden de turnos para los jugadores en la partida.
