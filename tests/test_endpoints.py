@@ -1034,3 +1034,138 @@ def test_obtener_cartas_restantes_ok(mock_CartaService, session):
 
     assert response.status_code == 200
     assert response.json() == 42
+    
+#----------------TEST ROBAR CARTAS -------------------------------------------
+#Robar cartas OK
+@patch("game.partidas.endpoints.CartaService")
+@patch("game.partidas.endpoints.PartidaService")
+def test_robar_cartas_ok(mock_PartidaService, mock_CartaService, session):
+    """Test para verificar que el jugador roba cartas correctamente"""
+
+    def get_db_override():
+        yield session
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    mock_partida_service = MagicMock()
+    mock_partida_service.obtener_turno_actual.return_value = 1
+    mock_partida_service.avanzar_turno.return_value = 2
+    mock_PartidaService.return_value = mock_partida_service
+
+    mock_carta_service = MagicMock()
+    mock_carta_service.obtener_mano_jugador.side_effect = [
+        [{"id": 1}],  # mano inicial
+        [{"id": 1}, {"id": 2}, {"id": 3}, {"id": 4}, {"id": 5}]  # mano final
+    ]
+    mock_carta_service.obtener_cantidad_mazo.return_value = 10
+    mock_carta_service.robar_cartas.return_value = [{"id": 99, "nombre": "Miss Marple"}]
+    mock_CartaService.return_value = mock_carta_service
+
+    response = client.post("/partidas/1/robar?id_jugador=1&cantidad=2")
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == [{"id": 99, "nombre": "Miss Marple"}]
+    mock_partida_service.obtener_turno_actual.assert_called_once_with(1)
+    mock_carta_service.robar_cartas.assert_called_once()
+
+#Robar cartas Fuera de turno
+@patch("game.partidas.endpoints.CartaService")
+@patch("game.partidas.endpoints.PartidaService")
+def test_robar_cartas_fuera_de_turno(mock_PartidaService, mock_CartaService, session):
+    """Test para verificar que se lanza error si el jugador intenta robar fuera de su turno"""
+
+    def get_db_override():
+        yield session
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    mock_partida_service = MagicMock()
+    mock_partida_service.obtener_turno_actual.return_value = 99  # distinto del jugador que hace la request
+    mock_PartidaService.return_value = mock_partida_service
+
+    response = client.post("/partidas/1/robar?id_jugador=1&cantidad=2")
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "No es tu turno"}
+    mock_partida_service.obtener_turno_actual.assert_called_once_with(1)
+    mock_CartaService.return_value.robar_cartas.assert_not_called()
+
+#Robar cartas cantidad invalida 0
+@patch("game.partidas.endpoints.CartaService")
+@patch("game.partidas.endpoints.PartidaService")
+def test_robar_cartas_cantidad_cero(mock_PartidaService, mock_CartaService, session):
+    """Test para verificar que si la cantidad es 0, no se roba y se retorna lista vacía"""
+
+    def get_db_override():
+        yield session
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    # Setup mocks
+    mock_partida_service = MagicMock()
+    mock_partida_service.obtener_turno_actual.return_value = 1
+    mock_PartidaService.return_value = mock_partida_service
+
+    mock_carta_service = MagicMock()
+    mock_carta_service.obtener_mano_jugador.return_value = []
+    mock_carta_service.obtener_cantidad_mazo.return_value = 10
+    mock_CartaService.return_value = mock_carta_service
+
+    # Act
+    response = client.post("/partidas/1/robar?id_jugador=1&cantidad=0")
+
+    app.dependency_overrides.clear()
+
+    # Assert
+    assert response.status_code == 200
+    assert response.json() == []
+    mock_carta_service.robar_cartas.assert_not_called()
+    
+#Robar cartas y finalizar partida
+@patch("game.partidas.endpoints.CartaService")
+@patch("game.partidas.endpoints.PartidaService")
+def test_robar_cartas_fin_de_partida(mock_PartidaService, mock_CartaService, session):
+    """Test para verificar que cuando el mazo queda vacío, se activa la lógica de fin de partida"""
+
+    def get_db_override():
+        yield session
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    # Setup mocks
+    mock_partida_service = MagicMock()
+    mock_partida_service.obtener_turno_actual.return_value = 1
+    mock_partida_service.avanzar_turno.return_value = 2
+    mock_PartidaService.return_value = mock_partida_service
+
+    mock_carta_service = MagicMock()
+    mock_carta_service.obtener_mano_jugador.side_effect = [
+        [{"id": 1}, {"id": 2}],  # mano inicial → faltan 4
+        [{"id": 1}, {"id": 2}, {"id": 3}, {"id": 4}, {"id": 5}, {"id": 6}]  # mano final
+    ]
+    mock_carta_service.obtener_cantidad_mazo.side_effect = [1, 0]  # antes y después del robo
+    mock_carta_service.robar_cartas.return_value = [{"id": 101, "nombre": "Poirot"}]
+    mock_CartaService.return_value = mock_carta_service
+
+    # Act
+    response = client.post("/partidas/1/robar?id_jugador=1&cantidad=4")
+
+    app.dependency_overrides.clear()
+
+    # Assert
+    assert response.status_code == 200
+    assert response.json() == [{"id": 101, "nombre": "Poirot"}]
+    mock_carta_service.robar_cartas.assert_called_once()
+    mock_partida_service.avanzar_turno.assert_called_once_with(1)
+
+    app.dependency_overrides.clear()
+
+    # Assert
+    assert response.status_code == 200
+    assert response.json() == [{"id": 101, "nombre": "Poirot"}]
+    mock_carta_service.robar_cartas.assert_called_once()
+    mock_partida_service.avanzar_turno.assert_called_once_with(1)
