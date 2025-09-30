@@ -1,0 +1,28 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from game.modelos.db import Base, get_engine
+
+from api import api_router
+#import os
+
+app = FastAPI()
+
+#if os.path.exists("game.db"):
+ #   os.remove("game.db")
+origins = ["*"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins = origins,
+    allow_credentials = True,
+    allow_methods = ["*"],
+    allow_headers = ["*"]
+)
+
+app.include_router(api_router)
+
+@app.get("/")
+async def root():
+    return {"message":"HOLA"}
+
+Base.metadata.create_all(bind=get_engine())
