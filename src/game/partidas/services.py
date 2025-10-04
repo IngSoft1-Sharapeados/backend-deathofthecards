@@ -8,7 +8,7 @@ import random
 
 from datetime import date
 
-from game.partidas.utils import *
+#from game.partidas.utils import *
 import json
 
 
@@ -105,7 +105,11 @@ class PartidaService:
             self._db.commit()
             self._db.refresh(partida)
         else:
-            raise Exception("La partida ya está llena.")    
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="La partida ya tiene el máximo de jugadores."
+                )
+         
         
     def iniciar(self, id_partida: int, id_jugar_solicitante) -> Partida:
         """

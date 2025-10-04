@@ -12,10 +12,10 @@ from game.jugadores.schemas import JugadorData, JugadorResponse, JugadorOut
 #from game.jugadores.services import JugadorService
 #from game.cartas.services import CartaService
 from game.modelos.db import get_db
-from game.partidas.utils import listar_jugadores
+from game.partidas.utils import *
 import json
 import traceback
-from game.partidas.utils import *
+#from game.partidas.utils import *
 
 
 partidas_router = APIRouter()
@@ -63,7 +63,7 @@ def get_manager():
 
 
 # Endpoint crear partida
-@partidas_router.post(path="")
+@partidas_router.post(path="", status_code=status.HTTP_201_CREATED)
 async def crear_partida(partida_info: PartidaData, db=Depends(get_db)
 ) -> PartidaResponse:
 
@@ -182,6 +182,9 @@ async def unir_jugador_a_partida(id_partida: int, jugador_info: JugadorData, db=
                 }))
         return jugador_unido
 
+    except HTTPException as e:
+        raise e
+    
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
