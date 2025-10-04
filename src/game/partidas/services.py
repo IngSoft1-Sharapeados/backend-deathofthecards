@@ -1,5 +1,5 @@
 from typing import List, Optional
-
+from fastapi import HTTPException, status
 from game.partidas.dtos import PartidaDTO
 from game.partidas.models import Partida
 from game.jugadores.models import Jugador
@@ -7,7 +7,8 @@ from game.jugadores.schemas import JugadorDTO
 import random
 
 from datetime import date
-from game.partidas.utils import distancia_fechas
+
+from game.partidas.utils import *
 import json
 
 
@@ -117,13 +118,25 @@ class PartidaService:
         """
         partida = self._db.query(Partida).filter(Partida.id == id_partida).first()
         if not partida:
-            raise ValueError(f"No se encontró la partida con ID {id_partida}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No se ha encontrado la partida"
+            )
         if partida.anfitrionId != id_jugar_solicitante:
-            raise ValueError("Solo el anfitrión puede iniciar la partida")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Solo el anfitrion puede iniciar la partida"
+                )
         if partida.iniciada:
-            raise ValueError(f"La partida con ID {id_partida} ya está iniciada")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="La partida ya ha sido iniciada"
+                )
         if partida.cantJugadores < partida.minJugadores:
-            raise ValueError(f"No hay suficientes jugadores para iniciar la partida (mínimo {partida.minJugadores})")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Aun no hay la cantidad suficiente de jugadores"
+                )
             
         partida.iniciada = True
         self._db.commit()
@@ -173,10 +186,14 @@ class PartidaService:
             Diccionario con el orden de turnos (clave: turno, valor: id del jugador)
         """
         partida = self._db.query(Partida).filter(Partida.id == id_partida).first()
-        # primer_turno = min(jugadores, key=lambda jugador: distancia_fechas(jugador.fecha_nacimiento))
-        min_dist = 365    
+
+        min_dist = 365
         for jugador in jugadores:
-            dist_jug = distancia_fechas(jugador.fecha_nacimiento)
+            fecha = jugador.fecha_nacimiento
+            f = date(2000, fecha.month, fecha.day)   # normalizo al año 2000
+            agatha_birthDay = date(2000, 9, 15)
+            dias_distancia = abs((f - agatha_birthDay).days)
+            dist_jug = dias_distancia
             if dist_jug < min_dist:
                 min_dist = dist_jug
                 jugador_turno_inicial = jugador
