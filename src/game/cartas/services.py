@@ -1,12 +1,11 @@
-
 from game.cartas.constants import cartasDict
 from game.cartas.models import Carta
 from game.jugadores.models import Jugador
 from game.jugadores.services import JugadorService
-from game.partidas.models import Partida
+#from game.partidas.models import Partida
 import random
-
-from game.partidas.services import PartidaService
+from game.partidas.utils import * 
+#from game.partidas.services import PartidaService
 
 
 class CartaService:

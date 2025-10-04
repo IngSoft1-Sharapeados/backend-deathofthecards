@@ -1,10 +1,10 @@
 from game.partidas.dtos import PartidaDTO
 from game.jugadores.models import Jugador
-from game.cartas.models import Carta
+#from game.cartas.models import Carta
 from game.jugadores.dtos import JugadorDTO
 
 from typing import List, Optional
-from game.partidas.services import PartidaService
+#from game.partidas.services import PartidaService
 
 class JugadorService:
     def __init__(self,db):
