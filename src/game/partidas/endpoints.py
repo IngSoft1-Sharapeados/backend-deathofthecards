@@ -424,3 +424,28 @@ async def robar_cartas(id_partida: int, id_jugador: int, cantidad: int = 1, db=D
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@partidas_router.get(path="/{id_partida}/secretos", status_code=status.HTTP_200_OK)
+async def obtener_secretos(id_partida: int, id_jugador: int, db=Depends(get_db)):
+    """
+    Obtiene los secretos de un jugador específico para una partida.
+    """
+    try:
+        secretos_jugador = CartaService(db).obtener_secretos_jugador(id_jugador, id_partida)
+
+        if not secretos_jugador:
+            return []
+
+        cartas_a_enviar = [
+            {"id": carta.id_carta, "nombre": carta.nombre}
+            for carta in secretos_jugador
+        ]
+        
+        return cartas_a_enviar
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No se pudo obtener los secretos para el jugador {id_jugador} en la partida {id_partida}. Error: {e}"
+        )

@@ -21,3 +21,9 @@ cartasDict = {
     20: {"id":24 ,"tipo": "Event", "carta": "Early train to paddington", "cantidad": 2, "bocaArriba": False, "ubicacion": "mazo_robo"},
     21: {"id":17 ,"tipo": "Event", "carta": "Cards off the table", "cantidad": 1, "bocaArriba": False, "ubicacion": "mazo_robo"},
 }
+
+secretosDict = {
+    1: {"id":3, "tipo": "secreto", "carta": "murderer", "cantidad": 1, "bocaArriba": False, "ubicacion": "mesa"},
+    2: {"id":4, "tipo": "secreto", "carta" : "accomplice", "cantidad": 1, "bocaArriba": False, "ubicacion": "mesa"},
+    3: {"id":6, "tipo": "secreto", "carta": "secreto_comun", "cantidad":16, "bocaArriba": False, "ubicacion": "mesa"}
+}
