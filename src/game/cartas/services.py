@@ -242,7 +242,7 @@ class CartaService:
         jugadores_ids = [jugador.id for jugador in jugadores_en_partida]
         
         # Se elige un jugador al azar para que sea el asesino
-        index_murderer = random.randrange(len(jugadores_en_partida))
+        index_murderer = random.randrange(len(jugadores_en_partida)-1)
         
         # Le asigno la carta de asesino
         secretos[0].jugador_id = jugadores_en_partida[index_murderer].id
@@ -254,7 +254,7 @@ class CartaService:
         if (len(jugadores_en_partida) >= 5):
             accomplice_found = False
             while not accomplice_found:
-                index_accomplice = random.randrange(len(jugadores_en_partida))
+                index_accomplice = random.randrange(len(jugadores_en_partida)-1)
                 if index_accomplice != index_murderer:
                     secretos[1].jugador_id = jugadores_en_partida[index_accomplice].id
                     accomplice_found = True
