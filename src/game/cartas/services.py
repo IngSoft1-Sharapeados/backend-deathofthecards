@@ -188,3 +188,72 @@ class CartaService:
             {"id": carta.id_carta, "nombre": carta.nombre}
             for carta in cartas_a_robar
         ]
+
+    def actualizar_mazo_draft(self, id_partida: int):
+        """
+        Actualiza el mazo de draft de una partida.
+
+        Parameters
+        ----------
+            id_partida (int)
+
+        """
+        mazo_draft = (
+        self._db.query(Carta)
+        .filter(Carta.partida_id == id_partida, Carta.ubicacion == "draft")
+        .all())
+
+        cartas_draft = len(mazo_draft)
+        if cartas_draft <= 2:
+            mazo_robo = self.obtener_mazo_de_robo(id_partida)
+            random.shuffle(mazo_robo)
+            for cartas in mazo_robo:
+                cartas.ubicacion = "draft"
+                cartas_draft += 1
+                if cartas_draft == 3:
+                    break
+            
+            self._db.commit()
+
+    def obtener_mazo_draft(self, id_partida: int) -> list[Carta]:
+        """
+        Obtiene el mazo de draft de una partida.
+
+        Parameters
+        ----------
+            id_partida (int)
+
+        Returns
+        --------
+            list[Carta]
+        """
+        self.actualizar_mazo_draft(id_partida)
+
+        mazo_draft = (self._db.query(Carta)
+                        .filter(Carta.partida_id == id_partida, Carta.ubicacion == "draft")
+                        .all())
+                
+        return mazo_draft
+    
+    def tomar_cartas_draft(self, id_partida: int, id_jugador: int, cartas_tomadas_id: list[int]):
+        """
+        Permite al jugador tomar de 1 a 3 cartas del draft.
+        """
+
+        cartas_draft = (
+            self._db.query(Carta)
+            .filter(
+                Carta.partida_id == id_partida,
+                Carta.ubicacion == "draft",
+                Carta.id_carta.in_(cartas_tomadas_id),
+            )
+            .all()
+        )
+
+        # Mover las cartas al jugador
+        for carta in cartas_draft:
+            carta.jugador_id = id_jugador
+            carta.ubicacion = "mano"
+            self._db.add(carta)
+
+        self._db.commit()

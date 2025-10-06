@@ -408,6 +408,7 @@ async def robar_cartas(id_partida: int, id_jugador: int, cantidad: int = 1, db=D
                 "evento": "turno-actual",
                 "turno-actual": nuevo_turno,
             }))
+            CartaService(db).actualizar_mazo_draft(id_partida)
 
         # Si el mazo queda en 0, emitir fin de partida
         if cantidad_restante == 0:
@@ -424,3 +425,42 @@ async def robar_cartas(id_partida: int, id_jugador: int, cantidad: int = 1, db=D
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+@partidas_router.get(path= '/draft/{id_partida}')
+async def mazo_draft(id_partida: int, db=Depends(get_db)):
+    """ 
+    Se muestra el mazo de draft
+    
+    Returns
+    -------
+    Devuelve una lista de cartas que componen el mazo de draft.
+    """
+    try:
+        mazo_draft = mostrar_mazo_draft(id_partida, db)
+        return mazo_draft
+    
+    except Exception as e:
+        raise e
+
+@partidas_router.put(path="/draft/{id_partida}/robar")
+async def tomar_cartas_draft(id_partida: int,id_jugador: int,
+                        cartas_tomadas: list[int] = Body(...),
+                        db=Depends(get_db),
+                        manager=Depends(get_manager)):
+    """
+    El jugador toma entre 1 y 3 cartas del draft.
+    """
+    try:
+        robar_carta_draft(id_partida, id_jugador, cartas_tomadas, db)
+
+        evento = {
+            "evento": "actualizacion-draft",
+            "id_jugador": id_jugador,
+            "cartas_tomadas": cartas_tomadas,
+        }
+
+        await manager.broadcast(id_partida, json.dumps(evento))
+        return {"detail": "Cartas tomadas correctamente."}
+
+    except Exception as e:
+        raise e
