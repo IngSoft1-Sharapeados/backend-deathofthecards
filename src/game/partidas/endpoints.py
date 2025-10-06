@@ -424,3 +424,18 @@ async def robar_cartas(id_partida: int, id_jugador: int, cantidad: int = 1, db=D
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    
+@partidas_router.get(path= '{id_partida}/descarte')
+async def mazo_descarte(id_partida: int, db=Depends(get_db)):
+    """ 
+    Se muestra el mazo de descarte
+    
+    devuelve lista de cartas que componen el mazo de desarte.
+    """
+    try:
+        mazo_descarte = mostrar_mazo_descarte(id_partida, db)
+        
+        return mazo_descarte
+    
+    except Exception as e:
+        raise e

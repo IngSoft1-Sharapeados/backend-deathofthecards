@@ -109,3 +109,23 @@ def unir_a_partida(id_partida: int, jugador_info, db) -> JugadorOut:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="No se pudo completar la solicitud por un error interno"
         )
+
+def mostrar_mazo_descarte(id_partida: int, db):
+
+    if PartidaService(db).obtener_por_id(id_partida) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No se encontro la partida con el ID {id_partida}.")
+
+    try:    
+        mazo_descarte = CartaService(db).obtener_mazo_descarte(id_partida)            
+        cartas_descartadas = [
+            {"id": carta.id_carta, "nombre": carta.nombre}
+            for carta in mazo_descarte
+        ]
+        return cartas_descartadas
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"No se pudo obtener el mazo de descarte. Error: {e}"
+        )

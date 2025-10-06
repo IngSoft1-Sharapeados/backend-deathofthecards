@@ -50,6 +50,23 @@ class CartaService:
         self._db.commit()
 
         return mazo_nuevo
+    
+    def obtener_mazo_descarte(self, id_partida: int) -> list[Carta]:
+        """
+        Obtiene el mazo de descarte de una partida.
+
+        Args:
+            id_partida (int)
+
+        Returns:
+            list[Carta]
+        """
+        mazo_descarte = (self._db.query(Carta)
+                         .filter_by(partida_id=id_partida, ubicacion="descarte")
+                         .order_by(Carta.orden_descarte.desc()).all()
+                        )
+        
+        return mazo_descarte
 
     def repartir_cartas_iniciales(self, mazo: list[Carta], jugadores_en_partida: list[Jugador]):
         """
@@ -129,11 +146,9 @@ class CartaService:
         """
         DOC
         """
-        print("ACA POR AGARRAR EL JUGADOR")
+        from sqlalchemy import func
+  
         jugador = JugadorService(self._db).obtener_jugador(id_jugador)
-        print("YA AGARRE EL JUGADOR")
-
-
         tiene_cartas = True
         cartas_mano = jugador.cartas
         for carta_id in cartas_descarte_id:
@@ -146,12 +161,14 @@ class CartaService:
         if not tiene_cartas:
             raise Exception("Una o mas cartas no se encuentran en la mano del jugador")
         
-        
+        ultimo_orden = self._db.query(func.max(Carta.orden_descarte)).filter(Carta.partida_id == jugador.partida_id).scalar() or 0
         for carta in cartas_descarte_id:
             carta_descarte = self._db.query(Carta).filter(Carta.id_carta == carta, Carta.jugador_id == id_jugador).first()
             carta_descarte.jugador_id = 0
             carta_descarte.ubicacion = "descarte"
             carta_descarte.bocaArriba = False
+            carta_descarte.orden_descarte = ultimo_orden + 1
+            
             self._db.commit()
             print(f'Se descarto la carta con id {carta_descarte.id} y nombre {carta_descarte.nombre}.')
 
