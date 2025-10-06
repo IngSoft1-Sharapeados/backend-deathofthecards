@@ -449,3 +449,23 @@ async def obtener_secretos(id_partida: int, id_jugador: int, db=Depends(get_db))
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No se pudo obtener los secretos para el jugador {id_jugador} en la partida {id_partida}. Error: {e}"
         )
+
+
+@partidas_router.get(path="/{id_partida}/roles", status_code=status.HTTP_200_OK)
+async def obtener_asesino_complice(id_partida: int, db=Depends(get_db)):
+    """
+    Obtiene los IDs del asesino y el cómplice de una partida específica.
+    """
+    try:
+        asesino_complice = CartaService(db).obtener_asesino_complice(id_partida)
+
+        if not asesino_complice:
+            return []
+
+        return asesino_complice
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Hubo un error al obtener los IDs del asesino y el cómplice"
+        )
