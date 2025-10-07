@@ -72,6 +72,8 @@ def iniciarPartida(id_partida: int, data: IniciarPartidaData, db):
     try:
         mazo_partida = CartaService(db).crear_mazo_inicial(id_partida)
         CartaService(db).repartir_cartas_iniciales(mazo_partida, partida.jugadores)
+        secretos = CartaService(db).crear_secretos(id_partida)
+        CartaService(db).repartir_secretos(secretos, partida.jugadores)
         turnos = PartidaService(db).orden_turnos(id_partida, partida.jugadores)
         PartidaService(db).set_turno_actual(id_partida, turnos[0])
     except Exception as e:
