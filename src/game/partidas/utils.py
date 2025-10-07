@@ -120,7 +120,7 @@ def mostrar_mazo_descarte(id_partida: int, db):
     try:    
         mazo_descarte = CartaService(db).obtener_mazo_descarte(id_partida)            
         cartas_descartadas = [
-            {"id": carta.id_carta, "nombre": carta.nombre}
+            {"id": carta.id, "nombre": carta.nombre}
             for carta in mazo_descarte
         ]
         return cartas_descartadas

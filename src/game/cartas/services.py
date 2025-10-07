@@ -142,19 +142,19 @@ class CartaService:
         return mano_jugador
 
 
-    def descartar_cartas(self, id_jugador, cartas_descarte_id):
+    def descartar_cartas(self, id_partida, id_jugador, cartas_descarte_id):
         """
         DOC
         """
         from sqlalchemy import func
-  
+   
         jugador = JugadorService(self._db).obtener_jugador(id_jugador)
         tiene_cartas = True
         cartas_mano = jugador.cartas
         for carta_id in cartas_descarte_id:
             enMano = False
             for carta in cartas_mano:
-                if (carta_id == carta.id_carta):
+                if (carta_id == carta.id):
                     enMano = enMano or True 
             tiene_cartas = tiene_cartas and enMano
 
@@ -163,14 +163,15 @@ class CartaService:
         
         ultimo_orden = self._db.query(func.max(Carta.orden_descarte)).filter(Carta.partida_id == jugador.partida_id).scalar() or 0
         for carta in cartas_descarte_id:
-            carta_descarte = self._db.query(Carta).filter(Carta.id_carta == carta, Carta.jugador_id == id_jugador).first()
+            carta_descarte = self._db.query(Carta).filter(Carta.id == carta, Carta.jugador_id == id_jugador).first()
             carta_descarte.jugador_id = 0
             carta_descarte.ubicacion = "descarte"
-            carta_descarte.bocaArriba = False
-            carta_descarte.orden_descarte = ultimo_orden + 1
-            
-            self._db.commit()
+            carta_descarte.bocaArriba = True
+            ultimo_orden = ultimo_orden + 1
+            carta_descarte.orden_descarte = ultimo_orden
             print(f'Se descarto la carta con id {carta_descarte.id} y nombre {carta_descarte.nombre}.')
+                    
+        self._db.commit()
 
 
     def obtener_cantidad_mazo(self, id_partida):
