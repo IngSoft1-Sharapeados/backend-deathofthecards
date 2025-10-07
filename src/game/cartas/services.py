@@ -242,25 +242,25 @@ class CartaService:
         jugadores_ids = [jugador.id for jugador in jugadores_en_partida]
         
         # Se elige un jugador al azar para que sea el asesino
-        index_murderer = random.randrange(len(jugadores_en_partida)-1)
+        index_murderer = random.randrange(len(jugadores_en_partida))
         
         # Le asigno la carta de asesino
         secretos[0].jugador_id = jugadores_en_partida[index_murderer].id
 
         # Saco el id del asesino de la lista de IDs
-        jugadores_ids.pop(index_murderer)
+        jugadores_ids.remove(jugadores_en_partida[index_murderer].id)
 
         # Si es una partida de 5 o 6 jugadores debe haber un cómplice
         if (len(jugadores_en_partida) >= 5):
             accomplice_found = False
             while not accomplice_found:
-                index_accomplice = random.randrange(len(jugadores_en_partida)-1)
+                index_accomplice = random.randrange(len(jugadores_en_partida))
                 if index_accomplice != index_murderer:
                     secretos[1].jugador_id = jugadores_en_partida[index_accomplice].id
                     accomplice_found = True
             
             # Saco el id del cómplice de la lista de IDs 
-            jugadores_ids.pop(index_accomplice)
+            jugadores_ids.remove(jugadores_en_partida[index_accomplice].id)
         
         comunes = 2
         for jugador in jugadores_en_partida:
@@ -308,7 +308,7 @@ class CartaService:
         print(f"la carta del asesino es la carta con el ID: {carta_asesino.id}")
         asesino_id = carta_asesino.jugador_id
         carta_complice = self._db.query(Carta).filter_by(partida_id=id_partida, tipo="secreto", nombre="accomplice").first()
-        print(f"la carta del asesino es la carta con el ID: {carta_asesino.id}")
+        print(f"la carta del cómplice es la carta con el ID: {carta_complice.id}")
         complice_id = carta_complice.jugador_id
         
         return {"asesino-id": asesino_id, "complice-id": complice_id}
