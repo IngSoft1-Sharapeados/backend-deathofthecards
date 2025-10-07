@@ -444,23 +444,25 @@ async def mazo_draft(id_partida: int, db=Depends(get_db)):
 
 @partidas_router.put(path="/draft/{id_partida}/robar")
 async def tomar_cartas_draft(id_partida: int,id_jugador: int,
-                        cartas_tomadas: list[int] = Body(...),
+                        carta_tomada: int = Body(...),
                         db=Depends(get_db),
                         manager=Depends(get_manager)):
     """
-    El jugador toma entre 1 y 3 cartas del draft.
+    El jugador toma 1 carta del draft.
     """
     try:
-        robar_carta_draft(id_partida, id_jugador, cartas_tomadas, db)
-
+        robar_carta_draft(id_partida, id_jugador, carta_tomada, db)
+        mano = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
+        faltan = max(0, 6 - len(mano))
+        await robar_cartas(id_partida, id_jugador, faltan, db, manager)
         evento = {
             "evento": "actualizacion-draft",
             "id_jugador": id_jugador,
-            "cartas_tomadas": cartas_tomadas,
+            "carta_tomada": carta_tomada,
         }
 
         await manager.broadcast(id_partida, json.dumps(evento))
-        return {"detail": "Cartas tomadas correctamente."}
+        return {"detail": "Carta tomada correctamente."}
 
     except Exception as e:
         raise e

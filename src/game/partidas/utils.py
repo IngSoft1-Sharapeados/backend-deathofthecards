@@ -71,6 +71,7 @@ def iniciarPartida(id_partida: int, data: IniciarPartidaData, db):
     partida = PartidaService(db).iniciar(id_partida, data.id_jugador)
     try:
         mazo_partida = CartaService(db).crear_mazo_inicial(id_partida)
+        CartaService(db).actualizar_mazo_draft(id_partida)
         CartaService(db).repartir_cartas_iniciales(mazo_partida, partida.jugadores)
         turnos = PartidaService(db).orden_turnos(id_partida, partida.jugadores)
         PartidaService(db).set_turno_actual(id_partida, turnos[0])
@@ -130,7 +131,7 @@ def mostrar_mazo_draft(id_partida: int, db):
             detail=f"No se pudo obtener el mazo de descarte. Error: {e}"
         )
     
-def robar_carta_draft(id_partida: int, id_jugador: int, cartas_tomadas: list[int], db):
+def robar_carta_draft(id_partida: int, id_jugador: int, carta_tomada: int, db):
     """
     Controla la acción de tomar cartas del draft, manejando errores comunes.
     """
@@ -155,22 +156,23 @@ def robar_carta_draft(id_partida: int, id_jugador: int, cartas_tomadas: list[int
             detail="No es tu turno para tomar cartas del draft."
         )
 
+    mazo = CartaService(db).obtener_mazo_draft(id_partida)
+    ids_cartas = [carta.id_carta for carta in mazo]
+    if carta_tomada not in ids_cartas:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="La carta seleccionada no se encuentra en el draft."
+        )
+
     cartas_en_mano = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
-    if len(cartas_en_mano) + len(cartas_tomadas) > 6:
+    if len(cartas_en_mano) >= 6:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No puedes tener más de 6 cartas en la mano."
         )
-    
-#    cartas_draft = CartaService(db).obtener_mazo_draft(id_partida)
-#    if len(cartas_draft) != len(cartas_tomadas_id):
-#        raise HTTPException(
-#            status_code=status.HTTP_404_NOT_FOUND,
-#            detail="Una o más cartas seleccionadas no se encuentran en el draft."
-#        )
 
     try:   
-        CartaService(db).tomar_cartas_draft(id_partida, id_jugador, cartas_tomadas)
+        CartaService(db).tomar_cartas_draft(id_partida, id_jugador, carta_tomada)
 
         return {"detail": "Cartas tomadas correctamente."}
 

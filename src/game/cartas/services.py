@@ -227,33 +227,30 @@ class CartaService:
         --------
             list[Carta]
         """
-        self.actualizar_mazo_draft(id_partida)
-
         mazo_draft = (self._db.query(Carta)
                         .filter(Carta.partida_id == id_partida, Carta.ubicacion == "draft")
                         .all())
                 
         return mazo_draft
     
-    def tomar_cartas_draft(self, id_partida: int, id_jugador: int, cartas_tomadas_id: list[int]):
+    def tomar_cartas_draft(self, id_partida: int, id_jugador: int, carta_tomada_id: int):
         """
-        Permite al jugador tomar de 1 a 3 cartas del draft.
+        Permite al jugador tomar 1 carta del draft.
         """
 
-        cartas_draft = (
+        carta = (
             self._db.query(Carta)
             .filter(
                 Carta.partida_id == id_partida,
                 Carta.ubicacion == "draft",
-                Carta.id_carta.in_(cartas_tomadas_id),
+                Carta.id_carta == carta_tomada_id,
             )
-            .all()
+            .first()
         )
 
         # Mover las cartas al jugador
-        for carta in cartas_draft:
-            carta.jugador_id = id_jugador
-            carta.ubicacion = "mano"
-            self._db.add(carta)
+        carta.jugador_id = id_jugador
+        carta.ubicacion = "mano"
+        self._db.add(carta)
 
         self._db.commit()
