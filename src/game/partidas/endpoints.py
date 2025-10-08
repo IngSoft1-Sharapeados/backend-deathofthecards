@@ -426,7 +426,7 @@ async def robar_cartas(id_partida: int, id_jugador: int, cantidad: int = 1, db=D
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-@partidas_router.get(path= '/draft/{id_partida}')
+@partidas_router.get(path= '/{id_partida}/draft')
 async def mazo_draft(id_partida: int, db=Depends(get_db)):
     """ 
     Se muestra el mazo de draft
@@ -442,7 +442,7 @@ async def mazo_draft(id_partida: int, db=Depends(get_db)):
     except Exception as e:
         raise e
 
-@partidas_router.put(path="/draft/{id_partida}/robar")
+@partidas_router.put(path="/{id_partida}/draft")
 async def tomar_cartas_draft(id_partida: int,id_jugador: int,
                         carta_tomada: int = Body(...),
                         db=Depends(get_db),
@@ -466,3 +466,47 @@ async def tomar_cartas_draft(id_partida: int,id_jugador: int,
 
     except Exception as e:
         raise e
+
+@partidas_router.get(path="/{id_partida}/secretos", status_code=status.HTTP_200_OK)
+async def obtener_secretos(id_partida: int, id_jugador: int, db=Depends(get_db)):
+    """
+    Obtiene los secretos de un jugador específico para una partida.
+    """
+    try:
+        secretos_jugador = CartaService(db).obtener_secretos_jugador(id_jugador, id_partida)
+
+        if not secretos_jugador:
+            return []
+
+        cartas_a_enviar = [
+            {"id": carta.id_carta, "nombre": carta.nombre}
+            for carta in secretos_jugador
+        ]
+        
+        return cartas_a_enviar
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No se pudo obtener los secretos para el jugador {id_jugador} en la partida {id_partida}. Error: {e}"
+        )
+
+
+@partidas_router.get(path="/{id_partida}/roles", status_code=status.HTTP_200_OK)
+async def obtener_asesino_complice(id_partida: int, db=Depends(get_db)):
+    """
+    Obtiene los IDs del asesino y el cómplice de una partida específica.
+    """
+    try:
+        asesino_complice = CartaService(db).obtener_asesino_complice(id_partida)
+
+        if not asesino_complice:
+            return []
+
+        return asesino_complice
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Hubo un error al obtener los IDs del asesino y el cómplice"
+        )

@@ -149,6 +149,12 @@ class PartidaService:
 
     def obtener_turno_actual(self, id_partida) -> int:
         partida = PartidaService(self._db).obtener_por_id(id_partida)
+        if not partida:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Partida with id {id_partida} not found."
+            )
+
         return partida.turno_id
     
     def set_turno_actual(self, id_partida: int, id_jugador: int):
