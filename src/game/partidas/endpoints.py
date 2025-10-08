@@ -294,7 +294,7 @@ async def obtener_mano(id_partida: int, id_jugador: int, db=Depends(get_db)):
             return []
 
         cartas_a_enviar = [
-            {"id": carta.id, "nombre": carta.nombre}
+            {"id": carta.id_carta, "nombre": carta.nombre}
             for carta in mano_jugador
         ]
         
@@ -320,12 +320,21 @@ def descarte_cartas(id_partida, id_jugador: int, cartas_descarte: list[int]= Bod
             "evento": "actualizacion-mazo",
             "cantidad-restante-mazo": cantidad_restante,
         }
+        evento2= {
+            "evento": "carta-descartada", 
+            "payload": {
+                        "discardted":
+                        cartas_descarte
+                    } 
+        }
         # broadcast espera texto
         import json as _json
         # Enviamos como texto JSON a todos en la partida
         import asyncio
         async def _broadcast():
             await manager.broadcast(id_partida, _json.dumps(evento))
+            
+            await manager.broadcast(id_partida, _json.dumos(evento2))
         try:
             asyncio.get_event_loop().create_task(_broadcast())
         except RuntimeError:
