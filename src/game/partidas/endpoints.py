@@ -13,6 +13,7 @@ from game.jugadores.schemas import JugadorData, JugadorResponse, JugadorOut
 #from game.cartas.services import CartaService
 from game.modelos.db import get_db
 from game.partidas.utils import *
+from game.cartas.utils import jugar_set_detective
 import json
 import traceback
 #from game.partidas.utils import *
@@ -424,3 +425,21 @@ async def robar_cartas(id_partida: int, id_jugador: int, cantidad: int = 1, db=D
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+#Endpoint Jugar set 
+@partidas_router.post(path='/{id_partida}/Jugar-set', status_code=status.HTTP_200_OK)
+async def jugar_set(id_partida: int, id_jugador: int, set_cartas: list[int], db=Depends(get_db), manager=Depends(get_manager)):
+    """ Juega un set de cartas si es el turno del jugador y las cartas son las correctas.
+    Parameters ----------
+        id_partida: int ID de la partida en la que se intenta jugar el set 
+        id_jugador: int ID del jugador que intenta jugar el set 
+        set_cartas: list[int] IDs del set cartas que se quiere jugar
+    Returns -------
+        Status 200 OK si el set se puede jugar correctamente, de lo contrario lanza una excepción HTTP. 
+    """ 
+     
+    cartas_jugadas = jugar_set_detective(id_partida, id_jugador, set_cartas, db)
+    await manager.broadcast(id_partida, json.dumps({"evento": "jugar-set"})) 
+    return {"detail": "Set jugado correctamente", "cartas_jugadas": [{"id": carta.id_carta, "nombre": carta.nombre} for carta in cartas_jugadas]}
+    

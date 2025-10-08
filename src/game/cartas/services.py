@@ -188,3 +188,22 @@ class CartaService:
             {"id": carta.id_carta, "nombre": carta.nombre}
             for carta in cartas_a_robar
         ]
+    
+    def obtener_carta_por_id(self, id_carta: int) -> Carta:
+        carta = self._db.query(Carta).filter(Carta.id == id_carta).first()
+        if not carta:
+            raise ValueError(f"No se encontró la carta con id {id_carta}")
+        return carta
+
+    
+    def mover_set(self, set_cartas: list[int]) -> list[Carta]:
+        set_jugado = []
+        for carta_id in set_cartas: 
+            carta = CartaService(self._db).obtener_carta_por_id(carta_id) 
+            carta.ubicacion = "set jugado" 
+            set_jugado.append(carta)
+            self._db.add(carta) 
+        self._db.commit() 
+        
+    
+        return set_jugado
