@@ -442,31 +442,6 @@ async def mazo_draft(id_partida: int, db=Depends(get_db)):
     except Exception as e:
         raise e
 
-@partidas_router.put(path="/{id_partida}/draft")
-async def tomar_cartas_draft(id_partida: int,id_jugador: int,
-                        carta_tomada: int = Body(...),
-                        db=Depends(get_db),
-                        manager=Depends(get_manager)):
-    """
-    El jugador toma 1 carta del draft.
-    """
-    try:
-        robar_carta_draft(id_partida, id_jugador, carta_tomada, db)
-        mano = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
-        faltan = max(0, 6 - len(mano))
-        await robar_cartas(id_partida, id_jugador, faltan, db, manager)
-        evento = {
-            "evento": "actualizacion-draft",
-            "id_jugador": id_jugador,
-            "carta_tomada": carta_tomada,
-        }
-
-        await manager.broadcast(id_partida, json.dumps(evento))
-        return {"detail": "Carta tomada correctamente."}
-
-    except Exception as e:
-        raise e
-
 @partidas_router.get(path="/{id_partida}/secretos", status_code=status.HTTP_200_OK)
 async def obtener_secretos(id_partida: int, id_jugador: int, db=Depends(get_db)):
     """
