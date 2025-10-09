@@ -51,22 +51,22 @@ class CartaService:
 
         return mazo_nuevo
     
-    def obtener_mazo_descarte(self, id_partida: int) -> list[Carta]:
+    def obtener_cartas_descarte(self, id_partida: int, cantidad: int) -> list[Carta]:
         """
-        Obtiene el mazo de descarte de una partida.
+        Obtiene las ultimas 1 o 5 cartas del mazo de descarte de una partida.
 
         Args:
-            id_partida (int)
+            id_partida (int), cantidad (int)
 
         Returns:
             list[Carta]
         """
-        mazo_descarte = (self._db.query(Carta)
-                         .filter_by(partida_id=id_partida, ubicacion="descarte")
-                         .order_by(Carta.orden_descarte.desc()).all()
+    
+        cartas_descarte = (self._db.query(Carta)
+                        .filter_by(partida_id=id_partida, ubicacion="descarte")
+                        .order_by(Carta.orden_descarte.desc()).limit(cantidad).all()
                         )
-        
-        return mazo_descarte
+        return cartas_descarte
 
     def repartir_cartas_iniciales(self, mazo: list[Carta], jugadores_en_partida: list[Jugador]):
         """
