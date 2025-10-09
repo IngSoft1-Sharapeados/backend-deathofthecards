@@ -68,7 +68,10 @@ class PartidaService:
         """
         partida = self._db.query(Partida).filter(Partida.id == id_partida).first()
         if not partida:
-            raise Exception("No se encontró la partida con el ID proporcionado.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No se encontró la partida con el ID proporcionado."
+                )
         return partida
         
     def listar(self) -> List[Partida]:
@@ -233,6 +236,14 @@ class PartidaService:
         if self.obtener_turno_actual(id_partida) != id_jugador:
             raise HTTPException(status_code=403, detail="No es tu turno")
 
+        mano_actual = carta_service.obtener_mano_jugador(id_jugador, id_partida)
+        print("",len(mano_actual))
+        if len(mano_actual) >= 6:
+            raise HTTPException(
+                status_code=403,
+                detail="No puedes tener más de 6 cartas en la mano."
+            )
+
         # Tomo las cartas del draft que el jugador ha elegido
         if cartas_draft_ids:
             carta_service.tomar_cartas_draft(id_partida, id_jugador, cartas_draft_ids)
@@ -240,7 +251,6 @@ class PartidaService:
         cartas_del_draft_objs = [carta_service.obtener_carta(cid) for cid in cartas_draft_ids]
 
         # Tomo del deck si es necesario para completar la mano a 6 cartas
-        mano_actual = carta_service.obtener_mano_jugador(id_jugador, id_partida)
             
         cartas_faltantes = max(0, 6 - len(mano_actual))
         cartas_del_mazo_robadas = []
