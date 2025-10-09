@@ -331,14 +331,15 @@ class CartaService:
         
         Returns
         -------
-        List[Carta]
-            Lista de objetos Carta secreto del jugador.
+        secreto_revelado: dict
+            diccionario con el id del secreto revelado.
         """
         secreto_a_revelar: Carta
         secreto_a_revelar = self._db.query(Carta).filter_by(
             partida_id=id_partida,
             jugador_id=id_jugador,
             id_carta=id_secreto,
+            bocaArriba=False,
             ubicacion="mesa").first()
         
         secreto_a_revelar.bocaArriba = True
