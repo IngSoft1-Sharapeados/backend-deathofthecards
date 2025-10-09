@@ -5,7 +5,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi import WebSocket, WebSocketException, WebSocketDisconnect
 from game.partidas.models import Partida
-from game.partidas.schemas import PartidaData, PartidaResponse, PartidaOut, PartidaListar, IniciarPartidaData
+from game.partidas.schemas import PartidaData, PartidaResponse, PartidaOut, PartidaListar, IniciarPartidaData, RecogerCartasPayload
 #from game.partidas.services import PartidaService
 from game.jugadores.models import Jugador
 from game.jugadores.schemas import JugadorData, JugadorResponse, JugadorOut
@@ -510,3 +510,54 @@ async def obtener_asesino_complice(id_partida: int, db=Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Hubo un error al obtener los IDs del asesino y el cómplice"
         )
+        
+
+
+@partidas_router.put(
+    "/{id_partida}/jugador/{id_jugador}/recoger",
+    status_code=status.HTTP_200_OK
+)
+async def accion_recoger_cartas(
+    id_partida: int,
+    id_jugador: int,
+    payload: RecogerCartasPayload,
+    db= Depends(get_db),
+    manager: Depends = Depends(get_manager)
+):
+    try:
+        # Llamar al servicio para manejar la acción de recoger cartas
+        resultado = PartidaService(db).manejar_accion_recoger(
+            id_partida, id_jugador, payload.cartas_draft
+        )
+
+        # Extraer datos del resultado
+        nuevas_cartas_para_jugador = resultado["nuevas_cartas"]
+        nuevo_turno_id = resultado["nuevo_turno_id"]
+        nuevo_draft = resultado["nuevo_draft"]
+        cantidad_final_mazo = resultado["cantidad_final_mazo"]
+
+        # Emitir eventos por WebSocket
+        await manager.broadcast(id_partida, json.dumps({
+            "evento": "nuevo-draft",
+            "mazo-draft": [{"id": c.id_carta, "nombre": c.nombre} for c in nuevo_draft]
+        }))
+        await manager.broadcast(id_partida, json.dumps({
+            "evento": "actualizacion-mazo",
+            "cantidad-restante-mazo": cantidad_final_mazo
+        }))
+        await manager.broadcast(id_partida, json.dumps({
+            "evento": "turno-actual",
+            "turno-actual": nuevo_turno_id
+        }))
+        if cantidad_final_mazo == 0:
+            await manager.broadcast(id_partida, json.dumps({
+                "evento": "fin-partida", "ganadores": [], "asesino_gano": False
+            }))
+
+        return nuevas_cartas_para_jugador
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in accion_recoger_cartas endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

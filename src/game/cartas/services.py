@@ -5,7 +5,8 @@ from game.jugadores.services import JugadorService
 #from game.partidas.models import Partida
 import random
 from game.partidas.utils import * 
-#from game.partidas.services import PartidaService
+from typing import List
+from collections import Counter
 
 
 class CartaService:
@@ -156,9 +157,12 @@ class CartaService:
             print(f'Se descarto la carta con id {carta_descarte.id} y nombre {carta_descarte.nombre}.')
 
 
-    def obtener_cantidad_mazo(self, id_partida):
-        partida = PartidaService(self._db).obtener_por_id(id_partida)
-        return len(self.obtener_mazo_de_robo(partida.id))
+    def obtener_cantidad_mazo(self, id_partida: int) -> int:
+        """
+        Calcula la cantidad de cartas restantes en el mazo de robo.
+        """
+        mazo_robo = self.obtener_mazo_de_robo(id_partida)
+        return len(mazo_robo)
 
     def robar_cartas(self, id_partida: int, id_jugador: int, cantidad: int = 1):
         if cantidad <= 0:
@@ -233,27 +237,32 @@ class CartaService:
                 
         return mazo_draft
     
-    def tomar_cartas_draft(self, id_partida: int, id_jugador: int, carta_tomada_id: int):
+    def tomar_cartas_draft(self, id_partida: int, id_jugador: int, cartas_tomadas_ids: List[int]):
         """
-        Permite al jugador tomar 1 carta del draft.
+        Permite al jugador tomar una o más cartas del draft.
         """
+        if not cartas_tomadas_ids:
+            return
 
-        carta = (
+        cartas_a_mover = (
             self._db.query(Carta)
             .filter(
                 Carta.partida_id == id_partida,
                 Carta.ubicacion == "draft",
-                Carta.id_carta == carta_tomada_id,
+                Carta.id_carta.in_(cartas_tomadas_ids)
             )
-            .first()
+            .all() 
         )
 
-        # Mover las cartas al jugador
-        carta.jugador_id = id_jugador
-        carta.ubicacion = "mano"
-        self._db.add(carta)
+        if len(cartas_a_mover) != len(cartas_tomadas_ids):
+            raise Exception("Una o más de las cartas seleccionadas no se encontraron en el draft.")
 
+        for carta in cartas_a_mover:
+            carta.jugador_id = id_jugador
+            carta.ubicacion = "mano"
+        
         self._db.commit()
+
     
     def crear_secretos(self, id_partida):
         """
@@ -346,6 +355,15 @@ class CartaService:
         #self._db.refresh(secretos)
             
         print("se repartieron los secretos")
+        
+    def obtener_carta(self, id_carta: int) -> Carta:
+        """
+        Obtiene un objeto Carta específico por su id_carta.
+        """
+        carta = self._db.query(Carta).filter(Carta.id_carta == id_carta).first()
+        if not carta:
+            raise ValueError(f"No se encontró una carta con id_carta {id_carta}")
+        return carta
 
     
     def obtener_secretos_jugador(self, id_jugador:  int, id_partida: int) -> list[Carta]:
