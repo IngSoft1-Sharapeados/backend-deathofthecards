@@ -118,12 +118,6 @@ def unir_a_partida(id_partida: int, jugador_info, db) -> JugadorOut:
         )
 
 def mostrar_mazo_draft(id_partida: int, db):
-
-    if PartidaService(db).obtener_por_id(id_partida) is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No se encontro la partida con el ID {id_partida}.")
-
     try:    
         mazo_descarte = CartaService(db).obtener_mazo_draft(id_partida)            
         cartas = [
@@ -137,53 +131,3 @@ def mostrar_mazo_draft(id_partida: int, db):
             detail=f"No se pudo obtener el mazo de descarte. Error: {e}"
         )
     
-def robar_carta_draft(id_partida: int, id_jugador: int, carta_tomada: int, db):
-    """
-    Controla la acción de tomar cartas del draft, manejando errores comunes.
-    """
-    partida = PartidaService(db).obtener_por_id(id_partida)
-    if partida is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Partida no encontrada."
-        )
-    
-    jugador = JugadorService(db).obtener_jugador(id_jugador)
-    if jugador is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Jugador no encontrado."
-        )
-
-    turno_actual = PartidaService(db).obtener_turno_actual(id_partida)
-    if turno_actual != id_jugador:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No es tu turno para tomar cartas del draft."
-        )
-
-    mazo = CartaService(db).obtener_mazo_draft(id_partida)
-    ids_cartas = [carta.id_carta for carta in mazo]
-    if carta_tomada not in ids_cartas:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="La carta seleccionada no se encuentra en el draft."
-        )
-
-    cartas_en_mano = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
-    if len(cartas_en_mano) >= 6:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No puedes tener más de 6 cartas en la mano."
-        )
-
-    try:   
-        CartaService(db).tomar_cartas_draft(id_partida, id_jugador, carta_tomada)
-
-        return {"detail": "Cartas tomadas correctamente."}
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al tomar cartas del draft: {e}"
-        )
