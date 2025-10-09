@@ -244,22 +244,17 @@ class CartaService:
         if not cartas_tomadas_ids:
             return
 
-        cartas_a_mover = (
-            self._db.query(Carta)
-            .filter(
-                Carta.partida_id == id_partida,
-                Carta.ubicacion == "draft",
-                Carta.id_carta.in_(cartas_tomadas_ids)
-            )
-            .all() 
-        )
+        mazo = self.obtener_mazo_draft(id_partida)
+        ids_cartas = [carta.id_carta for carta in mazo]
+        if not all(id in ids_cartas for id in cartas_tomadas_ids):
+            raise Exception("Una o más cartas seleccionadas no se encuentran en el draft.")
 
-        if len(cartas_a_mover) != len(cartas_tomadas_ids):
-            raise Exception("Una o más de las cartas seleccionadas no se encontraron en el draft.")
 
-        for carta in cartas_a_mover:
-            carta.jugador_id = id_jugador
-            carta.ubicacion = "mano"
+        for carta in mazo:
+            if carta.id_carta in cartas_tomadas_ids:  
+                carta.jugador_id = id_jugador
+                carta.ubicacion = "mano"
+                cartas_tomadas_ids.remove(carta.id_carta)
         
         self._db.commit()
 
