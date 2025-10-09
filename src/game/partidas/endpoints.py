@@ -310,12 +310,22 @@ async def obtener_mano(id_partida: int, id_jugador: int, db=Depends(get_db)):
 @partidas_router.put(path='/descarte/{id_partida}')
 def descarte_cartas(id_partida, id_jugador: int, cartas_descarte: list[int]= Body(...), db=Depends(get_db), manager=Depends(get_manager)):
     try:
-        CartaService(db).descartar_cartas(id_jugador, cartas_descarte)
+        partida = PartidaService(db).obtener_por_id(id_partida)
+        if partida.turno_id is not id_jugador:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No es tu turno")
+        CartaService(db).descartar_cartas(id_partida, id_jugador, cartas_descarte)
         # Emitimos actualización del mazo (por si alguna lógica futura mueve entre mazos)
         cantidad_restante = CartaService(db).obtener_cantidad_mazo(id_partida)
         evento = {
             "evento": "actualizacion-mazo",
             "cantidad-restante-mazo": cantidad_restante,
+        }
+        evento2= {
+            "evento": "carta-descartada", 
+            "payload": {
+                        "discardted":
+                        cartas_descarte
+                    } 
         }
         # broadcast espera texto
         import json as _json
@@ -323,6 +333,8 @@ def descarte_cartas(id_partida, id_jugador: int, cartas_descarte: list[int]= Bod
         import asyncio
         async def _broadcast():
             await manager.broadcast(id_partida, _json.dumps(evento))
+            
+            await manager.broadcast(id_partida, _json.dumos(evento2))
         try:
             asyncio.get_event_loop().create_task(_broadcast())
         except RuntimeError:
@@ -469,3 +481,18 @@ async def obtener_asesino_complice(id_partida: int, db=Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Hubo un error al obtener los IDs del asesino y el cómplice"
         )
+    
+@partidas_router.get(path= '/{id_partida}/descarte')
+async def mazo_descarte(id_partida: int, cantidad: int, db=Depends(get_db)):
+    """ 
+    Se muestra el mazo de descarte
+    
+    devuelve lista de cartas que componen el mazo de desarte.
+    """
+    try:
+        cartas_descarte = mostrar_cartas_descarte(id_partida, cantidad, db)
+        
+        return cartas_descarte
+    
+    except Exception as e:
+        raise e
