@@ -62,4 +62,5 @@ class PartidaListar(BaseModel):
     minJugadores: int
     cantJugadores: int
 
-
+class RecogerCartasPayload(BaseModel):
+    cartas_draft: List[int]
