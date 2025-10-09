@@ -237,8 +237,7 @@ class PartidaService:
             raise HTTPException(status_code=403, detail="No es tu turno")
 
         mano_actual = carta_service.obtener_mano_jugador(id_jugador, id_partida)
-        print("",len(mano_actual))
-        if len(mano_actual) >= 6:
+        if len(mano_actual)+len(cartas_draft_ids) > 6:
             raise HTTPException(
                 status_code=403,
                 detail="No puedes tener más de 6 cartas en la mano."
@@ -251,7 +250,7 @@ class PartidaService:
         cartas_del_draft_objs = [carta_service.obtener_carta(cid) for cid in cartas_draft_ids]
 
         # Tomo del deck si es necesario para completar la mano a 6 cartas
-            
+        mano_actual = carta_service.obtener_mano_jugador(id_jugador, id_partida)
         cartas_faltantes = max(0, 6 - len(mano_actual))
         cartas_del_mazo_robadas = []
         if cartas_faltantes > 0:
@@ -265,6 +264,17 @@ class PartidaService:
         nuevo_draft = carta_service.obtener_mazo_draft(id_partida)
         cantidad_final_mazo = carta_service.obtener_cantidad_mazo(id_partida)
         
+        cartas_del_draft_dicts = [{"id": c.id_carta} for c in cartas_del_draft_objs]
+        todas_las_cartas_nuevas = cartas_del_draft_dicts + cartas_del_mazo_robadas
+
+        # Retorno toda la info necesaria
+        return {
+            "nuevas_cartas": todas_las_cartas_nuevas,
+            "nuevo_turno_id": nuevo_turno_id,
+            "nuevo_draft": nuevo_draft,
+            "cantidad_final_mazo": cantidad_final_mazo,
+        }
+
         cartas_del_draft_dicts = [{"id": c.id_carta} for c in cartas_del_draft_objs]
         todas_las_cartas_nuevas = cartas_del_draft_dicts + cartas_del_mazo_robadas
 
