@@ -54,10 +54,12 @@ def jugar_set_detective(id_partida: int, id_jugador: int, set_cartas: list[int],
                 enMano = True
                 set_id.append(carta.id)
         tiene_cartas = tiene_cartas and enMano 
-    print(f"tiene cartas: {set_id}")
-    if not tiene_cartas: 
-        raise HTTPException(status_code=400, detail="Una o más cartas no se encuentran en la mano del jugador")
-
+        
+        if not tiene_cartas: 
+            raise HTTPException(status_code=400, detail="Una o más cartas no se encuentran en la mano del jugador")
+    
+    set_id = set(set_id) #aca tengo los id reales de las cartas
+    
     #fin de la verificacion de las cartas que tiene en mano el jugador ------------------
 
     #---------------------------------------------------------------------------------

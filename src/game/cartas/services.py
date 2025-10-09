@@ -200,7 +200,7 @@ class CartaService:
         set_jugado = []
         for carta_id in set_cartas: 
             carta = CartaService(self._db).obtener_carta_por_id(carta_id) 
-            carta.ubicacion = "set jugado" 
+            carta.ubicacion = "set_jugado" 
             set_jugado.append(carta)
             self._db.add(carta) 
         self._db.commit() 
