@@ -312,3 +312,36 @@ class CartaService:
         complice_id = carta_complice.jugador_id
         
         return {"asesino-id": asesino_id, "complice-id": complice_id}
+    
+
+    def revelar_secreto(self, id_partida: int, id_jugador:  int, id_secreto: int) -> dict:
+        """
+        Revela el secreto de un jugador en una partida específica.
+        
+        Parameters
+        ----------
+        id_jugador: int
+            ID del jugador para el cual se obtiene los secretos.
+        
+        id_partida: int
+            ID de la partida para la cual se obtiene los secretos.
+        
+        id_secreto: int
+            ID del secreto que debe ser revelado
+        
+        Returns
+        -------
+        List[Carta]
+            Lista de objetos Carta secreto del jugador.
+        """
+        secreto_a_revelar: Carta
+        secreto_a_revelar = self._db.query(Carta).filter_by(
+            partida_id=id_partida,
+            jugador_id=id_jugador,
+            id_carta=id_secreto,
+            ubicacion="mesa").first()
+        
+        secreto_a_revelar.bocaArriba = True
+        self._db.commit()
+        secreto_revelado = {"id-secreto": secreto_a_revelar.id_carta}
+        return secreto_revelado

@@ -469,3 +469,23 @@ async def obtener_asesino_complice(id_partida: int, db=Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Hubo un error al obtener los IDs del asesino y el cómplice"
         )
+
+
+@partidas_router.patch(path="/{id_partida}/revelacion", status_code=status.HTTP_200_OK)
+async def revelar_secreto(id_partida: int, id_jugador: int, id_secreto: int,db=Depends(get_db)):
+    """
+    Revela el secreto de un jugador dado su ID, el ID de la carta y el de la partida.
+    """
+    try:
+        secreto_revelado = CartaService(db).revelar_secreto(id_partida, id_jugador, id_secreto)
+
+        if not secreto_revelado:
+            return None
+
+        return secreto_revelado
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Hubo un error al revelar la carta secreto u obtener al jugador."
+        )
