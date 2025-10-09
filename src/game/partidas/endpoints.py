@@ -524,6 +524,12 @@ async def accion_recoger_cartas(
             "evento": "turno-actual",
             "turno-actual": nuevo_turno_id
         }))
+        mano_actual = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
+        await manager.broadcast(id_partida, json.dumps({
+            "evento": "mano-actualizada",
+            "id_jugador": id_jugador,
+            "mano": [{"id": c.id_carta, "nombre": c.nombre} for c in mano_actual]
+        }))
         if cantidad_final_mazo == 0:
             await manager.broadcast(id_partida, json.dumps({
                 "evento": "fin-partida", "ganadores": [], "asesino_gano": False
