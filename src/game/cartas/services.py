@@ -143,7 +143,7 @@ class CartaService:
         return mano_jugador
 
 
-    def descartar_cartas(self, id_partida, id_jugador, cartas_descarte_id):
+    def descartar_cartas(self, id_jugador, cartas_descarte_id):
         """
         DOC
         """

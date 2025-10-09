@@ -307,7 +307,7 @@ async def obtener_mano(id_partida: int, id_jugador: int, db=Depends(get_db)):
         )
 
 
-@partidas_router.put(path='/descarte/{id_partida}')
+@partidas_router.put(path='/{id_partida}/descarte')
 def descarte_cartas(id_partida, id_jugador: int, cartas_descarte: list[int]= Body(...), db=Depends(get_db), manager=Depends(get_manager)):
     try:
         partida = PartidaService(db).obtener_por_id(id_partida)
