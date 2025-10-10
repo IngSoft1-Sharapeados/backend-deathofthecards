@@ -254,9 +254,6 @@ class CartaService:
             .all() 
         )
 
-        if len(cartas_a_mover) != len(cartas_tomadas_ids):
-            raise Exception("Una o más de las cartas seleccionadas no se encontraron en el draft.")
-
         for carta in cartas_a_mover:
             carta.jugador_id = id_jugador
             carta.ubicacion = "mano"
@@ -397,7 +394,7 @@ class CartaService:
         return {"asesino-id": asesino_id, "complice-id": complice_id}
     
 
-    def revelar_secreto(self, id_partida: int, id_jugador:  int, id_secreto: int) -> dict:
+    def revelar_secreto(self, id_partida: int, id_jugador:  int, id_unico_secreto: int) -> dict:
         """
         Revela el secreto de un jugador en una partida específica.
         
@@ -418,14 +415,12 @@ class CartaService:
             diccionario con el id del secreto revelado.
         """
         secreto_a_revelar: Carta
-        secreto_a_revelar = self._db.query(Carta).filter_by(
-            partida_id=id_partida,
-            jugador_id=id_jugador,
-            id_carta=id_secreto,
-            bocaArriba=False,
-            ubicacion="mesa").first()
+        secreto_a_revelar = self._db.get(Carta, id_unico_secreto)
         
         secreto_a_revelar.bocaArriba = True
         self._db.commit()
-        secreto_revelado = {"id-secreto": secreto_a_revelar.id_carta}
+        secreto_revelado = {"id-secreto": secreto_a_revelar.id}
+
+        ### websocket actualizacion secreto
+
         return secreto_revelado

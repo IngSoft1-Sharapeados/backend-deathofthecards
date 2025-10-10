@@ -454,7 +454,7 @@ async def obtener_secretos(id_partida: int, id_jugador: int, db=Depends(get_db))
             return []
 
         cartas_a_enviar = [
-            {"id": carta.id_carta, "nombre": carta.nombre}
+            {"id": carta.id_carta, "nombre": carta.nombre, "revelada": carta.bocaArriba}
             for carta in secretos_jugador
         ]
         
@@ -488,20 +488,20 @@ async def obtener_asesino_complice(id_partida: int, db=Depends(get_db)):
 
 
 @partidas_router.patch(path="/{id_partida}/revelacion", status_code=status.HTTP_200_OK)
-async def revelar_secreto(id_partida: int, id_jugador: int, id_secreto: int,db=Depends(get_db)):
+async def revelar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: int,db=Depends(get_db)):
     """
     Revela el secreto de un jugador dado su ID, el ID de la carta y el de la partida.
     """
     try:
-        secreto_revelado = CartaService(db).revelar_secreto(id_partida, id_jugador, id_secreto)
+        secreto_revelado = CartaService(db).revelar_secreto(id_partida, id_jugador, id_unico_secreto)
 
         if not secreto_revelado:
             return None
 
         secretos_actuales = CartaService(db).obtener_secretos_jugador(id_jugador, id_partida)
-        print(f'secretos del jugador: {[{"id_carta": s.id_carta, "bocaArriba": s.bocaArriba} for s in secretos_actuales]}')
+        print(f'secretos del jugador: {[{"id_carta": s.id, "bocaArriba": s.bocaArriba} for s in secretos_actuales]}')
         await manager.broadcast(id_partida, json.dumps({
-            "evento": "secreto-revelado",
+            "evento": "actualizacion-secreto",
             "jugador-id": id_jugador,
             "lista-secretos": [{"revelado": s.bocaArriba} for s in secretos_actuales]
         }))
@@ -570,3 +570,45 @@ async def accion_recoger_cartas(
     except Exception as e:
         print(f"Error in accion_recoger_cartas endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@partidas_router.get(path="/{id_partida}/secretosjugador", status_code=status.HTTP_200_OK)
+async def obtener_secretos_otro_jugador(id_partida: int, id_jugador: int, db=Depends(get_db)):
+    """
+    Obtiene los secretos de un jugador específico para una partida.
+    """
+    try:
+        #secretos_jugador = CartaService(db).obtener_secretos_jugador(id_jugador, id_partida)
+
+        
+
+        #cartas_a_enviar = CartaService(db).obtener_secretos_ajenos
+
+        ################################# meter en un servicio
+        
+        secretos_a_enviar = CartaService(db).obtener_secretos_jugador(id_jugador, id_partida)
+        # Si no hay secretos, devolver lista vacía
+        if not secretos_a_enviar:
+            return []
+        
+        #Crear lista de cartas a enviar
+        cartas_a_enviar = []
+        for carta in secretos_a_enviar:
+            if carta.bocaArriba:
+                cartas_a_enviar.append({
+                    "id": carta.id,
+                    "carta_id": carta.id_carta,
+                    "nombre": carta.nombre,
+                    "bocaArriba": carta.bocaArriba
+                })
+            else:
+                cartas_a_enviar.append({
+                    "id": carta.id,
+                    "bocaArriba": carta.bocaArriba
+                })
+    
+        return cartas_a_enviar
+    
+    except Exception as e:
+        print(f"Error al obtener secretos: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
