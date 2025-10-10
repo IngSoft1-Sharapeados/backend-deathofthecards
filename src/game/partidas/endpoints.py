@@ -1,4 +1,5 @@
 from typing import List
+import logging
 from collections import defaultdict
 from fastapi import Body
 from datetime import date
@@ -13,12 +14,15 @@ from game.jugadores.schemas import JugadorData, JugadorResponse, JugadorOut
 #from game.cartas.services import CartaService
 from game.modelos.db import get_db
 from game.partidas.utils import *
+from game.cartas.utils import jugar_set_detective
 import json
 import traceback
 #from game.partidas.utils import *
+import logging
 
 
 partidas_router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class ConnectionManager:
@@ -28,32 +32,32 @@ class ConnectionManager:
 
     async def connect(self, websocket: WebSocket, id_partida: int, id_jugador: int):
         await websocket.accept()
-        print(f"Jugador {id_jugador} se ha conectado a la partida {id_partida}.")
+        logger.info("WS connect: jugador=%s partida=%s", id_jugador, id_partida)
         
         if websocket not in self.active_connections[id_partida]:
             self.active_connections[id_partida].append(websocket)
         self.active_connections_personal[id_jugador] = websocket
     
     def disconnect(self, websocket: WebSocket, id_partida: int, id_jugador: int):
-        print(f"Jugador {id_jugador} se ha desconectado de la partida {id_partida}.")
+        logger.info("WS disconnect: jugador=%s partida=%s", id_jugador, id_partida)
         if id_partida in self.active_connections and websocket in self.active_connections[id_partida]:
             self.active_connections[id_partida].remove(websocket)
         if id_jugador in self.active_connections_personal:
             self.active_connections_personal.pop(id_jugador)
 
     async def broadcast(self, id_partida: int, message: str):
-        print(f"Enviando mensaje a la partida {id_partida}: {message}")
+        logger.debug("WS broadcast partida=%s payload=%s", id_partida, message)
         for connection in list(self.active_connections[id_partida]):
             try:
                 await connection.send_text(message)
             except WebSocketDisconnect:
                 self.active_connections[id_partida].remove(connection)
             except Exception as e:
-                print(f"Error enviando mensaje: {e}")
+                logger.exception("WS broadcast error: %s", e)
                 continue
     
     async def send_personal_message(self, id_jugador: int, message:str):
-        print(f"Enviando mensaje personal al jugador {id_jugador}: {message}")
+        logger.debug("WS personal jugador=%s payload=%s", id_jugador, message)
         await self.active_connections_personal[id_jugador].send_text(message)
 
 manager = ConnectionManager()
@@ -310,6 +314,10 @@ async def obtener_mano(id_partida: int, id_jugador: int, db=Depends(get_db)):
 @partidas_router.put(path='/descarte/{id_partida}')
 def descarte_cartas(id_partida, id_jugador: int, cartas_descarte: list[int]= Body(...), db=Depends(get_db), manager=Depends(get_manager)):
     try:
+        logger.info(
+            "DESCARTE: partida=%s jugador=%s cantidad=%s ids=%s",
+            id_partida, id_jugador, len(cartas_descarte), cartas_descarte,
+        )
         CartaService(db).descartar_cartas(id_jugador, cartas_descarte)
         # Emitimos actualización del mazo (por si alguna lógica futura mueve entre mazos)
         cantidad_restante = CartaService(db).obtener_cantidad_mazo(id_partida)
@@ -328,8 +336,13 @@ def descarte_cartas(id_partida, id_jugador: int, cartas_descarte: list[int]= Bod
         except RuntimeError:
             # En contexto sin loop (por ejemplo, pruebas), ignoramos
             pass
+        logger.info(
+            "DESCARTE OK: partida=%s jugador=%s cartas_descarte=%s",
+            id_partida, id_jugador, cartas_descarte,
+        )
         return {"detail": "Descarte exitoso"}
     except Exception as e:
+        logger.exception("DESCARTE ERROR: partida=%s jugador=%s error=%s", id_partida, id_jugador, e)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
@@ -381,11 +394,19 @@ async def robar_cartas(id_partida: int, id_jugador: int, cantidad: int = 1, db=D
         # Capear por faltantes y por cartas disponibles en el mazo
         disponibles = CartaService(db).obtener_cantidad_mazo(id_partida)
         a_robar = min(cantidad, faltantes, disponibles) if faltantes > 0 else 0
+        logger.info(
+            "ROBAR: partida=%s jugador=%s solicitadas=%s faltantes=%s disponibles=%s a_robar=%s",
+            id_partida, id_jugador, cantidad, faltantes, disponibles, a_robar,
+        )
         if a_robar == 0:
             # Nada que robar, simplemente retornar
             return []
 
         cartas = CartaService(db).robar_cartas(id_partida=id_partida, id_jugador=id_jugador, cantidad=a_robar)
+        logger.info(
+            "ROBAR OK: partida=%s jugador=%s robadas=%s detalle=%s",
+            id_partida, id_jugador, len(cartas), cartas,
+        )
 
         # Notificar actualización del mazo
         cantidad_restante = CartaService(db).obtener_cantidad_mazo(id_partida)
@@ -404,6 +425,10 @@ async def robar_cartas(id_partida: int, id_jugador: int, cantidad: int = 1, db=D
         mano_final = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
         if len(mano_final) >= 6 or cantidad_restante == 0:
             nuevo_turno = PartidaService(db).avanzar_turno(id_partida)
+            logger.info(
+                "TURNO AVANZA POR ROBAR: partida=%s nuevo_turno=%s",
+                id_partida, nuevo_turno,
+            )
             await manager.broadcast(id_partida, json.dumps({
                 "evento": "turno-actual",
                 "turno-actual": nuevo_turno,
@@ -426,6 +451,7 @@ async def robar_cartas(id_partida: int, id_jugador: int, cantidad: int = 1, db=D
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
+
 @partidas_router.get(path= '/{id_partida}/draft')
 async def mazo_draft(id_partida: int, db=Depends(get_db)):
     """ 
@@ -442,6 +468,15 @@ async def mazo_draft(id_partida: int, db=Depends(get_db)):
     except Exception as e:
         raise e
 
+@partidas_router.get(path="/{id_partida}/sets", status_code=status.HTTP_200_OK)
+async def obtener_sets_jugados(id_partida: int, db=Depends(get_db)):
+    """Devuelve los sets jugados en la partida agrupados por jugador."""
+    from game.cartas.services import CartaService
+    try:
+        sets = CartaService(db).obtener_sets_jugados(id_partida)
+        return sets
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 @partidas_router.get(path="/{id_partida}/secretos", status_code=status.HTTP_200_OK)
 async def obtener_secretos(id_partida: int, id_jugador: int, db=Depends(get_db)):
     """
@@ -534,5 +569,48 @@ async def accion_recoger_cartas(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error in accion_recoger_cartas endpoint: {e}")
+        logger.exception("RECOGER ERROR endpoint: partida=%s jugador=%s error=%s", id_partida, id_jugador, e)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+#Endpoint Jugar set 
+@partidas_router.post(path='/{id_partida}/Jugar-set', status_code=status.HTTP_200_OK)
+async def jugar_set(id_partida: int, id_jugador: int, set_cartas: list[int], db=Depends(get_db), manager=Depends(get_manager)):
+    """ Juega un set de cartas si es el turno del jugador y las cartas son las correctas.
+    Parameters ----------
+        id_partida: int ID de la partida en la que se intenta jugar el set 
+        id_jugador: int ID del jugador que intenta jugar el set 
+        set_cartas: list[int] IDs del set cartas que se quiere jugar
+    Returns -------
+        Status 200 OK si el set se puede jugar correctamente, de lo contrario lanza una excepción HTTP. 
+    """ 
+     
+    cartas_jugadas = jugar_set_detective(id_partida, id_jugador, set_cartas, db)
+    # Persist and broadcast the played set
+    try:
+        from game.cartas.services import CartaService
+        cs = CartaService(db)
+        registro = cs.registrar_set_jugado(id_partida, id_jugador, cartas_jugadas)
+        payload = {
+            "evento": "jugar-set",
+            "jugador_id": id_jugador,
+            "representacion_id": registro.representacion_id_carta,
+            "cartas_ids": [c.id_carta for c in cartas_jugadas],
+        }
+        await manager.broadcast(id_partida, json.dumps(payload))
+    except Exception:
+        # do not block on logging/persist issues
+        pass
+    try:
+        resumen = ", ".join([f"{c.id_carta}:{c.nombre}" for c in cartas_jugadas])
+        logger = logging.getLogger(__name__)
+        logger.info(
+            "JUGAR SET: partida=%s jugador=%s set_ids=%s cartas=[%s]",
+            id_partida, id_jugador, set_cartas, resumen,
+        )
+    except Exception:
+        # No bloquear por logging
+        pass
+    return {"detail": "Set jugado correctamente", "cartas_jugadas": [{"id": carta.id_carta, "nombre": carta.nombre} for carta in cartas_jugadas]}
+    
+

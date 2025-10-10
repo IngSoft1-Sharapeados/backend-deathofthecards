@@ -1,5 +1,5 @@
 from game.cartas.constants import cartasDict, secretosDict
-from game.cartas.models import Carta
+from game.cartas.models import Carta, SetJugado
 from game.jugadores.models import Jugador
 from game.jugadores.services import JugadorService
 #from game.partidas.models import Partida
@@ -7,6 +7,9 @@ import random
 from game.partidas.utils import * 
 from typing import List
 from collections import Counter
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class CartaService:
@@ -83,9 +86,12 @@ class CartaService:
                     if cartas_jugador == 5:
                         break  # pasamos al siguiente jugador
         self._db.commit()
-        self._db.refresh(carta)
-            
-        print("se repartieron las cartas hasta 6")
+        # refrescar última carta tocada si existe (defensivo)
+        try:
+            self._db.refresh(carta)  # type: ignore[name-defined]
+        except Exception:
+            pass
+        logger.info("REPARTO INICIAL: se repartieron cartas iniciales a jugadores")
        
                     
     def obtener_mazo_de_robo(self, id_partida: int) -> list[Carta]:
@@ -127,12 +133,12 @@ class CartaService:
 
 
     def descartar_cartas(self, id_jugador, cartas_descarte_id):
-        """
-        DOC
-        """
-        print("ACA POR AGARRAR EL JUGADOR")
+        """Descarta cartas de la mano del jugador registrando auditoría en logs."""
+        logger.info(
+            "DESCARTE: jugador=%s cantidad=%s ids=%s",
+            id_jugador, len(cartas_descarte_id), cartas_descarte_id,
+        )
         jugador = JugadorService(self._db).obtener_jugador(id_jugador)
-        print("YA AGARRE EL JUGADOR")
 
 
         tiene_cartas = True
@@ -145,16 +151,25 @@ class CartaService:
             tiene_cartas = tiene_cartas and enMano
 
         if not tiene_cartas:
+            logger.error(
+                "DESCARTE ERROR: jugador=%s intenta descartar ids=%s pero no están en mano",
+                id_jugador, cartas_descarte_id,
+            )
             raise Exception("Una o mas cartas no se encuentran en la mano del jugador")
         
         
+        nombres = []
         for carta in cartas_descarte_id:
             carta_descarte = self._db.query(Carta).filter(Carta.id_carta == carta, Carta.jugador_id == id_jugador).first()
             carta_descarte.jugador_id = 0
             carta_descarte.ubicacion = "descarte"
             carta_descarte.bocaArriba = False
+            nombres.append(carta_descarte.nombre)
             self._db.commit()
-            print(f'Se descarto la carta con id {carta_descarte.id} y nombre {carta_descarte.nombre}.')
+        logger.info(
+            "DESCARTE HECHO: jugador=%s cantidad=%s ids=%s nombres=%s",
+            id_jugador, len(cartas_descarte_id), cartas_descarte_id, nombres,
+        )
 
 
     def obtener_cantidad_mazo(self, id_partida: int) -> int:
@@ -187,11 +202,17 @@ class CartaService:
 
         self._db.commit()
 
-        # Retornar información mínima al frontend
-        return [
+        resultado = [
             {"id": carta.id_carta, "nombre": carta.nombre}
             for carta in cartas_a_robar
         ]
+        logger.info(
+            "ROBAR SERVICIO: partida=%s jugador=%s cantidad=%s detalle=%s",
+            id_partida, id_jugador, len(resultado), resultado,
+        )
+        # Retornar información mínima al frontend
+        return resultado
+
 
     def actualizar_mazo_draft(self, id_partida: int):
         """
@@ -249,14 +270,20 @@ class CartaService:
         if not all(id in ids_cartas for id in cartas_tomadas_ids):
             raise Exception("Una o más cartas seleccionadas no se encuentran en el draft.")
 
-
+        original_ids = list(cartas_tomadas_ids)
+        tomados_nombres = []
         for carta in mazo:
-            if carta.id_carta in cartas_tomadas_ids:  
+            if carta.id_carta in cartas_tomadas_ids:
                 carta.jugador_id = id_jugador
                 carta.ubicacion = "mano"
                 cartas_tomadas_ids.remove(carta.id_carta)
-        
+                tomados_nombres.append(carta.nombre)
+
         self._db.commit()
+        logger.info(
+            "DRAFT TOMAR: partida=%s jugador=%s ids=%s nombres=%s",
+            id_partida, id_jugador, original_ids, tomados_nombres,
+        )
 
     
     def crear_secretos(self, id_partida):
@@ -391,3 +418,48 @@ class CartaService:
         complice_id = carta_complice.jugador_id
         
         return {"asesino-id": asesino_id, "complice-id": complice_id}
+
+    
+    def obtener_carta_por_id(self, id_carta: int) -> Carta:
+        carta = self._db.query(Carta).filter(Carta.id == id_carta).first()
+        if not carta:
+            raise ValueError(f"No se encontró la carta con id {id_carta}")
+        return carta
+
+    
+    def mover_set(self, set_cartas: list[int]) -> list[Carta]:
+        set_jugado = []
+        for carta_id in set_cartas:
+            carta = CartaService(self._db).obtener_carta_por_id(carta_id)
+            carta.ubicacion = "set_jugado"
+            set_jugado.append(carta)
+            self._db.add(carta)
+        self._db.commit()
+        return set_jugado
+
+    def registrar_set_jugado(self, id_partida: int, id_jugador: int, cartas: list[Carta]):
+        # Representación: usar la primera carta (o comodín si presente) para el avatar
+        representacion_id = cartas[0].id_carta if cartas else 1
+        ids_csv = ",".join(str(c.id_carta) for c in cartas)
+        registro = SetJugado(
+            partida_id=id_partida,
+            jugador_id=id_jugador,
+            representacion_id_carta=representacion_id,
+            cartas_ids_csv=ids_csv,
+        )
+        self._db.add(registro)
+        self._db.commit()
+        return registro
+
+    def obtener_sets_jugados(self, id_partida: int):
+        """Devuelve [{ jugador_id, representacion_id_carta, cartas_ids: [int,int...] }]"""
+        registros = self._db.query(SetJugado).filter(SetJugado.partida_id == id_partida).all()
+        return [
+            {
+                "jugador_id": r.jugador_id,
+                "representacion_id_carta": r.representacion_id_carta,
+                "cartas_ids": [int(x) for x in r.cartas_ids_csv.split(",") if x],
+            }
+            for r in registros
+        ]
+
