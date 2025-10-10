@@ -71,16 +71,21 @@ def iniciarPartida(id_partida: int, data: IniciarPartidaData, db):
     partida = PartidaService(db).iniciar(id_partida, data.id_jugador)
     try:
         mazo_partida = CartaService(db).crear_mazo_inicial(id_partida)
+        
         CartaService(db).repartir_cartas_iniciales(mazo_partida, partida.jugadores)
+        
+        CartaService(db).actualizar_mazo_draft(id_partida)
+        
         secretos = CartaService(db).crear_secretos(id_partida)
         CartaService(db).repartir_secretos(secretos, partida.jugadores)
         turnos = PartidaService(db).orden_turnos(id_partida, partida.jugadores)
         PartidaService(db).set_turno_actual(id_partida, turnos[0])
+        
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=  str(e)
-            )
+            detail=str(e)
+        )
 
 
 def unir_a_partida(id_partida: int, jugador_info, db) -> JugadorOut:
@@ -111,3 +116,18 @@ def unir_a_partida(id_partida: int, jugador_info, db) -> JugadorOut:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="No se pudo completar la solicitud por un error interno"
         )
+
+def mostrar_mazo_draft(id_partida: int, db):
+    try:    
+        mazo_descarte = CartaService(db).obtener_mazo_draft(id_partida)            
+        cartas = [
+            {"id": carta.id_carta, "nombre": carta.nombre}
+            for carta in mazo_descarte
+        ]
+        return cartas
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"No se pudo obtener el mazo de descarte. Error: {e}"
+        )
+    
