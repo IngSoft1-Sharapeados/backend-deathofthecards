@@ -5,10 +5,10 @@ from game.partidas.models import Partida
 from game.jugadores.models import Jugador
 from game.jugadores.schemas import JugadorDTO
 import random
+from game.cartas.services import CartaService
+from typing import List, Dict, Any
 
 from datetime import date
-
-#from game.partidas.utils import *
 import json
 
 
@@ -67,8 +67,11 @@ class PartidaService:
             La partida obtenida
         """
         partida = self._db.query(Partida).filter(Partida.id == id_partida).first()
-        # if not partida:
-        #     raise Exception("No se encontró la partida con el ID proporcionado.")
+        if not partida:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No se encontró la partida con el ID proporcionado."
+                )
         return partida
         
     def listar(self) -> List[Partida]:
@@ -149,6 +152,12 @@ class PartidaService:
 
     def obtener_turno_actual(self, id_partida) -> int:
         partida = PartidaService(self._db).obtener_por_id(id_partida)
+        if not partida:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Partida with id {id_partida} not found."
+            )
+
         return partida.turno_id
     
     def set_turno_actual(self, id_partida: int, id_jugador: int):
@@ -214,3 +223,65 @@ class PartidaService:
         self._db.commit()
         self._db.refresh(partida)
         return orden_de_turnos
+    
+    def manejar_accion_recoger(
+    self, id_partida: int, id_jugador: int, cartas_draft_ids: List[int]) -> Dict[str, Any]:
+        """
+        Orchestrates the core game logic for the "pick up" action and
+        returns a dictionary with all the necessary data for broadcasting.
+        """
+        carta_service = CartaService(self._db)
+
+        # Validar el turno
+        if self.obtener_turno_actual(id_partida) != id_jugador:
+            raise HTTPException(status_code=403, detail="No es tu turno")
+
+        mano_actual = carta_service.obtener_mano_jugador(id_jugador, id_partida)
+        if len(mano_actual)+len(cartas_draft_ids) > 6:
+            raise HTTPException(
+                status_code=403,
+                detail="No puedes tener más de 6 cartas en la mano."
+            )
+
+        # Tomo las cartas del draft que el jugador ha elegido
+        if cartas_draft_ids:
+            carta_service.tomar_cartas_draft(id_partida, id_jugador, cartas_draft_ids)
+        
+        cartas_del_draft_objs = [carta_service.obtener_carta(cid) for cid in cartas_draft_ids]
+
+        # Tomo del deck si es necesario para completar la mano a 6 cartas
+        mano_actual = carta_service.obtener_mano_jugador(id_jugador, id_partida)
+        cartas_faltantes = max(0, 6 - len(mano_actual))
+        cartas_del_mazo_robadas = []
+        if cartas_faltantes > 0:
+            cartas_del_mazo_robadas = carta_service.robar_cartas(id_partida, id_jugador, cartas_faltantes)
+        
+        # Actualizo el turno y el draft
+        nuevo_turno_id = self.avanzar_turno(id_partida)
+        carta_service.actualizar_mazo_draft(id_partida)
+
+        # Obtengo el nuevo draft y la cantidad restante en el mazo
+        nuevo_draft = carta_service.obtener_mazo_draft(id_partida)
+        cantidad_final_mazo = carta_service.obtener_cantidad_mazo(id_partida)
+        
+        cartas_del_draft_dicts = [{"id": c.id_carta} for c in cartas_del_draft_objs]
+        todas_las_cartas_nuevas = cartas_del_draft_dicts + cartas_del_mazo_robadas
+
+        # Retorno toda la info necesaria
+        return {
+            "nuevas_cartas": todas_las_cartas_nuevas,
+            "nuevo_turno_id": nuevo_turno_id,
+            "nuevo_draft": nuevo_draft,
+            "cantidad_final_mazo": cantidad_final_mazo,
+        }
+
+        cartas_del_draft_dicts = [{"id": c.id_carta} for c in cartas_del_draft_objs]
+        todas_las_cartas_nuevas = cartas_del_draft_dicts + cartas_del_mazo_robadas
+
+        # Retorno toda la info necesaria
+        return {
+            "nuevas_cartas": todas_las_cartas_nuevas,
+            "nuevo_turno_id": nuevo_turno_id,
+            "nuevo_draft": nuevo_draft,
+            "cantidad_final_mazo": cantidad_final_mazo,
+        }

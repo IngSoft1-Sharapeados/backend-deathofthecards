@@ -504,19 +504,21 @@ def test_unir_jugador_partida_llena(mock_PartidaService, jugador_data, session):
     assert response.json()["detail"] == "La partida ya tiene el máximo de jugadores."
 
 # ---------------- TEST PARTIDA NO ENCONTRADA ----------------
-@patch("game.partidas.endpoints.PartidaService")
+@patch("game.partidas.utils.PartidaService")
 def test_unir_jugador_partida_no_encontrada(mock_PartidaService, jugador_data, session):
     def get_db_override():
         yield session
     app.dependency_overrides[get_db] = get_db_override
     client = TestClient(app)
 
-    mock_PartidaService.return_value.obtener_por_id = None
+    # 2. Change the configuration to use .return_value
+    mock_PartidaService.return_value.obtener_por_id.return_value = None
 
     id_partida = 999
     response = client.post(f"/partidas/{id_partida}", json=jugador_data)
     app.dependency_overrides.clear()
 
+    # The assertion will now pass correctly
     assert response.status_code == 404
     assert response.json()["detail"] == f"No se encontro la partida con el ID {id_partida}."
 
@@ -1142,7 +1144,7 @@ def test_robar_cartas_cantidad_cero(mock_PartidaService, mock_CartaService, sess
 @patch("game.partidas.endpoints.CartaService")
 @patch("game.partidas.endpoints.PartidaService")
 def test_robar_cartas_fin_de_partida(mock_PartidaService, mock_CartaService, session):
-    """Test para verificar que cuando el mazo queda vacío, se activa la lógica de fin de partida"""
+    """Test para verificar que cuando el mazo queda vacío, se activa la 3 lógica de fin de partida"""
 
     def get_db_override():
         yield session
@@ -1182,3 +1184,80 @@ def test_robar_cartas_fin_de_partida(mock_PartidaService, mock_CartaService, ses
     assert response.json() == [{"id": 101, "nombre": "Poirot"}]
     mock_carta_service.robar_cartas.assert_called_once()
     mock_partida_service.avanzar_turno.assert_called_once_with(1)
+
+
+@patch("game.partidas.endpoints.CartaService")
+def test_obtener_secretos(mock_CartaService, session):
+    """Test para verificar que se obtienen los secretos de un jugador"""
+
+    # Override de DB con la sesión de prueba
+    def get_db_override():
+        yield session
+
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    # Mocks secretos
+    mock_secreto1 = MagicMock()
+    mock_secreto1.id_carta = 3
+    mock_secreto1.nombre = "murderer"
+    mock_secreto1.jugador_id = 1
+
+    mock_secreto2 = MagicMock()
+    mock_secreto2.id_carta = 6
+    mock_secreto2.nombre = "secreto_comun"
+    mock_secreto2.jugador_id = 1
+
+    mock_secreto3 = MagicMock()
+    mock_secreto3.id_carta = 6
+    mock_secreto3.nombre = "secreto_comun"
+    mock_secreto3.jugador_id = 1
+
+    #Configurar instancia mock de CartaService
+    mock_carta_service_instance = MagicMock()
+    mock_carta_service_instance.obtener_secretos_jugador.return_value = [mock_secreto1, mock_secreto2, mock_secreto3]
+    mock_CartaService.return_value = mock_carta_service_instance
+
+    response = client.get("partidas/1/secretos", params={"id_jugador": 1})
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert len(response.json()) == 3
+    assert response.json() == [
+        {"id": 3, "nombre": "murderer"},
+        {"id": 6, "nombre": "secreto_comun"},
+        {"id": 6, "nombre": "secreto_comun"}
+    ]
+
+    # Verificamos que el método se llamó correctamente
+    mock_carta_service_instance.obtener_secretos_jugador.assert_called_once_with(1, 1)
+
+
+@patch("game.partidas.endpoints.CartaService")
+def test_obtener_ids_asesinoComplice(mock_CartaService, session):
+    """Test para verificar que se obtienen los IDs del asesino y el cómplice"""
+
+    # Override de DB con la sesión de prueba
+    def get_db_override():
+        yield session
+
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+
+    mock_asesinoID = MagicMock()
+    mock_compliceID = MagicMock()
+    mock_asesinoID = 1
+    mock_compliceID = 2
+
+    #Configurar instancia mock de CartaService
+    mock_carta_service_instance = MagicMock()
+    mock_carta_service_instance.obtener_asesino_complice.return_value = {"asesino-id": mock_asesinoID, "complice-id": mock_compliceID}
+    mock_CartaService.return_value = mock_carta_service_instance
+
+    response = client.get("partidas/1/roles")
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {"asesino-id": 1, "complice-id": 2}
