@@ -5,7 +5,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi import WebSocket, WebSocketException, WebSocketDisconnect
 from game.partidas.models import Partida
-from game.partidas.schemas import PartidaData, PartidaResponse, PartidaOut, PartidaListar, IniciarPartidaData
+from game.partidas.schemas import PartidaData, PartidaResponse, PartidaOut, PartidaListar, IniciarPartidaData, RecogerCartasPayload
 #from game.partidas.services import PartidaService
 from game.jugadores.models import Jugador
 from game.jugadores.schemas import JugadorData, JugadorResponse, JugadorOut
@@ -408,6 +408,7 @@ async def robar_cartas(id_partida: int, id_jugador: int, cantidad: int = 1, db=D
                 "evento": "turno-actual",
                 "turno-actual": nuevo_turno,
             }))
+            CartaService(db).actualizar_mazo_draft(id_partida)
 
         # Si el mazo queda en 0, emitir fin de partida
         if cantidad_restante == 0:
@@ -425,6 +426,21 @@ async def robar_cartas(id_partida: int, id_jugador: int, cantidad: int = 1, db=D
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
+@partidas_router.get(path= '/{id_partida}/draft')
+async def mazo_draft(id_partida: int, db=Depends(get_db)):
+    """ 
+    Se muestra el mazo de draft
+    
+    Returns
+    -------
+    Devuelve una lista de cartas que componen el mazo de draft.
+    """
+    try:
+        mazo_draft = mostrar_mazo_draft(id_partida, db)
+        return mazo_draft
+    
+    except Exception as e:
+        raise e
 
 @partidas_router.get(path="/{id_partida}/secretos", status_code=status.HTTP_200_OK)
 async def obtener_secretos(id_partida: int, id_jugador: int, db=Depends(get_db)):
@@ -469,3 +485,60 @@ async def obtener_asesino_complice(id_partida: int, db=Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Hubo un error al obtener los IDs del asesino y el cómplice"
         )
+        
+
+
+@partidas_router.put(
+    "/{id_partida}/jugador/{id_jugador}/recoger",
+    status_code=status.HTTP_200_OK
+)
+async def accion_recoger_cartas(
+    id_partida: int,
+    id_jugador: int,
+    payload: RecogerCartasPayload,
+    db= Depends(get_db),
+    manager: Depends = Depends(get_manager)
+):
+    try:
+        # Llamar al servicio para manejar la acción de recoger cartas
+        resultado = PartidaService(db).manejar_accion_recoger(
+            id_partida, id_jugador, payload.cartas_draft
+        )
+
+        # Extraer datos del resultado
+        nuevas_cartas_para_jugador = resultado["nuevas_cartas"]
+        nuevo_turno_id = resultado["nuevo_turno_id"]
+        nuevo_draft = resultado["nuevo_draft"]
+        cantidad_final_mazo = resultado["cantidad_final_mazo"]
+
+        # Emitir eventos por WebSocket
+        await manager.broadcast(id_partida, json.dumps({
+            "evento": "nuevo-draft",
+            "mazo-draft": [{"id": c.id_carta, "nombre": c.nombre} for c in nuevo_draft]
+        }))
+        await manager.broadcast(id_partida, json.dumps({
+            "evento": "actualizacion-mazo",
+            "cantidad-restante-mazo": cantidad_final_mazo
+        }))
+        await manager.broadcast(id_partida, json.dumps({
+            "evento": "turno-actual",
+            "turno-actual": nuevo_turno_id
+        }))
+        mano_actual = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
+        await manager.broadcast(id_partida, json.dumps({
+            "evento": "mano-actualizada",
+            "id_jugador": id_jugador,
+            "mano": [{"id": c.id_carta, "nombre": c.nombre} for c in mano_actual]
+        }))
+        if cantidad_final_mazo == 0:
+            await manager.broadcast(id_partida, json.dumps({
+                "evento": "fin-partida", "ganadores": [], "asesino_gano": False
+            }))
+
+        return nuevas_cartas_para_jugador
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in accion_recoger_cartas endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

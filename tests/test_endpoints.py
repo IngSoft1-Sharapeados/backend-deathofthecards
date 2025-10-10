@@ -504,19 +504,21 @@ def test_unir_jugador_partida_llena(mock_PartidaService, jugador_data, session):
     assert response.json()["detail"] == "La partida ya tiene el máximo de jugadores."
 
 # ---------------- TEST PARTIDA NO ENCONTRADA ----------------
-@patch("game.partidas.endpoints.PartidaService")
+@patch("game.partidas.utils.PartidaService")
 def test_unir_jugador_partida_no_encontrada(mock_PartidaService, jugador_data, session):
     def get_db_override():
         yield session
     app.dependency_overrides[get_db] = get_db_override
     client = TestClient(app)
 
-    mock_PartidaService.return_value.obtener_por_id = None
+    # 2. Change the configuration to use .return_value
+    mock_PartidaService.return_value.obtener_por_id.return_value = None
 
     id_partida = 999
     response = client.post(f"/partidas/{id_partida}", json=jugador_data)
     app.dependency_overrides.clear()
 
+    # The assertion will now pass correctly
     assert response.status_code == 404
     assert response.json()["detail"] == f"No se encontro la partida con el ID {id_partida}."
 
