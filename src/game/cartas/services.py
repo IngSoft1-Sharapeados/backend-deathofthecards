@@ -54,7 +54,7 @@ class CartaService:
     
     def obtener_cartas_descarte(self, id_partida: int, cantidad: int) -> list[Carta]:
         """
-        Obtiene las ultimas 1 o 5 cartas del mazo de descarte de una partida.
+        Obtiene las ultimas 'cantidad' cartas del mazo de descarte de una partida.
 
         Args:
             id_partida (int), cantidad (int)

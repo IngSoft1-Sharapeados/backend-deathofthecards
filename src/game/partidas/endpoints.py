@@ -311,9 +311,15 @@ async def obtener_mano(id_partida: int, id_jugador: int, db=Depends(get_db)):
 def descarte_cartas(id_partida, id_jugador: int, cartas_descarte: list[int]= Body(...), db=Depends(get_db), manager=Depends(get_manager)):
     try:
         partida = PartidaService(db).obtener_por_id(id_partida)
-        if partida.turno_id is not id_jugador:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No es tu turno")
-        CartaService(db).descartar_cartas(id_partida, id_jugador, cartas_descarte)
+        if partida is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail="No se encontró la partida"
+                                )
+        if partida.turno_id != id_jugador:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail="No es tu turno"
+                                )
+        CartaService(db).descartar_cartas(id_jugador, cartas_descarte)
         # Emitimos actualización del mazo (por si alguna lógica futura mueve entre mazos)
         cantidad_restante = CartaService(db).obtener_cantidad_mazo(id_partida)
         evento = {
@@ -341,6 +347,9 @@ def descarte_cartas(id_partida, id_jugador: int, cartas_descarte: list[int]= Bod
             # En contexto sin loop (por ejemplo, pruebas), ignoramos
             pass
         return {"detail": "Descarte exitoso"}
+    
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -524,7 +533,7 @@ async def obtener_asesino_complice(id_partida: int, db=Depends(get_db)):
         )
     
 @partidas_router.get(path= '/{id_partida}/descarte')
-async def mazo_descarte(id_partida: int, cantidad: int, db=Depends(get_db)):
+async def mazo_descarte(id_partida: int, cantidad: int = 1, db=Depends(get_db)):
     """ 
     Se muestra el mazo de descarte
     
