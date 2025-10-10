@@ -308,7 +308,7 @@ async def obtener_mano(id_partida: int, id_jugador: int, db=Depends(get_db)):
 
 
 @partidas_router.put(path='/{id_partida}/descarte')
-def descarte_cartas(id_partida, id_jugador: int, cartas_descarte: list[int]= Body(...), db=Depends(get_db), manager=Depends(get_manager)):
+async def descarte_cartas(id_partida: int, id_jugador: int, cartas_descarte: list[int]= Body(...), db=Depends(get_db), manager=Depends(get_manager)):
     try:
         partida = PartidaService(db).obtener_por_id(id_partida)
         if partida is None:
@@ -333,19 +333,10 @@ def descarte_cartas(id_partida, id_jugador: int, cartas_descarte: list[int]= Bod
                         cartas_descarte
                     } 
         }
-        # broadcast espera texto
-        import json as _json
-        # Enviamos como texto JSON a todos en la partida
-        import asyncio
-        async def _broadcast():
-            await manager.broadcast(id_partida, _json.dumps(evento))
-            
-            await manager.broadcast(id_partida, _json.dumos(evento2))
-        try:
-            asyncio.get_event_loop().create_task(_broadcast())
-        except RuntimeError:
-            # En contexto sin loop (por ejemplo, pruebas), ignoramos
-            pass
+        
+        await manager.broadcast(id_partida, json.dumps(evento))
+        await manager.broadcast(id_partida, json.dumps(evento2))
+
         return {"detail": "Descarte exitoso"}
     
     except HTTPException:
