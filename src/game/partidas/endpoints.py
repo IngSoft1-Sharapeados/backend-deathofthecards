@@ -440,6 +440,14 @@ async def jugar_set(id_partida: int, id_jugador: int, set_cartas: list[int], db=
     """ 
      
     cartas_jugadas = jugar_set_detective(id_partida, id_jugador, set_cartas, db)
-    await manager.broadcast(id_partida, json.dumps({"evento": "jugar-set"})) 
-    return {"detail": "Set jugado correctamente", "cartas_jugadas": [{"id": carta.id_carta, "nombre": carta.nombre} for carta in cartas_jugadas]}
+    await manager.broadcast(
+    id_partida,
+    json.dumps({"evento": f"jugar-set, el jugador con id {id_jugador} jugó el set {set_cartas}"})
+    )
+
+    return {
+    "detail": f"Set jugado correctamente por el jugador con id: {id_jugador}",
+    "cartas_jugadas": [{"id": carta.id_carta, "nombre": carta.nombre} for carta in cartas_jugadas]
+    }
+
     
