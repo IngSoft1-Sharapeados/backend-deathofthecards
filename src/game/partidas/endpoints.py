@@ -532,11 +532,12 @@ async def mazo_descarte(id_partida: int, id_jugador: int, cantidad: int = 1, db=
     """
     try:
         cartas_descarte = mostrar_cartas_descarte(id_partida, cantidad, db)
+        carta_top = cartas_descarte[0] if cartas_descarte else None
         
         if cantidad == 1:
             await manager.broadcast(id_partida, json.dumps({
                 "evento": "mazo-descarte-top",
-                "carta": cartas_descarte[0]
+                "carta": carta_top
             }))
         elif cantidad == 5:
             await manager.send_personal_message(id_jugador, json.dumps({
