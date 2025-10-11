@@ -1,5 +1,6 @@
 from game.partidas.models import Partida
 from game.jugadores.models import Jugador
+from game.cartas.models import Carta
 from game.jugadores.schemas import JugadorOut
 from game.partidas.schemas import PartidaData, PartidaResponse, IniciarPartidaData
 from game.partidas.services import PartidaService
@@ -142,12 +143,6 @@ def mostrar_cartas_descarte(id_partida: int, cantidad:  int,  db):
         )
 
 def mostrar_mazo_draft(id_partida: int, db):
-
-    if PartidaService(db).obtener_por_id(id_partida) is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No se encontro la partida con el ID {id_partida}.")
-
     try:    
         mazo_descarte = CartaService(db).obtener_mazo_draft(id_partida)            
         cartas = [
@@ -161,53 +156,36 @@ def mostrar_mazo_draft(id_partida: int, db):
             detail=f"No se pudo obtener el mazo de descarte. Error: {e}"
         )
     
-def robar_carta_draft(id_partida: int, id_jugador: int, carta_tomada: int, db):
+def ids_asesino_complice(db, id_partida: int):
     """
-    Controla la acción de tomar cartas del draft, manejando errores comunes.
+    Metodo que dado el ID de una partida, devuelve el ID del asesino, y el ID del cómplice
+    si es que la partida tiene 5 ó 6 jugadores.
+    
+    Parameters
+        ----------
+        db: Dependency
+            Base de datos
+        
+        id_partida: int
+            ID de la partida para la cual se obtiene los IDs de asesino y complice
+        
+        Returns
+        -------
+        dict[str, int]
+            Diccionario con ID de asesino y ID de cómplice en caso de 5 ó 6 jugadores
+            {"asesino-id": id_asesino}  / {"asesino-id": id_asesino, "complice-id": id_complice} 
     """
     partida = PartidaService(db).obtener_por_id(id_partida)
-    if partida is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Partida no encontrada."
-        )
+    if partida.cantJugadores >=5:
+        carta_asesino = db.query(Carta).filter_by(partida_id=id_partida, tipo="secreto", nombre="murderer").first()
+        asesino_id = carta_asesino.jugador_id
+        carta_complice = db.query(Carta).filter_by(partida_id=id_partida, tipo="secreto", nombre="accomplice").first()
+        complice_id = carta_complice.jugador_id
     
-    jugador = JugadorService(db).obtener_jugador(id_jugador)
-    if jugador is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Jugador no encontrado."
-        )
-
-    turno_actual = PartidaService(db).obtener_turno_actual(id_partida)
-    if turno_actual != id_jugador:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No es tu turno para tomar cartas del draft."
-        )
-
-    mazo = CartaService(db).obtener_mazo_draft(id_partida)
-    ids_cartas = [carta.id_carta for carta in mazo]
-    if carta_tomada not in ids_cartas:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="La carta seleccionada no se encuentra en el draft."
-        )
-
-    cartas_en_mano = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
-    if len(cartas_en_mano) >= 6:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No puedes tener más de 6 cartas en la mano."
-        )
-
-    try:   
-        CartaService(db).tomar_cartas_draft(id_partida, id_jugador, carta_tomada)
-
-        return {"detail": "Cartas tomadas correctamente."}
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al tomar cartas del draft: {e}"
-        )
+        return {"asesino-id": asesino_id, "complice-id": complice_id}
+    
+    else:
+        carta_asesino = db.query(Carta).filter_by(partida_id=id_partida, tipo="secreto", nombre="murderer").first()
+        asesino_id = carta_asesino.jugador_id
+    
+        return {"asesino-id": asesino_id}
