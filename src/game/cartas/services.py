@@ -263,7 +263,8 @@ class CartaService:
     
     def crear_secretos(self, id_partida):
         """
-        Crea las cartas secreto para una partida.
+        Crea las cartas secreto para una partida. Todas las cartas creadas son secretos comunes,
+        en el reparto se asigna la del asesino y cómplice (si aplica).
         
         Parameters
         ----------
@@ -277,25 +278,23 @@ class CartaService:
         """
 
         secretos = []
-        for carta in secretosDict.values():
-            cantidad = carta["cantidad"]
-            while cantidad > 0:
-                secret = Carta(
-                    nombre=carta["carta"],
-                    tipo=carta["tipo"],
-                    bocaArriba=carta["bocaArriba"],
-                    ubicacion=carta["ubicacion"],
-                    jugador_id=0,
-                    partida_id=id_partida,
-                    id_carta=carta["id"]
-                    )
-                cantidad -= 1
-                secretos.append(secret)
+        for _ in range (18):
+            secret = Carta(
+                nombre="secreto_comun",
+                tipo="secreto",
+                bocaArriba=False,
+                ubicacion="mesa",
+                jugador_id=0,
+                partida_id=id_partida,
+                id_carta=6
+                )
+            secretos.append(secret)
 
         self._db.add_all(secretos)
         self._db.commit()
 
         return secretos
+
     
     def repartir_secretos(self, secretos: list[Carta], jugadores_en_partida: list[Jugador]):
         """
@@ -309,47 +308,53 @@ class CartaService:
         jugadores_en_partida: list[Jugador]
             Lista de jugadores en un
         """
-
-        # Lista de IDs de los jugadores en la partida
-        jugadores_ids = [jugador.id for jugador in jugadores_en_partida]
-        
+   
         # Se elige un jugador al azar para que sea el asesino
         index_murderer = random.randrange(len(jugadores_en_partida))
+        id_asesino = jugadores_en_partida[index_murderer].id
         
-        # Le asigno la carta de asesino
-        secretos[0].jugador_id = jugadores_en_partida[index_murderer].id
-
-        # Saco el id del asesino de la lista de IDs
-        jugadores_ids.remove(jugadores_en_partida[index_murderer].id)
-
+        id_complice = None
         # Si es una partida de 5 o 6 jugadores debe haber un cómplice
         if (len(jugadores_en_partida) >= 5):
             accomplice_found = False
             while not accomplice_found:
                 index_accomplice = random.randrange(len(jugadores_en_partida))
                 if index_accomplice != index_murderer:
-                    secretos[1].jugador_id = jugadores_en_partida[index_accomplice].id
                     accomplice_found = True
-            
-            # Saco el id del cómplice de la lista de IDs 
-            jugadores_ids.remove(jugadores_en_partida[index_accomplice].id)
+                    id_complice = jugadores_en_partida[index_accomplice].id
         
-        comunes = 2
+        secret_index = 0
         for jugador in jugadores_en_partida:
-            # Arrancamos del 3er secreto en adelante (es decir los comunes)
-            # Si no es asesino o cómplice, le doy 3 secretos
-            if jugador.id in jugadores_ids:
-                for _ in range(3):
-                    secretos[comunes].jugador_id = jugador.id
-                    comunes+=1
-            # Si es asesino o cómplice, le doy los 2 secretos que le faltan
+            # Si es el asesino o el cómplice, elijo una ubicacion al azar para esa carta y le doy las 2 comunes
+            if jugador.id == id_asesino:
+                ubicacionRandom = random.randrange(3)
+                for i in range(3):
+                    if i == ubicacionRandom:
+                        secretos[secret_index].nombre="murderer"
+                        secretos[secret_index].jugador_id=jugador.id
+                        secretos[secret_index].id_carta=3
+                        secret_index+=1
+                    else:
+                        secretos[secret_index].jugador_id=jugador.id
+                        secret_index+=1
+            elif (id_complice is not None and jugador.id == id_complice):
+                ubicacionRandom = random.randrange(3)
+                for i in range(3):
+                    if i == ubicacionRandom:
+                        secretos[secret_index].nombre="accomplice"
+                        secretos[secret_index].jugador_id=jugador.id
+                        secretos[secret_index].id_carta=4
+                        secret_index+=1
+                    else:
+                        secretos[secret_index].jugador_id=jugador.id
+                        secret_index+=1
+            # Si no es asesino o cómplice, le doy los 3 secretos
             else:
-                for _ in range(2):
-                    secretos[comunes].jugador_id = jugador.id
-                    comunes+=1
+                for _ in range(3):
+                    secretos[secret_index].jugador_id = jugador.id
+                    secret_index+=1
         
         self._db.commit()
-        #self._db.refresh(secretos)
             
         print("se repartieron los secretos")
         
@@ -421,6 +426,30 @@ class CartaService:
         self._db.commit()
         secreto_revelado = {"id-secreto": secreto_a_revelar.id}
 
-        ### websocket actualizacion secreto
-
         return secreto_revelado
+
+
+    def obtener_secretos_ajenos(self, id_jugador: int, id_partida: int):
+        secretos_ajenos = CartaService(self._db).obtener_secretos_jugador(id_jugador, id_partida)
+        # Si no hay secretos, devolver lista vacía
+        if not secretos_ajenos:
+            return []
+        
+        #Crear lista de cartas a enviar
+        secretos_a_enviar = []
+        print(f'{secretos_a_enviar}')
+        for carta in secretos_ajenos:
+            if carta.bocaArriba:
+                secretos_a_enviar.append({
+                    "id": carta.id,
+                    "carta_id": carta.id_carta,
+                    "nombre": carta.nombre,
+                    "bocaArriba": carta.bocaArriba
+                })
+            else:
+                secretos_a_enviar.append({
+                    "id": carta.id,
+                    "bocaArriba": carta.bocaArriba
+                })
+        print(f"secretos a enviar: {secretos_a_enviar}")
+        return secretos_a_enviar

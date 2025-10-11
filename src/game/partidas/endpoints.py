@@ -578,35 +578,7 @@ async def obtener_secretos_otro_jugador(id_partida: int, id_jugador: int, db=Dep
     Obtiene los secretos de un jugador específico para una partida.
     """
     try:
-        #secretos_jugador = CartaService(db).obtener_secretos_jugador(id_jugador, id_partida)
-
-        
-
-        #cartas_a_enviar = CartaService(db).obtener_secretos_ajenos
-
-        ################################# meter en un servicio
-        
-        secretos_a_enviar = CartaService(db).obtener_secretos_jugador(id_jugador, id_partida)
-        # Si no hay secretos, devolver lista vacía
-        if not secretos_a_enviar:
-            return []
-        
-        #Crear lista de cartas a enviar
-        cartas_a_enviar = []
-        for carta in secretos_a_enviar:
-            if carta.bocaArriba:
-                cartas_a_enviar.append({
-                    "id": carta.id,
-                    "carta_id": carta.id_carta,
-                    "nombre": carta.nombre,
-                    "bocaArriba": carta.bocaArriba
-                })
-            else:
-                cartas_a_enviar.append({
-                    "id": carta.id,
-                    "bocaArriba": carta.bocaArriba
-                })
-    
+        cartas_a_enviar = CartaService(db).obtener_secretos_ajenos(id_jugador, id_partida)
         return cartas_a_enviar
     
     except Exception as e:
