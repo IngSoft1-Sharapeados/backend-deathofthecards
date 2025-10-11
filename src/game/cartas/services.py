@@ -448,6 +448,7 @@ class CartaService:
         secreto = self._db.get(Carta, id_unico_secreto)
         return (secreto.nombre == "murderer")
 
+
     def obtener_asesino_complice(self, id_partida):
         carta_asesino = self._db.query(Carta).filter_by(partida_id=id_partida, tipo="secreto", nombre="murderer").first()
         asesino_id = carta_asesino.jugador_id if carta_asesino else None
@@ -497,3 +498,34 @@ class CartaService:
             }
             for r in registros
         ]
+
+
+    def ocultar_secreto(self, id_partida: int, id_jugador:  int, id_unico_secreto: int) -> dict:
+        """
+        Oculta el secreto de un jugador en una partida específica.
+        
+        Parameters
+        ----------
+        id_jugador: int
+            ID del jugador para el cual se ocultará un secreto.
+        
+        id_partida: int
+            ID de la partida para la cual se obtiene los secretos.
+        
+        id_secreto: int
+            ID del secreto que debe ser ocultado
+        
+        Returns
+        -------
+        secreto_ocultado: dict
+            diccionario con el id del secreto ocultado. {"id-secreto": secreto.id}
+        """
+        secreto_a_ocultar: Carta
+        secreto_a_ocultar = self._db.get(Carta, id_unico_secreto)
+        
+        secreto_a_ocultar.bocaArriba = False
+        self._db.commit()
+        secreto_ocultado = {"id-secreto": secreto_a_ocultar.id}
+
+        return secreto_ocultado
+
