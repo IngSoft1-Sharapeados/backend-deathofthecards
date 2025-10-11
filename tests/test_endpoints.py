@@ -1348,7 +1348,7 @@ def test_obtener_ids_asesinoComplice(mock_ids_asesino_complice, session):
 
 
 def test_revelar_secreto(session):
-    """Test para verificar que se obtienen los IDs del asesino y el cómplice"""
+    """Test para verificar que se revela el secreto correctamente"""
 
     # Override de DB
     def get_db_override():
@@ -1436,4 +1436,93 @@ def test_revelar_secreto_id_carta_invalido(session):
     )
     assert response.status_code == 500
 
+
+def test_ocultar_secreto(session):
+    """Test para verificar que se oculta un secreto correctamente"""
+
+    # Override de DB
+    def get_db_override():
+        yield session
+
+    app.dependency_overrides[get_db] = get_db_override
+    # Crear Partida
+    partida = Partida(
+        id=1,
+        nombre="Partida 1",
+        anfitrionId=1,
+        cantJugadores=2,
+        iniciada=True,
+        maxJugadores=4,
+        minJugadores=2
+    )
+    session.add(partida)
+    session.commit()
+
+    # Crear Jugador
+    jugador = Jugador(
+        id=1,
+        nombre="Jugador Test",
+        fecha_nacimiento=date(2023, 2, 2),
+        partida_id=partida.id
+    )
+    session.add(jugador)
+    session.commit()
+
+    # Carta secreto
+    carta = Carta(
+        id=1,
+        id_carta=3,
+        nombre="secreto_comun",
+        tipo="secreto",
+        bocaArriba=True,
+        ubicacion="mesa",
+        descripcion="",
+        partida_id=partida.id,
+        jugador_id=jugador.id
+    )
+    session.add(carta)
+    session.commit()
+
+    client = TestClient(app)
+    url = f"/partidas/{partida.id}/ocultamiento"
+    params = {
+        "id_jugador": jugador.id,
+        "id_unico_secreto": carta.id
+    }
+    response = client.patch(url, params=params)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "id-secreto" in data
+    assert data["id-secreto"] == carta.id
+
+    # Verificar que la carta está boca abajo
+    carta_db = session.get(Carta, carta.id)
+    assert carta_db.bocaArriba is False
+
+    app.dependency_overrides.clear()
+
+
+def test_ocultar_secreto_id_carta_invalido(session):
+    
+        # Override de DB
+    def get_db_override():
+        yield session
+
+    app.dependency_overrides[get_db] = get_db_override
+    # Crear partida y jugador
+    partida = Partida(nombre="Test", anfitrionId=1, cantJugadores=1)
+    session.add(partida)
+    session.commit()
+    jugador = Jugador(nombre="Jugador", fecha_nacimiento=date(2000, 1, 1), partida_id=partida.id)
+    session.add(jugador)
+    session.commit()
+
+    client = TestClient(app)
+    # Llamo al endpoint con id inexistente
+    response = client.patch(
+        f"/partidas/{partida.id}/ocultamiento",
+        params={"id_jugador": jugador.id, "id_unico_secreto": 9999},
+    )
+    assert response.status_code == 500
 
