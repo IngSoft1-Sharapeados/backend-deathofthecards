@@ -40,29 +40,67 @@ def client_fixture(session):
 
 # ---------- TESTS ----------
 
+from unittest.mock import MagicMock, patch, AsyncMock
+import pytest
+from fastapi.testclient import TestClient
+from main import app
+from game.modelos.db import get_db
+
+
+@pytest.fixture(name="session")
+def dbTesting_fixture():
+    from sqlalchemy import create_engine
+    from sqlalchemy.pool import StaticPool
+    from game.modelos.db import Base, get_session_local
+
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    TestingSessionLocal = get_session_local(engine)
+    Base.metadata.create_all(bind=engine)
+    with TestingSessionLocal() as session:
+        yield session
+
+
+@pytest.fixture(name="client")
+def client_fixture(session):
+    def get_db_override():
+        yield session
+    app.dependency_overrides[get_db] = get_db_override
+    client = TestClient(app)
+    yield client
+    app.dependency_overrides.clear()
+
+
+# ---------- TESTS CORREGIDOS ----------
+
 @patch("game.partidas.utils.PartidaService")
 @patch("game.partidas.utils.CartaService")
-def test_obtener_cartas_descarte_ok_una(mock_CartaService, mock_PartidaService, client):
-    """Debe devolver una carta del mazo de descarte (cantidad=1)."""
+@patch("game.partidas.endpoints.manager")
+def test_obtener_cartas_descarte_ok_una(mock_manager, mock_CartaService, mock_PartidaService, client):
+    """Debe devolver una carta y enviar broadcast público."""
+    mock_manager.broadcast = AsyncMock()  # <--- cambio clave
+
     mock_PartidaService.return_value.obtener_por_id.return_value = object()
     mock_carta = MagicMock()
     mock_carta.id_carta = 3
     mock_carta.nombre = "Dead Card Folly"
     mock_CartaService.return_value.obtener_cartas_descarte.return_value = [mock_carta]
 
-    response = client.get("/partidas/1/descarte?cantidad=1")
+    response = client.get("/partidas/1/descarte?id_jugador=1&cantidad=1")
 
     assert response.status_code == 200
     assert response.json() == [{"id": 3, "nombre": "Dead Card Folly"}]
     mock_CartaService.return_value.obtener_cartas_descarte.assert_called_once_with(1, 1)
+    mock_manager.broadcast.assert_awaited_once()  # awaitable
 
 
 @patch("game.partidas.utils.PartidaService")
 @patch("game.partidas.utils.CartaService")
-def test_obtener_cartas_descarte_ok_cinco(mock_CartaService, mock_PartidaService, client):
-    """Debe devolver las 5 primeras cartas del mazo de descarte."""
-    mock_PartidaService.return_value.obtener_por_id.return_value = object()
+@patch("game.partidas.endpoints.manager")
+def test_obtener_cartas_descarte_ok_cinco(mock_manager, mock_CartaService, mock_PartidaService, client):
+    """Debe devolver 5 cartas y enviar mensaje privado."""
+    mock_manager.send_personal_message = AsyncMock()  # <--- cambio clave
 
+    mock_PartidaService.return_value.obtener_por_id.return_value = object()
     cartas = []
     for i in range(5):
         carta = MagicMock()
@@ -72,13 +110,12 @@ def test_obtener_cartas_descarte_ok_cinco(mock_CartaService, mock_PartidaService
 
     mock_CartaService.return_value.obtener_cartas_descarte.return_value = cartas
 
-    response = client.get("/partidas/1/descarte?cantidad=5")
+    response = client.get("/partidas/1/descarte?id_jugador=1&cantidad=5")
 
     assert response.status_code == 200
-    assert response.json() == [
-        {"id": i + 1, "nombre": f"Carta {i + 1}"} for i in range(5)
-    ]
+    assert response.json() == [{"id": i + 1, "nombre": f"Carta {i + 1}"} for i in range(5)]
     mock_CartaService.return_value.obtener_cartas_descarte.assert_called_once_with(1, 5)
+    mock_manager.send_personal_message.assert_awaited_once()  # awaitable
 
 
 @patch("game.partidas.utils.PartidaService")
@@ -87,7 +124,7 @@ def test_obtener_cartas_descarte_cantidad_invalida(mock_CartaService, mock_Parti
     """Debe devolver 400 si la cantidad no es 1 ni 5."""
     mock_PartidaService.return_value.obtener_por_id.return_value = object()
 
-    response = client.get("/partidas/1/descarte?cantidad=3")
+    response = client.get("/partidas/1/descarte?id_jugador=1&cantidad=3")
 
     assert response.status_code == 400
     assert "Solo se mostrara 1 o las 5 ultimas cartas del mazo de descarte" in response.json()["detail"]
@@ -100,7 +137,7 @@ def test_obtener_cartas_descarte_partida_no_encontrada(mock_CartaService, mock_P
     """Debe devolver 404 si la partida no existe."""
     mock_PartidaService.return_value.obtener_por_id.return_value = None
 
-    response = client.get("/partidas/999/descarte?cantidad=1")
+    response = client.get("/partidas/999/descarte?id_jugador=1&cantidad=1")
 
     assert response.status_code == 404
     assert "No se encontro la partida" in response.json()["detail"]
@@ -110,11 +147,11 @@ def test_obtener_cartas_descarte_partida_no_encontrada(mock_CartaService, mock_P
 @patch("game.partidas.utils.PartidaService")
 @patch("game.partidas.utils.CartaService")
 def test_obtener_cartas_descarte_error_interno(mock_CartaService, mock_PartidaService, client):
-    """Debe devolver 500 si el servicio lanza una excepción interna."""
+    """Debe devolver 500 si ocurre un error interno en el servicio."""
     mock_PartidaService.return_value.obtener_por_id.return_value = object()
     mock_CartaService.return_value.obtener_cartas_descarte.side_effect = Exception("Error interno simulado")
 
-    response = client.get("/partidas/1/descarte?cantidad=5")
+    response = client.get("/partidas/1/descarte?id_jugador=1&cantidad=5")
 
     assert response.status_code == 500
-    assert "No se pudo obtener las cartas del mazo descarte" in response.json()["detail"]   
+    assert "No se pudo obtener las cartas del mazo descarte" in response.json()["detail"]

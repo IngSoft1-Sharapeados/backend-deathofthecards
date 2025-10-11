@@ -945,23 +945,32 @@ def test_obtener_mano_error(mock_CartaService, session):
     
     
 #--------------------------TESTS DESCARTE_CARTAS------------------------------
+ 
 # ------------------------- Caso 1: Descarte exitoso -------------------------
+@patch("game.partidas.endpoints.manager")
 @patch("game.partidas.endpoints.PartidaService")
 @patch("game.partidas.endpoints.CartaService")
-def test_descartar_carta_ok(mock_CartaService, mock_PartidaService, session):
+def test_descartar_carta_ok(mock_CartaService, mock_PartidaService, mock_manager, session):
     def get_db_override():
         yield session
     app.dependency_overrides[get_db] = get_db_override
     client = TestClient(app)
 
+    # Mock del manager (para evitar error en await)
+    mock_manager.broadcast = AsyncMock()
+
+    # Mock de la partida
     mock_partida = MagicMock()
     mock_partida.turno_id = 1
     mock_PartidaService.return_value.obtener_por_id.return_value = mock_partida
 
+    # Mock de CartaService
     mock_carta_service_instance = MagicMock()
     mock_CartaService.return_value = mock_carta_service_instance
     mock_carta_service_instance.descartar_cartas.return_value = None
+    mock_carta_service_instance.obtener_cantidad_mazo.return_value = 42
 
+    # Llamada al endpoint
     response = client.put(
         "/partidas/1/descarte?id_jugador=1",
         json=[2, 3, 4]
@@ -969,9 +978,11 @@ def test_descartar_carta_ok(mock_CartaService, mock_PartidaService, session):
 
     app.dependency_overrides.clear()
 
+    # Verificaciones
     assert response.status_code == 200
     assert response.json() == {"detail": "Descarte exitoso"}
     mock_carta_service_instance.descartar_cartas.assert_called_once_with(1, [2, 3, 4])
+    mock_manager.broadcast.assert_awaited()  # verifica que se haya llamado al menos una vez
 
 
 # ------------------- Caso 2: Carta no encontrada (400) ---------------------

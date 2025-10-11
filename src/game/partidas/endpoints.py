@@ -524,7 +524,7 @@ async def obtener_asesino_complice(id_partida: int, db=Depends(get_db)):
         )
     
 @partidas_router.get(path= '/{id_partida}/descarte')
-async def mazo_descarte(id_partida: int, cantidad: int = 1, db=Depends(get_db)):
+async def mazo_descarte(id_partida: int, id_jugador: int, cantidad: int = 1, db=Depends(get_db)):
     """ 
     Se muestra el mazo de descarte
     
@@ -533,6 +533,16 @@ async def mazo_descarte(id_partida: int, cantidad: int = 1, db=Depends(get_db)):
     try:
         cartas_descarte = mostrar_cartas_descarte(id_partida, cantidad, db)
         
+        if cantidad == 1:
+            await manager.broadcast(id_partida, json.dumps({
+                "evento": "mazo-descarte-top",
+                "carta": cartas_descarte[0]
+            }))
+        elif cantidad == 5:
+            await manager.send_personal_message(id_jugador, json.dumps({
+                "evento": "mazo-descarte-top5",
+                "carta": cartas_descarte
+            }))
         return cartas_descarte
     
     except Exception as e:
