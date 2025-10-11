@@ -506,7 +506,7 @@ async def mazo_descarte(id_partida: int, id_jugador: int, cantidad: int = 1, db=
     devuelve lista de cartas que componen el mazo de desarte.
     """
     try:
-        cartas_descarte = mostrar_cartas_descarte(id_partida, cantidad, db)
+        cartas_descarte = mostrar_cartas_descarte(id_partida, id_jugador, cantidad, db)
         carta_top = cartas_descarte[0] if cartas_descarte else None
         
         if cantidad == 1:
