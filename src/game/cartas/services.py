@@ -388,16 +388,6 @@ class CartaService:
         secretos_jugador = self._db.query(Carta).filter_by(partida_id=id_partida, jugador_id=id_jugador, ubicacion="mesa").all()
         return secretos_jugador
     
-    
-    
-    def obtener_asesino_complice(self, id_partida):
-        carta_asesino = self._db.query(Carta).filter_by(partida_id=id_partida, tipo="secreto", nombre="murderer").first()
-        asesino_id = carta_asesino.jugador_id
-        carta_complice = self._db.query(Carta).filter_by(partida_id=id_partida, tipo="secreto", nombre="accomplice").first()
-        complice_id = carta_complice.jugador_id
-        
-        return {"asesino-id": asesino_id, "complice-id": complice_id}
-    
 
     def revelar_secreto(self, id_partida: int, id_jugador:  int, id_unico_secreto: int) -> dict:
         """

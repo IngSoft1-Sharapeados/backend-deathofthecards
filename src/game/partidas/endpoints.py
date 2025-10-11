@@ -473,7 +473,7 @@ async def obtener_asesino_complice(id_partida: int, db=Depends(get_db)):
     Obtiene los IDs del asesino y el cómplice de una partida específica.
     """
     try:
-        asesino_complice = CartaService(db).obtener_asesino_complice(id_partida)
+        asesino_complice = ids_asesino_complice(db, id_partida)
 
         if not asesino_complice:
             return []
