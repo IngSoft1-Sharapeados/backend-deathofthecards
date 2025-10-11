@@ -130,10 +130,7 @@ class CartaService:
         """
         DOC
         """
-        print("ACA POR AGARRAR EL JUGADOR")
         jugador = JugadorService(self._db).obtener_jugador(id_jugador)
-        print("YA AGARRE EL JUGADOR")
-
 
         tiene_cartas = True
         cartas_mano = jugador.cartas
@@ -453,3 +450,25 @@ class CartaService:
     def es_asesino(self, id_unico_secreto: int):
         secreto = self._db.get(Carta, id_unico_secreto)
         return (secreto.nombre == "murderer")
+
+    def jugar_cards_of_the_table(self, id_partida: int, id_jugador: int, id_objetivo: int):
+        #FALTA llamar a service de jugar evento para corroborar que este todo bien
+        #(Tener carta a jugar, que la partida exista, que exita jugador, ser el turno)
+        cartas_jugador = self._db.query(Carta).filter_by(partida_id=id_partida,
+                                                          jugador_id=id_objetivo, 
+                                                          ubicacion="mano",
+                                                          nombre="Not so fast").all()
+        print("",cartas_jugador)
+        if cartas_jugador:
+            id_cartas_jugador = [carta.id_carta for carta in cartas_jugador]
+            print("",id_cartas_jugador)
+            self.descartar_cartas(id_objetivo, id_cartas_jugador)
+        
+        carta_jugada = self._db.query(Carta).filter_by(partida_id=id_partida,
+                                                          jugador_id=id_jugador, 
+                                                          ubicacion="mano",
+                                                          nombre="Cards off the table").first()
+        print("",carta_jugada)
+        self.descartar_cartas(id_jugador, [carta_jugada.id_carta])
+
+  

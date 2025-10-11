@@ -560,12 +560,6 @@ async def accion_recoger_cartas(
             "evento": "turno-actual",
             "turno-actual": nuevo_turno_id
         }))
-        mano_actual = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
-        await manager.broadcast(id_partida, json.dumps({
-            "evento": "mano-actualizada",
-            "id_jugador": id_jugador,
-            "mano": [{"id": c.id_carta, "nombre": c.nombre} for c in mano_actual]
-        }))
         if cantidad_final_mazo == 0:
             await manager.broadcast(id_partida, json.dumps({
                 "evento": "fin-partida", "ganadores": [], "asesino_gano": False
@@ -592,3 +586,15 @@ async def obtener_secretos_otro_jugador(id_partida: int, id_jugador: int, db=Dep
     except Exception as e:
         print(f"Error al obtener secretos: {e}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+@partidas_router.put(path='/{id_partida}/evento/CardsTable', status_code=status.HTTP_200_OK)
+def cards_of_the_table(id_partida: int, id_jugador: int, id_objetivo: int, db=Depends(get_db)):
+    """
+    Se juega el evento Cards of the table(descarta los Not so fast de la mano de un jugador)
+    """
+    try:
+        CartaService(db).jugar_cards_of_the_table(id_partida, id_jugador, id_objetivo)
+        return {"detail": "Evento jugado correctamente"}
+    except Exception as e:
+        print(f"Error al jugar carta de evento Cards of the table: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")    
