@@ -164,6 +164,7 @@ class CartaService:
         mazo_robo = self.obtener_mazo_de_robo(id_partida)
         return len(mazo_robo)
 
+
     def robar_cartas(self, id_partida: int, id_jugador: int, cantidad: int = 1):
         if cantidad <= 0:
             raise ValueError("La cantidad a robar debe ser mayor a 0")
@@ -193,6 +194,7 @@ class CartaService:
             for carta in cartas_a_robar
         ]
 
+
     def actualizar_mazo_draft(self, id_partida: int):
         """
         Actualiza el mazo de draft de una partida.
@@ -219,6 +221,7 @@ class CartaService:
             
             self._db.commit()
 
+
     def obtener_mazo_draft(self, id_partida: int) -> list[Carta]:
         """
         Obtiene el mazo de draft de una partida.
@@ -237,6 +240,7 @@ class CartaService:
                 
         return mazo_draft
     
+
     def tomar_cartas_draft(self, id_partida: int, id_jugador: int, cartas_tomadas_ids: List[int]):
         """
         Permite al jugador tomar una o más cartas del draft.
@@ -357,7 +361,8 @@ class CartaService:
         self._db.commit()
             
         print("se repartieron los secretos")
-        
+
+
     def obtener_carta(self, id_carta: int) -> Carta:
         """
         Obtiene un objeto Carta específico por su id_carta.
@@ -367,7 +372,7 @@ class CartaService:
             raise ValueError(f"No se encontró una carta con id_carta {id_carta}")
         return carta
 
-    
+
     def obtener_secretos_jugador(self, id_jugador:  int, id_partida: int) -> list[Carta]:
         """
         Obtiene los secretos de un jugador en una partida específica.
@@ -387,7 +392,7 @@ class CartaService:
         """
         secretos_jugador = self._db.query(Carta).filter_by(partida_id=id_partida, jugador_id=id_jugador, ubicacion="mesa").all()
         return secretos_jugador
-    
+
 
     def revelar_secreto(self, id_partida: int, id_jugador:  int, id_unico_secreto: int) -> dict:
         """
@@ -443,3 +448,8 @@ class CartaService:
                 })
         print(f"secretos a enviar: {secretos_a_enviar}")
         return secretos_a_enviar
+    
+
+    def es_asesino(self, id_unico_secreto: int):
+        secreto = self._db.get(Carta, id_unico_secreto)
+        return (secreto.nombre == "murderer")

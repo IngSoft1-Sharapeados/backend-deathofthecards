@@ -396,7 +396,7 @@ async def robar_cartas(id_partida: int, id_jugador: int, cantidad: int = 1, db=D
         if cantidad_restante == 0:
             fin_payload = {
                 "evento": "fin-partida",
-                "payload": {"ganadores": [], "asesinoGano": False}
+                "payload": {"ganadores": [], "asesinoGano": True}
             }
             await manager.broadcast(id_partida, json.dumps(fin_payload))
 
@@ -414,7 +414,7 @@ async def robar_cartas(id_partida: int, id_jugador: int, cantidad: int = 1, db=D
         if cantidad_restante == 0:
             fin_payload = {
                 "evento": "fin-partida",
-                "payload": {"ganadores": [], "asesinoGano": False}
+                "payload": {"ganadores": [], "asesinoGano": True}
             }
             await manager.broadcast(id_partida, json.dumps(fin_payload))
 
@@ -494,16 +494,24 @@ async def revelar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: in
     """
     try:
         secreto_revelado = CartaService(db).revelar_secreto(id_partida, id_jugador, id_unico_secreto)
-
+        
         if not secreto_revelado:
             return None
-
+        
         secretos_actuales = CartaService(db).obtener_secretos_jugador(id_jugador, id_partida)
         print(f'secretos del jugador: {[{"id_carta": s.id, "bocaArriba": s.bocaArriba} for s in secretos_actuales]}')
         await manager.broadcast(id_partida, json.dumps({
             "evento": "actualizacion-secreto",
             "jugador-id": id_jugador,
             "lista-secretos": [{"revelado": s.bocaArriba} for s in secretos_actuales]
+        }))
+
+        esAsesino = CartaService(db).es_asesino(id_unico_secreto)
+        if esAsesino:
+            await manager.broadcast(id_partida, json.dumps({
+            "evento": "fin-partida",
+            "jugador-perdedor-id": id_jugador,
+            "payload": {"ganadores": [], "asesinoGano": False}
         }))
         return secreto_revelado
         
