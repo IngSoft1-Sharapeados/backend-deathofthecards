@@ -417,7 +417,7 @@ async def robar_cartas(id_partida: int, id_jugador: int, cantidad: int = 1, db=D
         if cantidad_restante == 0:
             fin_payload = {
                 "evento": "fin-partida",
-                "payload": {"ganadores": [], "asesinoGano": False}
+                "payload": {"ganadores": [], "asesinoGano": True}
             }
             await manager.broadcast(id_partida, json.dumps(fin_payload))
 
@@ -439,7 +439,7 @@ async def robar_cartas(id_partida: int, id_jugador: int, cantidad: int = 1, db=D
         if cantidad_restante == 0:
             fin_payload = {
                 "evento": "fin-partida",
-                "payload": {"ganadores": [], "asesinoGano": False}
+                "payload": {"ganadores": [], "asesinoGano": True}
             }
             await manager.broadcast(id_partida, json.dumps(fin_payload))
 
@@ -489,7 +489,7 @@ async def obtener_secretos(id_partida: int, id_jugador: int, db=Depends(get_db))
             return []
 
         cartas_a_enviar = [
-            {"id": carta.id_carta, "nombre": carta.nombre}
+            {"id": carta.id_carta, "nombre": carta.nombre, "revelada": carta.bocaArriba}
             for carta in secretos_jugador
         ]
         
@@ -508,7 +508,7 @@ async def obtener_asesino_complice(id_partida: int, db=Depends(get_db)):
     Obtiene los IDs del asesino y el cómplice de una partida específica.
     """
     try:
-        asesino_complice = CartaService(db).obtener_asesino_complice(id_partida)
+        asesino_complice = ids_asesino_complice(db, id_partida)
 
         if not asesino_complice:
             return []
@@ -519,6 +519,42 @@ async def obtener_asesino_complice(id_partida: int, db=Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Hubo un error al obtener los IDs del asesino y el cómplice"
+        )
+
+
+@partidas_router.patch(path="/{id_partida}/revelacion", status_code=status.HTTP_200_OK)
+async def revelar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: int,db=Depends(get_db)):
+    """
+    Revela el secreto de un jugador dado su ID, el ID de la carta y el de la partida.
+    """
+    try:
+        secreto_revelado = CartaService(db).revelar_secreto(id_partida, id_jugador, id_unico_secreto)
+        
+        if not secreto_revelado:
+            return None
+        
+        secretos_actuales = CartaService(db).obtener_secretos_jugador(id_jugador, id_partida)
+        print(f'secretos del jugador: {[{"id_carta": s.id, "bocaArriba": s.bocaArriba} for s in secretos_actuales]}')
+        await manager.broadcast(id_partida, json.dumps({
+            "evento": "actualizacion-secreto",
+            "jugador-id": id_jugador,
+            "lista-secretos": [{"revelado": s.bocaArriba} for s in secretos_actuales]
+        }))
+
+        esAsesino = CartaService(db).es_asesino(id_unico_secreto)
+        if esAsesino:
+            await manager.broadcast(id_partida, json.dumps({
+            "evento": "fin-partida",
+            "jugador-perdedor-id": id_jugador,
+            "payload": {"ganadores": [], "asesinoGano": False}
+        }))
+        return secreto_revelado
+        
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Hubo un error al revelar la carta secreto u obtener al jugador."
         )
         
 
@@ -559,6 +595,12 @@ async def accion_recoger_cartas(
             "evento": "turno-actual",
             "turno-actual": nuevo_turno_id
         }))
+        mano_actual = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
+        await manager.broadcast(id_partida, json.dumps({
+            "evento": "mano-actualizada",
+            "id_jugador": id_jugador,
+            "mano": [{"id": c.id_carta, "nombre": c.nombre} for c in mano_actual]
+        }))
         if cantidad_final_mazo == 0:
             await manager.broadcast(id_partida, json.dumps({
                 "evento": "fin-partida", "ganadores": [], "asesino_gano": False
@@ -571,6 +613,7 @@ async def accion_recoger_cartas(
     except Exception as e:
         logger.exception("RECOGER ERROR endpoint: partida=%s jugador=%s error=%s", id_partida, id_jugador, e)
         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 #Endpoint Jugar set 
@@ -613,4 +656,18 @@ async def jugar_set(id_partida: int, id_jugador: int, set_cartas: list[int], db=
         pass
     return {"detail": "Set jugado correctamente", "cartas_jugadas": [{"id": carta.id_carta, "nombre": carta.nombre} for carta in cartas_jugadas]}
     
+
+
+@partidas_router.get(path="/{id_partida}/secretosjugador", status_code=status.HTTP_200_OK)
+async def obtener_secretos_otro_jugador(id_partida: int, id_jugador: int, db=Depends(get_db)):
+    """
+    Obtiene los secretos de un jugador específico para una partida.
+    """
+    try:
+        cartas_a_enviar = CartaService(db).obtener_secretos_ajenos(id_jugador, id_partida)
+        return cartas_a_enviar
+    
+    except Exception as e:
+        print(f"Error al obtener secretos: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 

@@ -1,5 +1,6 @@
 from game.partidas.models import Partida
 from game.jugadores.models import Jugador
+from game.cartas.models import Carta
 from game.jugadores.schemas import JugadorOut
 from game.partidas.schemas import PartidaData, PartidaResponse, IniciarPartidaData
 from game.partidas.services import PartidaService
@@ -131,3 +132,36 @@ def mostrar_mazo_draft(id_partida: int, db):
             detail=f"No se pudo obtener el mazo de descarte. Error: {e}"
         )
     
+def ids_asesino_complice(db, id_partida: int):
+    """
+    Metodo que dado el ID de una partida, devuelve el ID del asesino, y el ID del cómplice
+    si es que la partida tiene 5 ó 6 jugadores.
+    
+    Parameters
+        ----------
+        db: Dependency
+            Base de datos
+        
+        id_partida: int
+            ID de la partida para la cual se obtiene los IDs de asesino y complice
+        
+        Returns
+        -------
+        dict[str, int]
+            Diccionario con ID de asesino y ID de cómplice en caso de 5 ó 6 jugadores
+            {"asesino-id": id_asesino}  / {"asesino-id": id_asesino, "complice-id": id_complice} 
+    """
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    if partida.cantJugadores >=5:
+        carta_asesino = db.query(Carta).filter_by(partida_id=id_partida, tipo="secreto", nombre="murderer").first()
+        asesino_id = carta_asesino.jugador_id
+        carta_complice = db.query(Carta).filter_by(partida_id=id_partida, tipo="secreto", nombre="accomplice").first()
+        complice_id = carta_complice.jugador_id
+    
+        return {"asesino-id": asesino_id, "complice-id": complice_id}
+    
+    else:
+        carta_asesino = db.query(Carta).filter_by(partida_id=id_partida, tipo="secreto", nombre="murderer").first()
+        asesino_id = carta_asesino.jugador_id
+    
+        return {"asesino-id": asesino_id}

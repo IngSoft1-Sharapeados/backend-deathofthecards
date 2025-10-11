@@ -14,14 +14,15 @@ class Carta(Base):
     bocaArriba: Mapped[bool] = mapped_column(Boolean, default=True)
     ubicacion: Mapped[str] = mapped_column(String, nullable=True)
     descripcion: Mapped[str] = mapped_column(String, nullable=True)
-    id_carta: Mapped[int] = mapped_column(Integer, nullable=True)
 
+    # Relacion de muchos a 1 con partida
     partida_id: Mapped[int] = mapped_column(Integer, ForeignKey("partidas.id"))
     partida: Mapped["Partida"] = relationship("Partida", back_populates="cartas")
 
     # Relación de muchos a 1 con Jugador
     jugador_id: Mapped[int] = mapped_column(Integer, ForeignKey("jugadores.id"))
     jugador: Mapped["Jugador"] = relationship("Jugador", back_populates="cartas")
+
 
     # Relacion de muchos a 1 con partida
     partida_id: Mapped[int] = mapped_column(Integer, ForeignKey("partidas.id"))
@@ -37,3 +38,4 @@ class SetJugado(Base):
     representacion_id_carta: Mapped[int] = mapped_column(Integer, nullable=False)
     # Lista de ids de carta (id_carta), serializada como CSV simple para simplicidad
     cartas_ids_csv: Mapped[str] = mapped_column(String, nullable=False)
+

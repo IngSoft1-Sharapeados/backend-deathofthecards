@@ -2,21 +2,17 @@ from game.cartas.constants import cartasDict, secretosDict
 from game.cartas.models import Carta, SetJugado
 from game.jugadores.models import Jugador
 from game.jugadores.services import JugadorService
-#from game.partidas.models import Partida
 import random
-from game.partidas.utils import * 
 from typing import List
 from collections import Counter
 import logging
 
 logger = logging.getLogger(__name__)
 
-
 class CartaService:
-    def __init__(self,db):
+    def __init__(self, db):
         self._db = db
-        
-    
+
     def crear_mazo_inicial(self, id_partida: int) -> list[Carta]:
         """
         Crea el mazo inicial de cartas para una partida.
@@ -30,10 +26,7 @@ class CartaService:
         -------
         List[Carta]
             Lista de objetos Carta que representan el mazo incicial.
-        """  
-
-        
-
+        """
         mazo_nuevo = []
         for carta in cartasDict.values():
             cantidad = carta["cantidad"]
@@ -46,7 +39,7 @@ class CartaService:
                     jugador_id=0,
                     partida_id=id_partida,
                     id_carta=carta["id"]
-                    )
+                )
                 cantidad -= 1
                 mazo_nuevo.append(cartita)
 
@@ -92,8 +85,7 @@ class CartaService:
         except Exception:
             pass
         logger.info("REPARTO INICIAL: se repartieron cartas iniciales a jugadores")
-       
-                    
+
     def obtener_mazo_de_robo(self, id_partida: int) -> list[Carta]:
         """
         Obtiene el mazo de robo para una partida específica.
@@ -110,8 +102,8 @@ class CartaService:
         """
         mazo_robo = self._db.query(Carta).filter_by(partida_id=id_partida, ubicacion="mazo_robo").all()
         return mazo_robo
-    
-    def obtener_mano_jugador(self, id_jugador:  int, id_partida: int) -> list[Carta]:
+
+    def obtener_mano_jugador(self, id_jugador: int, id_partida: int) -> list[Carta]:
         """
         Obtiene la mano de cartas de un jugador en una partida específica.
         
@@ -131,7 +123,6 @@ class CartaService:
         mano_jugador = self._db.query(Carta).filter_by(partida_id=id_partida, jugador_id=id_jugador, ubicacion="mano").all()
         return mano_jugador
 
-
     def descartar_cartas(self, id_jugador, cartas_descarte_id):
         """Descarta cartas de la mano del jugador registrando auditoría en logs."""
         logger.info(
@@ -140,14 +131,13 @@ class CartaService:
         )
         jugador = JugadorService(self._db).obtener_jugador(id_jugador)
 
-
         tiene_cartas = True
         cartas_mano = jugador.cartas
         for carta_id in cartas_descarte_id:
             enMano = False
             for carta in cartas_mano:
                 if (carta_id == carta.id_carta):
-                    enMano = enMano or True 
+                    enMano = enMano or True
             tiene_cartas = tiene_cartas and enMano
 
         if not tiene_cartas:
@@ -156,21 +146,20 @@ class CartaService:
                 id_jugador, cartas_descarte_id,
             )
             raise Exception("Una o mas cartas no se encuentran en la mano del jugador")
-        
-        
+
         nombres = []
-        for carta in cartas_descarte_id:
-            carta_descarte = self._db.query(Carta).filter(Carta.id_carta == carta, Carta.jugador_id == id_jugador).first()
-            carta_descarte.jugador_id = 0
-            carta_descarte.ubicacion = "descarte"
-            carta_descarte.bocaArriba = False
-            nombres.append(carta_descarte.nombre)
-            self._db.commit()
+        for carta_id in cartas_descarte_id:
+            carta_descarte = self._db.query(Carta).filter(Carta.id_carta == carta_id, Carta.jugador_id == id_jugador).first()
+            if carta_descarte:
+                carta_descarte.jugador_id = 0
+                carta_descarte.ubicacion = "descarte"
+                carta_descarte.bocaArriba = False
+                nombres.append(carta_descarte.nombre)
+                self._db.commit()
         logger.info(
             "DESCARTE HECHO: jugador=%s cantidad=%s ids=%s nombres=%s",
             id_jugador, len(cartas_descarte_id), cartas_descarte_id, nombres,
         )
-
 
     def obtener_cantidad_mazo(self, id_partida: int) -> int:
         """
@@ -213,7 +202,6 @@ class CartaService:
         # Retornar información mínima al frontend
         return resultado
 
-
     def actualizar_mazo_draft(self, id_partida: int):
         """
         Actualiza el mazo de draft de una partida.
@@ -224,16 +212,17 @@ class CartaService:
 
         """
         mazo_draft = (
-        self._db.query(Carta)
-        .filter(Carta.partida_id == id_partida, Carta.ubicacion == "draft")
-        .all())
+            self._db.query(Carta)
+            .filter(Carta.partida_id == id_partida, Carta.ubicacion == "draft")
+            .all()
+        )
 
         cartas_draft = len(mazo_draft)
         if cartas_draft <= 2:
             mazo_robo = self.obtener_mazo_de_robo(id_partida)
             random.shuffle(mazo_robo)
-            for cartas in mazo_robo:
-                cartas.ubicacion = "draft"
+            for carta in mazo_robo:
+                carta.ubicacion = "draft"
                 cartas_draft += 1
                 if cartas_draft == 3:
                     break
@@ -253,11 +242,11 @@ class CartaService:
             list[Carta]
         """
         mazo_draft = (self._db.query(Carta)
-                        .filter(Carta.partida_id == id_partida, Carta.ubicacion == "draft")
-                        .all())
-                
+                      .filter(Carta.partida_id == id_partida, Carta.ubicacion == "draft")
+                      .all())
+        
         return mazo_draft
-    
+
     def tomar_cartas_draft(self, id_partida: int, id_jugador: int, cartas_tomadas_ids: List[int]):
         """
         Permite al jugador tomar una o más cartas del draft.
@@ -285,7 +274,6 @@ class CartaService:
             id_partida, id_jugador, original_ids, tomados_nombres,
         )
 
-    
     def crear_secretos(self, id_partida):
         """
         Crea las cartas secreto para una partida.
@@ -300,7 +288,6 @@ class CartaService:
         List[Carta]
             Lista de objetos Carta que representan los secretos.
         """
-
         secretos = []
         for carta in secretosDict.values():
             cantidad = carta["cantidad"]
@@ -313,7 +300,7 @@ class CartaService:
                     jugador_id=0,
                     partida_id=id_partida,
                     id_carta=carta["id"]
-                    )
+                )
                 cantidad -= 1
                 secretos.append(secret)
 
@@ -321,7 +308,7 @@ class CartaService:
         self._db.commit()
 
         return secretos
-    
+
     def repartir_secretos(self, secretos: list[Carta], jugadores_en_partida: list[Jugador]):
         """
         Reparte las cartas secreto a los jugadores en una partida.
@@ -334,7 +321,6 @@ class CartaService:
         jugadores_en_partida: list[Jugador]
             Lista de jugadores en un
         """
-
         # Lista de IDs de los jugadores en la partida
         jugadores_ids = [jugador.id for jugador in jugadores_en_partida]
         
@@ -356,7 +342,7 @@ class CartaService:
                     secretos[1].jugador_id = jugadores_en_partida[index_accomplice].id
                     accomplice_found = True
             
-            # Saco el id del cómplice de la lista de IDs 
+            # Saco el id del cómplice de la lista de IDs
             jugadores_ids.remove(jugadores_en_partida[index_accomplice].id)
         
         comunes = 2
@@ -366,18 +352,17 @@ class CartaService:
             if jugador.id in jugadores_ids:
                 for _ in range(3):
                     secretos[comunes].jugador_id = jugador.id
-                    comunes+=1
+                    comunes += 1
             # Si es asesino o cómplice, le doy los 2 secretos que le faltan
             else:
                 for _ in range(2):
                     secretos[comunes].jugador_id = jugador.id
-                    comunes+=1
+                    comunes += 1
         
         self._db.commit()
-        #self._db.refresh(secretos)
-            
-        print("se repartieron los secretos")
         
+        print("se repartieron los secretos")
+
     def obtener_carta(self, id_carta: int) -> Carta:
         """
         Obtiene un objeto Carta específico por su id_carta.
@@ -387,8 +372,7 @@ class CartaService:
             raise ValueError(f"No se encontró una carta con id_carta {id_carta}")
         return carta
 
-    
-    def obtener_secretos_jugador(self, id_jugador:  int, id_partida: int) -> list[Carta]:
+    def obtener_secretos_jugador(self, id_jugador: int, id_partida: int) -> list[Carta]:
         """
         Obtiene los secretos de un jugador en una partida específica.
         
@@ -407,30 +391,81 @@ class CartaService:
         """
         secretos_jugador = self._db.query(Carta).filter_by(partida_id=id_partida, jugador_id=id_jugador, ubicacion="mesa").all()
         return secretos_jugador
-    
+
+    def revelar_secreto(self, id_partida: int, id_jugador: int, id_unico_secreto: int) -> dict:
+        """
+        Revela el secreto de un jugador en una partida específica.
+        
+        Parameters
+        ----------
+        id_jugador: int
+            ID del jugador para el cual se obtiene los secretos.
+        
+        id_partida: int
+            ID de la partida para la cual se obtiene los secretos.
+        
+        id_secreto: int
+            ID del secreto que debe ser revelado
+        
+        Returns
+        -------
+        secreto_revelado: dict
+            diccionario con el id del secreto revelado.
+        """
+        secreto_a_revelar: Carta
+        secreto_a_revelar = self._db.get(Carta, id_unico_secreto)
+        
+        secreto_a_revelar.bocaArriba = True
+        self._db.commit()
+        secreto_revelado = {"id-secreto": secreto_a_revelar.id}
+
+        return secreto_revelado
+
+    def obtener_secretos_ajenos(self, id_jugador: int, id_partida: int):
+        secretos_ajenos = self.obtener_secretos_jugador(id_jugador, id_partida)
+        # Si no hay secretos, devolver lista vacía
+        if not secretos_ajenos:
+            return []
+        
+        #Crear lista de cartas a enviar
+        secretos_a_enviar = []
+        for carta in secretos_ajenos:
+            if carta.bocaArriba:
+                secretos_a_enviar.append({
+                    "id": carta.id,
+                    "carta_id": carta.id_carta,
+                    "nombre": carta.nombre,
+                    "bocaArriba": carta.bocaArriba
+                })
+            else:
+                secretos_a_enviar.append({
+                    "id": carta.id,
+                    "bocaArriba": carta.bocaArriba
+                })
+        return secretos_a_enviar
+
+    def es_asesino(self, id_unico_secreto: int):
+        secreto = self._db.get(Carta, id_unico_secreto)
+        return (secreto.nombre == "murderer")
+
     def obtener_asesino_complice(self, id_partida):
-        print("OBTENIENDO CARTAS ASESINO Y COMPLICE")
         carta_asesino = self._db.query(Carta).filter_by(partida_id=id_partida, tipo="secreto", nombre="murderer").first()
-        print(f"la carta del asesino es la carta con el ID: {carta_asesino.id}")
-        asesino_id = carta_asesino.jugador_id
+        asesino_id = carta_asesino.jugador_id if carta_asesino else None
         carta_complice = self._db.query(Carta).filter_by(partida_id=id_partida, tipo="secreto", nombre="accomplice").first()
-        print(f"la carta del cómplice es la carta con el ID: {carta_complice.id}")
-        complice_id = carta_complice.jugador_id
+        complice_id = carta_complice.jugador_id if carta_complice else None
         
         return {"asesino-id": asesino_id, "complice-id": complice_id}
 
-    
     def obtener_carta_por_id(self, id_carta: int) -> Carta:
         carta = self._db.query(Carta).filter(Carta.id == id_carta).first()
         if not carta:
             raise ValueError(f"No se encontró la carta con id {id_carta}")
         return carta
 
-    
     def mover_set(self, set_cartas: list[int]) -> list[Carta]:
         set_jugado = []
         for carta_id in set_cartas:
-            carta = CartaService(self._db).obtener_carta_por_id(carta_id)
+            carta = self.obtener_carta_por_id(carta_id)
             carta.ubicacion = "set_jugado"
             set_jugado.append(carta)
             self._db.add(carta)
@@ -462,4 +497,3 @@ class CartaService:
             }
             for r in registros
         ]
-

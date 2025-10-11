@@ -248,11 +248,13 @@ class PartidaService:
             raise HTTPException(status_code=403, detail="No es tu turno")
 
         mano_actual = carta_service.obtener_mano_jugador(id_jugador, id_partida)
+
         logger.info(
             "RECOGER: partida=%s jugador=%s mano_inicial=%s draft_ids=%s",
             id_partida, id_jugador, len(mano_actual), cartas_draft_ids,
         )
         if len(mano_actual) >= 6:
+
             raise HTTPException(
                 status_code=403,
                 detail="No puedes tener más de 6 cartas en la mano."
@@ -264,6 +266,7 @@ class PartidaService:
             faltantes_despues_descartar = max(0, 6 - len(mano_actual))
             if faltantes_despues_descartar <= 0:
                 raise HTTPException(status_code=403, detail="No puedes tener más de 6 cartas en la mano.")
+
 
             ids_a_tomar = cartas_draft_ids[:faltantes_despues_descartar]
             if ids_a_tomar:
@@ -279,6 +282,7 @@ class PartidaService:
         # Recalcular mano luego de tomar del draft y completar desde el mazo sólo lo necesario hasta 6
         mano_actual_actualizada = carta_service.obtener_mano_jugador(id_jugador, id_partida)
         cartas_faltantes = max(0, 6 - len(mano_actual_actualizada))
+
         cartas_del_mazo_robadas = []
         if cartas_faltantes > 0:
             cartas_del_mazo_robadas = carta_service.robar_cartas(id_partida, id_jugador, cartas_faltantes)
@@ -302,6 +306,17 @@ class PartidaService:
             "RECOGER OK: partida=%s jugador=%s nuevas_cartas_total=%s nuevo_turno=%s mazo_restante=%s",
             id_partida, id_jugador, len(todas_las_cartas_nuevas), nuevo_turno_id, cantidad_final_mazo,
         )
+        # Retorno toda la info necesaria
+        return {
+            "nuevas_cartas": todas_las_cartas_nuevas,
+            "nuevo_turno_id": nuevo_turno_id,
+            "nuevo_draft": nuevo_draft,
+            "cantidad_final_mazo": cantidad_final_mazo,
+        }
+
+        cartas_del_draft_dicts = [{"id": c.id_carta} for c in cartas_del_draft_objs]
+        todas_las_cartas_nuevas = cartas_del_draft_dicts + cartas_del_mazo_robadas
+
         # Retorno toda la info necesaria
         return {
             "nuevas_cartas": todas_las_cartas_nuevas,
