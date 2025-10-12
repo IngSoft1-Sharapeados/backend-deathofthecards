@@ -474,8 +474,13 @@ class CartaService:
         return set_jugado
 
     def registrar_set_jugado(self, id_partida: int, id_jugador: int, cartas: list[Carta]):
-        # Representación: usar la primera carta (o comodín si presente) para el avatar
-        representacion_id = cartas[0].id_carta if cartas else 1
+        # Representación del set: NUNCA usar comodín (Harley Quin, id=14)
+        # Elegir la primera carta no comodín; si por algún motivo no hay, usar la primera
+        WILDCARD_ID = 14
+        representacion_id = 1
+        if cartas:
+            no_wildcards = [c for c in cartas if c.id_carta != WILDCARD_ID]
+            representacion_id = (no_wildcards[0].id_carta if no_wildcards else cartas[0].id_carta)
         ids_csv = ",".join(str(c.id_carta) for c in cartas)
         registro = SetJugado(
             partida_id=id_partida,
@@ -490,14 +495,22 @@ class CartaService:
     def obtener_sets_jugados(self, id_partida: int):
         """Devuelve [{ jugador_id, representacion_id_carta, cartas_ids: [int,int...] }]"""
         registros = self._db.query(SetJugado).filter(SetJugado.partida_id == id_partida).all()
-        return [
-            {
+        WILDCARD_ID = 14
+        salida = []
+        for r in registros:
+            ids = [int(x) for x in r.cartas_ids_csv.split(",") if x]
+            rep = r.representacion_id_carta
+            # Corrección retroactiva: si por error quedó comodín como representación, usar primer no comodín
+            if rep == WILDCARD_ID:
+                rep_candidates = [i for i in ids if i != WILDCARD_ID]
+                if rep_candidates:
+                    rep = rep_candidates[0]
+            salida.append({
                 "jugador_id": r.jugador_id,
-                "representacion_id_carta": r.representacion_id_carta,
-                "cartas_ids": [int(x) for x in r.cartas_ids_csv.split(",") if x],
-            }
-            for r in registros
-        ]
+                "representacion_id_carta": rep,
+                "cartas_ids": ids,
+            })
+        return salida
 
 
     def ocultar_secreto(self, id_partida: int, id_jugador:  int, id_unico_secreto: int) -> dict:

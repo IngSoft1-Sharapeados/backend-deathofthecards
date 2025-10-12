@@ -636,7 +636,7 @@ async def jugar_set(id_partida: int, id_jugador: int, set_cartas: list[int], db=
         payload = {
             "evento": "jugar-set",
             "jugador_id": id_jugador,
-            "representacion_id": registro.representacion_id_carta,
+            "representacion_id": next((c.id_carta for c in cartas_jugadas if c.id_carta != 14), cartas_jugadas[0].id_carta if cartas_jugadas else 1),
             "cartas_ids": [c.id_carta for c in cartas_jugadas],
         }
         await manager.broadcast(id_partida, json.dumps(payload))
