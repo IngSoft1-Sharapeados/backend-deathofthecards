@@ -166,7 +166,7 @@ class PartidaService:
     def set_turno_actual(self, id_partida: int, id_jugador: int):
         partida = self.obtener_por_id(id_partida)
         partida.turno_id = id_jugador
-        self._db.commit()        # usar self._db
+        self._db.commit()
         self._db.refresh(partida)
         return id_jugador
     

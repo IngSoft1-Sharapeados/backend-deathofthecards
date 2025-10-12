@@ -311,13 +311,25 @@ async def obtener_mano(id_partida: int, id_jugador: int, db=Depends(get_db)):
         )
 
 
-@partidas_router.put(path='/descarte/{id_partida}')
-def descarte_cartas(id_partida, id_jugador: int, cartas_descarte: list[int]= Body(...), db=Depends(get_db), manager=Depends(get_manager)):
+@partidas_router.put(path='/{id_partida}/descarte')
+async def descarte_cartas(id_partida: int, id_jugador: int, cartas_descarte: list[int]= Body(...), db=Depends(get_db), manager=Depends(get_manager)):
     try:
+
         logger.info(
             "DESCARTE: partida=%s jugador=%s cantidad=%s ids=%s",
             id_partida, id_jugador, len(cartas_descarte), cartas_descarte,
         )
+
+        partida = PartidaService(db).obtener_por_id(id_partida)
+        if partida is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail="No se encontró la partida"
+                                )
+        if partida.turno_id != id_jugador:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail="No es tu turno"
+                                )
+
         CartaService(db).descartar_cartas(id_jugador, cartas_descarte)
         # Emitimos actualización del mazo (por si alguna lógica futura mueve entre mazos)
         cantidad_restante = CartaService(db).obtener_cantidad_mazo(id_partida)
@@ -325,6 +337,7 @@ def descarte_cartas(id_partida, id_jugador: int, cartas_descarte: list[int]= Bod
             "evento": "actualizacion-mazo",
             "cantidad-restante-mazo": cantidad_restante,
         }
+
         # broadcast espera texto
         import json as _json
         # Enviamos como texto JSON a todos en la partida
@@ -340,7 +353,23 @@ def descarte_cartas(id_partida, id_jugador: int, cartas_descarte: list[int]= Bod
             "DESCARTE OK: partida=%s jugador=%s cartas_descarte=%s",
             id_partida, id_jugador, cartas_descarte,
         )
+
+        evento2= {
+            "evento": "carta-descartada", 
+            "payload": {
+                        "discardted":
+                        cartas_descarte
+                    } 
+        }
+        
+        await manager.broadcast(id_partida, json.dumps(evento))
+        await manager.broadcast(id_partida, json.dumps(evento2))
+
+
         return {"detail": "Descarte exitoso"}
+    
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("DESCARTE ERROR: partida=%s jugador=%s error=%s", id_partida, id_jugador, e)
         raise HTTPException(
@@ -520,6 +549,32 @@ async def obtener_asesino_complice(id_partida: int, db=Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Hubo un error al obtener los IDs del asesino y el cómplice"
         )
+    
+@partidas_router.get(path= '/{id_partida}/descarte')
+async def mazo_descarte(id_partida: int, id_jugador: int, cantidad: int = 1, db=Depends(get_db)):
+    """ 
+    Se muestra el mazo de descarte
+    
+    devuelve lista de cartas que componen el mazo de desarte.
+    """
+    try:
+        cartas_descarte = mostrar_cartas_descarte(id_partida, id_jugador, cantidad, db)
+        carta_top = cartas_descarte[0] if cartas_descarte else None
+        
+        if cantidad == 1:
+            await manager.broadcast(id_partida, json.dumps({
+                "evento": "mazo-descarte-top",
+                "carta": carta_top
+            }))
+        elif cantidad == 5:
+            await manager.send_personal_message(id_jugador, json.dumps({
+                "evento": "mazo-descarte-top5",
+                "carta": cartas_descarte
+            }))
+        return cartas_descarte
+    
+    except Exception as e:
+        raise e
 
 
 @partidas_router.patch(path="/{id_partida}/revelacion", status_code=status.HTTP_200_OK)
