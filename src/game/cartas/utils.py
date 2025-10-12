@@ -8,6 +8,11 @@ from game.partidas.services import PartidaService
 from fastapi import HTTPException, status
 
 def jugar_set_detective(id_partida: int, id_jugador: int, set_cartas: list[int], db) -> list[Carta]:
+    """
+    Valida y mueve a set_jugado exactamente las cartas seleccionadas por el jugador.
+    Importante: cuando hay múltiples copias del mismo id_carta en la mano, se consumen
+    sólo tantas copias como se seleccionaron en set_cartas, evitando eliminar extras.
+    """
 
     #verificar que la partida exista --------------------------------------------------
     partida = PartidaService(db).obtener_por_id(id_partida)
@@ -43,22 +48,30 @@ def jugar_set_detective(id_partida: int, id_jugador: int, set_cartas: list[int],
     #---------------------------------------------------------------------------------
 
     #verificar que el jugador tenga las cartas en la mano ---------------------------- 
-    tiene_cartas = True 
+    # Debe consumirse exactamente la cantidad seleccionada por id_carta,
+    # incluso cuando existan múltiples copias del mismo id_carta en la mano.
+    from collections import Counter, defaultdict
+
     cartas_mano = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
-    set_id = []
-    
-    for carta_id in set_cartas: 
-        enMano = False 
-        for carta in cartas_mano:
-            if (carta_id == carta.id_carta): 
-                enMano = True
-                set_id.append(carta.id)
-        tiene_cartas = tiene_cartas and enMano 
-        
-        if not tiene_cartas: 
+
+    # Agrupar cartas de la mano por id_carta -> lista de cartas reales (Cartas)
+    cartas_por_id_carta = defaultdict(list)
+    for c in cartas_mano:
+        cartas_por_id_carta[c.id_carta].append(c)
+
+    # Contar cuántas instancias de cada id_carta se seleccionaron
+    seleccion_por_id_carta = Counter(set_cartas)
+
+    # Validar disponibilidad y seleccionar exactamente esa cantidad de IDs reales
+    set_id = []  # IDs reales (Carta.id) a mover
+    for id_carta, cantidad_seleccionada in seleccion_por_id_carta.items():
+        disponibles = cartas_por_id_carta.get(id_carta, [])
+        if len(disponibles) < cantidad_seleccionada:
+            # Alguna de las cartas seleccionadas no está en mano en cantidad suficiente
             raise HTTPException(status_code=400, detail="Una o más cartas no se encuentran en la mano del jugador")
-    
-    set_id = set(set_id) #aca tengo los id reales de las cartas
+        # Tomar exactamente la cantidad seleccionada (los primeros N disponibles)
+        set_id.extend([carta.id for carta in disponibles[:cantidad_seleccionada]])
+    # Nota: NO convertir a set; necesitamos preservar cantidad exacta si hay duplicados
     
     #fin de la verificacion de las cartas que tiene en mano el jugador ------------------
 
