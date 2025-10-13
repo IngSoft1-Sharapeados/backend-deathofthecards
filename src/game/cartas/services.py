@@ -500,3 +500,22 @@ class CartaService:
         secreto_ocultado = {"id-secreto": secreto_a_ocultar.id}
 
         return secreto_ocultado
+    
+    
+    def obtener_carta_de_mano(self, id_carta: int, id_jugador: int) -> Carta:
+    
+        carta = (self._db.query(Carta).
+                 filter(Carta.id_carta == id_carta, Carta.jugador_id == id_jugador, Carta.ubicacion == "mano").
+                 first())
+        return carta
+    
+    
+    def evento_jugado_en_turno(self, id_jugador: int) -> bool:
+        no_mas_eventos = False
+        evento_ya_jugado = (self._db.query(Carta).
+                 filter(Carta.jugador_id == id_jugador, Carta.ubicacion == "evento_jugado").
+                 first())
+        if evento_ya_jugado is not None:
+            no_mas_eventos = True
+            
+        return no_mas_eventos
