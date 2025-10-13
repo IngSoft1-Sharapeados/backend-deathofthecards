@@ -15,7 +15,7 @@ class Carta(Base):
     ubicacion: Mapped[str] = mapped_column(String, nullable=True)
     descripcion: Mapped[str] = mapped_column(String, nullable=True)
     orden_descarte: Mapped[int] = mapped_column(Integer, nullable=True)
-
+    # Relacion de muchos a 1 con partida
     # Relacion de muchos a 1 con partida
     partida_id: Mapped[int] = mapped_column(Integer, ForeignKey("partidas.id"))
     partida: Mapped["Partida"] = relationship("Partida", back_populates="cartas")

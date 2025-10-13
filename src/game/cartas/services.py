@@ -148,6 +148,11 @@ class CartaService:
             "DESCARTE: jugador=%s cantidad=%s ids=%s",
             id_jugador, len(cartas_descarte_id), cartas_descarte_id,
         )
+        """
+        DOC
+        """
+        from sqlalchemy import func
+   
         jugador = JugadorService(self._db).obtener_jugador(id_jugador)
 
 
@@ -200,6 +205,7 @@ class CartaService:
         """
         mazo_robo = self.obtener_mazo_de_robo(id_partida)
         return len(mazo_robo)
+
 
     def robar_cartas(self, id_partida: int, id_jugador: int, cantidad: int = 1):
         if cantidad <= 0:
@@ -262,6 +268,7 @@ class CartaService:
             
             self._db.commit()
 
+
     def obtener_mazo_draft(self, id_partida: int) -> list[Carta]:
         """
         Obtiene el mazo de draft de una partida.
@@ -309,7 +316,8 @@ class CartaService:
 
     def crear_secretos(self, id_partida):
         """
-        Crea las cartas secreto para una partida.
+        Crea las cartas secreto para una partida. Todas las cartas creadas son secretos comunes,
+        en el reparto se asigna la del asesino y cómplice (si aplica).
         
         Parameters
         ----------
@@ -359,42 +367,57 @@ class CartaService:
         
         # Se elige un jugador al azar para que sea el asesino
         index_murderer = random.randrange(len(jugadores_en_partida))
+        id_asesino = jugadores_en_partida[index_murderer].id
         
-        # Le asigno la carta de asesino
-        secretos[0].jugador_id = jugadores_en_partida[index_murderer].id
-
-        # Saco el id del asesino de la lista de IDs
-        jugadores_ids.remove(jugadores_en_partida[index_murderer].id)
-
+        id_complice = None
         # Si es una partida de 5 o 6 jugadores debe haber un cómplice
         if (len(jugadores_en_partida) >= 5):
             accomplice_found = False
             while not accomplice_found:
                 index_accomplice = random.randrange(len(jugadores_en_partida))
                 if index_accomplice != index_murderer:
-                    secretos[1].jugador_id = jugadores_en_partida[index_accomplice].id
                     accomplice_found = True
             
             # Saco el id del cómplice de la lista de IDs
             jugadores_ids.remove(jugadores_en_partida[index_accomplice].id)
         
-        comunes = 2
+        secret_index = 0
         for jugador in jugadores_en_partida:
-            # Arrancamos del 3er secreto en adelante (es decir los comunes)
-            # Si no es asesino o cómplice, le doy 3 secretos
-            if jugador.id in jugadores_ids:
-                for _ in range(3):
-                    secretos[comunes].jugador_id = jugador.id
-                    comunes += 1
-            # Si es asesino o cómplice, le doy los 2 secretos que le faltan
+            # Si es el asesino o el cómplice, elijo una ubicacion al azar para esa carta y le doy las 2 comunes
+            if jugador.id == id_asesino:
+                ubicacionRandom = random.randrange(3)
+                for i in range(3):
+                    if i == ubicacionRandom:
+                        secretos[secret_index].nombre="murderer"
+                        secretos[secret_index].jugador_id=jugador.id
+                        secretos[secret_index].id_carta=3
+                        secret_index+=1
+                    else:
+                        secretos[secret_index].jugador_id=jugador.id
+                        secret_index+=1
+            elif (id_complice is not None and jugador.id == id_complice):
+                ubicacionRandom = random.randrange(3)
+                for i in range(3):
+                    if i == ubicacionRandom:
+                        secretos[secret_index].nombre="accomplice"
+                        secretos[secret_index].jugador_id=jugador.id
+                        secretos[secret_index].id_carta=4
+                        secret_index+=1
+                    else:
+                        secretos[secret_index].jugador_id=jugador.id
+                        secret_index+=1
+            # Si no es asesino o cómplice, le doy los 3 secretos
             else:
-                for _ in range(2):
-                    secretos[comunes].jugador_id = jugador.id
-                    comunes += 1
+                for _ in range(3):
+                    secretos[secret_index].jugador_id = jugador.id
+                    secret_index+=1
         
         self._db.commit()
         
+            
         print("se repartieron los secretos")
+
+
 
     def obtener_carta(self, id_carta: int) -> Carta:
         """
