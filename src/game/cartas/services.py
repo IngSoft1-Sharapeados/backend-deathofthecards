@@ -500,3 +500,17 @@ class CartaService:
         secreto_ocultado = {"id-secreto": secreto_a_ocultar.id}
 
         return secreto_ocultado
+
+
+    def obtener_carta_por_id(self, id_unico_secreto: int) -> Carta:
+        """Obtiene una carta dado su ID único"""
+        carta = self._db.get(Carta, id_unico_secreto)
+        return carta
+
+
+    def robar_secreto(self, secreto_a_robar: Carta, id_jugador_destino: int):
+        secreto_a_robar.bocaArriba = False
+        secreto_a_robar.jugador_id = id_jugador_destino
+        self._db.commit()
+        secreto_robado = {"id-secreto": secreto_a_robar.id}
+        return secreto_robado

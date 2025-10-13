@@ -206,3 +206,52 @@ def ids_asesino_complice(db, id_partida: int):
         asesino_id = carta_asesino.jugador_id
     
         return {"asesino-id": asesino_id}
+
+
+def robar_secreto(id_partida: int, id_jugador_turno: int, id_jugador_destino:  int, id_unico_secreto: int, db) -> dict:
+            """
+            Roba el secreto revelado de un jugador en una partida específica,
+            y se lo agrega boca abajo a los secretos propios o de otro jugador.
+            
+            Parameters
+            ----------
+            id_jugador_turno: int
+                ID del jugador del turno que robará un secreto de otro jugador.
+            
+            id_jugador_destino: int
+                ID del jugador que recibirá el secreto robado.
+
+            id_partida: int
+                ID de la partida para la cual se obtiene los secretos.
+            
+            id_unico_secreto: int
+                ID del secreto que debe ser ocultado
+            
+            Returns
+            -------
+            secreto_robado: dict
+                diccionario con el id del secreto robado. {"id-secreto": secreto.id}
+            """
+            partida = PartidaService(db).obtener_por_id(id_partida)
+            if not partida:
+                raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
+            jugador_turno = JugadorService(db).obtener_jugador(id_jugador_turno)
+            if not jugador_turno:
+                raise ValueError(f"No se ha encontrado el jugador con el ID: {id_jugador_turno}")
+            jugador_destino = JugadorService(db).obtener_jugador(id_jugador_destino)
+            if not jugador_destino:
+                raise ValueError(f"No se ha encontrado el jugador con el ID: {id_jugador_destino}")
+            if jugador_turno.id != partida.turno_id:
+                raise ValueError(f"Solo el jugador del turno puede realizar esta acción")
+            #secreto_a_robar: Carta
+            #secreto_a_robar = self._db.get(Carta, id_unico_secreto)
+            secreto_a_robar = CartaService(db).obtener_carta_por_id(id_unico_secreto)
+            if not secreto_a_robar:
+                raise ValueError(f"No se ha encontrado el secreto con el ID:{id_unico_secreto}")
+            if secreto_a_robar.partida_id != id_partida:
+                raise ValueError(f"El secreto con el ID:{id_unico_secreto} no pertenece a la partida con el ID: {id_partida}")
+            if not secreto_a_robar.bocaArriba:
+                raise ValueError(f"No se puede robar un secreto que está oculto!")
+            secreto_robado = CartaService(db).robar_secreto(secreto_a_robar, id_jugador_destino)
+
+            return secreto_robado

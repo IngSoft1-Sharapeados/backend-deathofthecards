@@ -657,3 +657,52 @@ async def ocultar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: in
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Hubo un error al ocultar la carta secreto u obtener al jugador."
         )
+
+
+@partidas_router.patch(path="/{id_partida}/robo-secreto", status_code=status.HTTP_200_OK)
+async def robar_secreto_otro_jugador(id_partida: int, id_jugador_turno: int, id_jugador_destino, id_unico_secreto: int,db=Depends(get_db)):
+    """
+    Oculta el secreto de un jugador dado su ID, el ID de la carta y el de la partida.
+    """
+    try:
+        secreto_robado = robar_secreto(id_partida, id_jugador_turno, id_jugador_destino, id_unico_secreto, db)
+        
+        if not secreto_robado:
+            return None
+        
+        secretos_actuales = CartaService(db).obtener_secretos_jugador(id_jugador_destino, id_partida)
+        print(f'secretos del jugador: {[{"id_carta": s.id, "bocaArriba": s.bocaArriba} for s in secretos_actuales]}')
+        await manager.broadcast(id_partida, json.dumps({
+            "evento": "actualizacion-secreto",
+            "jugador-id": id_jugador_destino,
+            "lista-secretos": [{"revelado": s.bocaArriba} for s in secretos_actuales]
+        }))
+
+        return secreto_robado
+        
+    except ValueError as e:
+        if ("No se ha encontrado" in str(e)):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(e)
+            )
+        elif ("Solo el jugador del turno puede realizar esta acción" in str(e)):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=str(e)
+            )
+        elif("no pertenece a la partida" in str(e)):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
+        elif("No se puede robar un secreto que está oculto!" in str(e)):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=str(e)
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Hubo un error al robar la carta secreto u obtener al jugador."
+            )
