@@ -354,11 +354,9 @@ class CartaService:
         jugadores_en_partida: list[Jugador]
             Lista de jugadores en un
         """
-        # Lista de IDs de los jugadores en la partida
-        jugadores_ids = [jugador.id for jugador in jugadores_en_partida]
-        
-        # Se elige un jugador al azar para que sea el asesino
+        # Elegir al asesino (y cómplice si corresponde)
         index_murderer = random.randrange(len(jugadores_en_partida))
+<<<<<<< Updated upstream
         
         # Le asigno la carta de asesino
         secretos[0].jugador_id = jugadores_en_partida[index_murderer].id
@@ -394,6 +392,66 @@ class CartaService:
         
         self._db.commit()
         
+=======
+        id_asesino = jugadores_en_partida[index_murderer].id
+
+        id_complice = None
+        index_accomplice = None
+        if len(jugadores_en_partida) >= 5:
+            # Elegir un índice distinto al asesino
+            while True:
+                idx = random.randrange(len(jugadores_en_partida))
+                if idx != index_murderer:
+                    index_accomplice = idx
+                    id_complice = jugadores_en_partida[idx].id
+                    break
+
+        # Separar cartas: únicas (murderer/accomplice) y comunes
+        murderer_card = next((c for c in secretos if c.id_carta == 3), None)
+        accomplice_card = next((c for c in secretos if c.id_carta == 4), None)
+        commons = [c for c in secretos if c.id_carta == 6]
+
+        # Validaciones defensivas mínimas
+        if murderer_card is None:
+            raise ValueError("No se encontró la carta única de 'murderer' en los secretos creados")
+        if len(jugadores_en_partida) >= 5 and accomplice_card is None:
+            raise ValueError("No se encontró la carta única de 'accomplice' en los secretos creados")
+
+        # Reset de asignación por si hay residuos (defensivo)
+        for c in secretos:
+            c.jugador_id = 0
+
+        # Asignar secretos: 2 comunes + carta de rol para asesino/complice, 3 comunes para el resto
+        commons_idx = 0
+        for jugador in jugadores_en_partida:
+            if jugador.id == id_asesino:
+                # 2 comunes
+                for _ in range(2):
+                    if commons_idx >= len(commons):
+                        raise ValueError("No hay suficientes secretos comunes para repartir a todos los jugadores")
+                    commons[commons_idx].jugador_id = jugador.id
+                    commons_idx += 1
+                # + murderer
+                murderer_card.jugador_id = jugador.id
+            elif id_complice is not None and jugador.id == id_complice and accomplice_card is not None:
+                # 2 comunes
+                for _ in range(2):
+                    if commons_idx >= len(commons):
+                        raise ValueError("No hay suficientes secretos comunes para repartir a todos los jugadores")
+                    commons[commons_idx].jugador_id = jugador.id
+                    commons_idx += 1
+                # + accomplice
+                accomplice_card.jugador_id = jugador.id
+            else:
+                # 3 comunes
+                for _ in range(3):
+                    if commons_idx >= len(commons):
+                        raise ValueError("No hay suficientes secretos comunes para repartir a todos los jugadores")
+                    commons[commons_idx].jugador_id = jugador.id
+                    commons_idx += 1
+
+        self._db.commit()
+>>>>>>> Stashed changes
         print("se repartieron los secretos")
 
     def obtener_carta(self, id_carta: int) -> Carta:
