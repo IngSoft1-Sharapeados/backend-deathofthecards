@@ -46,7 +46,3 @@ Dirigirse al directorio raiz del repositorio:
 Ejecutar
 
 ```pytest tests```
-
-- Para ver coverage de los tests:
-
-```pytest --cov=src --cov-report=term-missing -q```

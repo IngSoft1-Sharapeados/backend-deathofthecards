@@ -1,19 +1,15 @@
 from typing import List, Optional
-from fastapi import HTTPException, status
+
 from game.partidas.dtos import PartidaDTO
 from game.partidas.models import Partida
 from game.jugadores.models import Jugador
 from game.jugadores.schemas import JugadorDTO
 import random
-from game.cartas.services import CartaService
-from typing import List, Dict, Any
-import logging
 
 from datetime import date
+from game.partidas.utils import distancia_fechas
 import json
 
-
-logger = logging.getLogger(__name__)
 
 class PartidaService:
     def __init__(self, db):
@@ -70,11 +66,8 @@ class PartidaService:
             La partida obtenida
         """
         partida = self._db.query(Partida).filter(Partida.id == id_partida).first()
-        if not partida:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No se encontró la partida con el ID proporcionado."
-                )
+        # if not partida:
+        #     raise Exception("No se encontró la partida con el ID proporcionado.")
         return partida
         
     def listar(self) -> List[Partida]:
@@ -111,11 +104,7 @@ class PartidaService:
             self._db.commit()
             self._db.refresh(partida)
         else:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="La partida ya tiene el máximo de jugadores."
-                )
-         
+            raise Exception("La partida ya está llena.")    
         
     def iniciar(self, id_partida: int, id_jugar_solicitante) -> Partida:
         """
@@ -128,25 +117,13 @@ class PartidaService:
         """
         partida = self._db.query(Partida).filter(Partida.id == id_partida).first()
         if not partida:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No se ha encontrado la partida"
-            )
+            raise ValueError(f"No se encontró la partida con ID {id_partida}")
         if partida.anfitrionId != id_jugar_solicitante:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Solo el anfitrion puede iniciar la partida"
-                )
+            raise ValueError("Solo el anfitrión puede iniciar la partida")
         if partida.iniciada:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="La partida ya ha sido iniciada"
-                )
+            raise ValueError(f"La partida con ID {id_partida} ya está iniciada")
         if partida.cantJugadores < partida.minJugadores:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Aun no hay la cantidad suficiente de jugadores"
-                )
+            raise ValueError(f"No hay suficientes jugadores para iniciar la partida (mínimo {partida.minJugadores})")
             
         partida.iniciada = True
         self._db.commit()
@@ -155,18 +132,12 @@ class PartidaService:
 
     def obtener_turno_actual(self, id_partida) -> int:
         partida = PartidaService(self._db).obtener_por_id(id_partida)
-        if not partida:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Partida with id {id_partida} not found."
-            )
-
         return partida.turno_id
     
     def set_turno_actual(self, id_partida: int, id_jugador: int):
         partida = self.obtener_por_id(id_partida)
         partida.turno_id = id_jugador
-        self._db.commit()
+        self._db.commit()        # usar self._db
         self._db.refresh(partida)
         return id_jugador
     
@@ -181,18 +152,10 @@ class PartidaService:
         if partida.turno_id not in orden:
             # si no está, setear el primero
             nuevo = orden[0]
-            logger.info(
-                "TURNO FIX: partida=%s de=%s a=%s (no estaba en orden, set al primero)",
-                id_partida, partida.turno_id, nuevo,
-            )
             return self.set_turno_actual(id_partida, nuevo)
         idx = orden.index(partida.turno_id)
         nuevo_idx = (idx + 1) % len(orden)
         nuevo = orden[nuevo_idx]
-        logger.info(
-            "TURNO SIGUIENTE: partida=%s de=%s a=%s",
-            id_partida, partida.turno_id, nuevo,
-        )
         return self.set_turno_actual(id_partida, nuevo)
     
     def orden_turnos(self, id_partida: int, jugadores: list[Jugador]) -> list[int]:
@@ -210,14 +173,10 @@ class PartidaService:
             Diccionario con el orden de turnos (clave: turno, valor: id del jugador)
         """
         partida = self._db.query(Partida).filter(Partida.id == id_partida).first()
-
-        min_dist = 365
+        # primer_turno = min(jugadores, key=lambda jugador: distancia_fechas(jugador.fecha_nacimiento))
+        min_dist = 365    
         for jugador in jugadores:
-            fecha = jugador.fecha_nacimiento
-            f = date(2000, fecha.month, fecha.day)   # normalizo al año 2000
-            agatha_birthDay = date(2000, 9, 15)
-            dias_distancia = abs((f - agatha_birthDay).days)
-            dist_jug = dias_distancia
+            dist_jug = distancia_fechas(jugador.fecha_nacimiento)
             if dist_jug < min_dist:
                 min_dist = dist_jug
                 jugador_turno_inicial = jugador
@@ -234,93 +193,3 @@ class PartidaService:
         self._db.commit()
         self._db.refresh(partida)
         return orden_de_turnos
-    
-    def manejar_accion_recoger(
-    self, id_partida: int, id_jugador: int, cartas_draft_ids: List[int]) -> Dict[str, Any]:
-        """
-        Orchestrates the core game logic for the "pick up" action and
-        returns a dictionary with all the necessary data for broadcasting.
-        """
-        carta_service = CartaService(self._db)
-
-        # Validar el turno
-        if self.obtener_turno_actual(id_partida) != id_jugador:
-            raise HTTPException(status_code=403, detail="No es tu turno")
-
-        mano_actual = carta_service.obtener_mano_jugador(id_jugador, id_partida)
-
-        logger.info(
-            "RECOGER: partida=%s jugador=%s mano_inicial=%s draft_ids=%s",
-            id_partida, id_jugador, len(mano_actual), cartas_draft_ids,
-        )
-        if len(mano_actual) >= 6:
-
-            raise HTTPException(
-                status_code=403,
-                detail="No puedes tener más de 6 cartas en la mano."
-            )
-
-        # Tomo las cartas del draft que el jugador ha elegido, pero nunca más de las que faltan hasta 6
-        cartas_del_draft_objs = []
-        if cartas_draft_ids:
-            faltantes_despues_descartar = max(0, 6 - len(mano_actual))
-            if faltantes_despues_descartar <= 0:
-                raise HTTPException(status_code=403, detail="No puedes tener más de 6 cartas en la mano.")
-
-
-            ids_a_tomar = cartas_draft_ids[:faltantes_despues_descartar]
-            if ids_a_tomar:
-                # Pasar una copia para evitar que el método mutile la lista que usamos para responder
-                ids_para_respuesta = list(ids_a_tomar)
-                carta_service.tomar_cartas_draft(id_partida, id_jugador, list(ids_a_tomar))
-                cartas_del_draft_objs = [carta_service.obtener_carta(cid) for cid in ids_para_respuesta]
-                logger.info(
-                    "RECOGER DRAFT: partida=%s jugador=%s tomados=%s",
-                    id_partida, id_jugador, ids_para_respuesta,
-                )
-
-        # Recalcular mano luego de tomar del draft y completar desde el mazo sólo lo necesario hasta 6
-        mano_actual_actualizada = carta_service.obtener_mano_jugador(id_jugador, id_partida)
-        cartas_faltantes = max(0, 6 - len(mano_actual_actualizada))
-
-        cartas_del_mazo_robadas = []
-        if cartas_faltantes > 0:
-            cartas_del_mazo_robadas = carta_service.robar_cartas(id_partida, id_jugador, cartas_faltantes)
-            logger.info(
-                "RECOGER MAZO: partida=%s jugador=%s cartas_faltantes=%s robadas=%s",
-                id_partida, id_jugador, cartas_faltantes, cartas_del_mazo_robadas,
-            )
-        
-        # Actualizo el turno y el draft
-        nuevo_turno_id = self.avanzar_turno(id_partida)
-        carta_service.actualizar_mazo_draft(id_partida)
-
-        # Obtengo el nuevo draft y la cantidad restante en el mazo
-        nuevo_draft = carta_service.obtener_mazo_draft(id_partida)
-        cantidad_final_mazo = carta_service.obtener_cantidad_mazo(id_partida)
-        
-        cartas_del_draft_dicts = [{"id": c.id_carta} for c in cartas_del_draft_objs]
-        todas_las_cartas_nuevas = cartas_del_draft_dicts + cartas_del_mazo_robadas
-
-        logger.info(
-            "RECOGER OK: partida=%s jugador=%s nuevas_cartas_total=%s nuevo_turno=%s mazo_restante=%s",
-            id_partida, id_jugador, len(todas_las_cartas_nuevas), nuevo_turno_id, cantidad_final_mazo,
-        )
-        # Retorno toda la info necesaria
-        return {
-            "nuevas_cartas": todas_las_cartas_nuevas,
-            "nuevo_turno_id": nuevo_turno_id,
-            "nuevo_draft": nuevo_draft,
-            "cantidad_final_mazo": cantidad_final_mazo,
-        }
-
-        cartas_del_draft_dicts = [{"id": c.id_carta} for c in cartas_del_draft_objs]
-        todas_las_cartas_nuevas = cartas_del_draft_dicts + cartas_del_mazo_robadas
-
-        # Retorno toda la info necesaria
-        return {
-            "nuevas_cartas": todas_las_cartas_nuevas,
-            "nuevo_turno_id": nuevo_turno_id,
-            "nuevo_draft": nuevo_draft,
-            "cantidad_final_mazo": cantidad_final_mazo,
-        }
