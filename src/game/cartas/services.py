@@ -356,43 +356,7 @@ class CartaService:
         """
         # Elegir al asesino (y cómplice si corresponde)
         index_murderer = random.randrange(len(jugadores_en_partida))
-<<<<<<< Updated upstream
-        
-        # Le asigno la carta de asesino
-        secretos[0].jugador_id = jugadores_en_partida[index_murderer].id
 
-        # Saco el id del asesino de la lista de IDs
-        jugadores_ids.remove(jugadores_en_partida[index_murderer].id)
-
-        # Si es una partida de 5 o 6 jugadores debe haber un cómplice
-        if (len(jugadores_en_partida) >= 5):
-            accomplice_found = False
-            while not accomplice_found:
-                index_accomplice = random.randrange(len(jugadores_en_partida))
-                if index_accomplice != index_murderer:
-                    secretos[1].jugador_id = jugadores_en_partida[index_accomplice].id
-                    accomplice_found = True
-            
-            # Saco el id del cómplice de la lista de IDs
-            jugadores_ids.remove(jugadores_en_partida[index_accomplice].id)
-        
-        comunes = 2
-        for jugador in jugadores_en_partida:
-            # Arrancamos del 3er secreto en adelante (es decir los comunes)
-            # Si no es asesino o cómplice, le doy 3 secretos
-            if jugador.id in jugadores_ids:
-                for _ in range(3):
-                    secretos[comunes].jugador_id = jugador.id
-                    comunes += 1
-            # Si es asesino o cómplice, le doy los 2 secretos que le faltan
-            else:
-                for _ in range(2):
-                    secretos[comunes].jugador_id = jugador.id
-                    comunes += 1
-        
-        self._db.commit()
-        
-=======
         id_asesino = jugadores_en_partida[index_murderer].id
 
         id_complice = None
@@ -451,7 +415,7 @@ class CartaService:
                     commons_idx += 1
 
         self._db.commit()
->>>>>>> Stashed changes
+
         print("se repartieron los secretos")
 
     def obtener_carta(self, id_carta: int) -> Carta:
