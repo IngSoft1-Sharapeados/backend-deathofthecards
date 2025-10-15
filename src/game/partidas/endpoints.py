@@ -588,13 +588,16 @@ async def obtener_secretos_otro_jugador(id_partida: int, id_jugador: int, db=Dep
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @partidas_router.put(path='/{id_partida}/evento/CardsTable', status_code=status.HTTP_200_OK)
-def cards_of_the_table(id_partida: int, id_jugador: int, id_objetivo: int, db=Depends(get_db)):
+def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int, id_carta: int, db=Depends(get_db)):
     """
-    Se juega el evento Cards of the table(descarta los Not so fast de la mano de un jugador)
+    Se juega el evento Cards off the table(descarta los Not so fast de la mano de un jugador)
     """
     try:
-        CartaService(db).jugar_cards_of_the_table(id_partida, id_jugador, id_objetivo)
+        jugar_carta_evento(id_partida, id_jugador, id_carta, db)
+        CartaService(db).jugar_cards_off_the_table(id_partida, id_jugador, id_objetivo)
         return {"detail": "Evento jugado correctamente"}
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Error al jugar carta de evento Cards of the table: {e}")
+        print(f"Error al jugar carta de evento Cards off the table: {e}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")    
