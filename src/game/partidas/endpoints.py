@@ -660,7 +660,7 @@ async def ocultar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: in
         
         
 @partidas_router.patch(path="/{id_partida}/evento")     
-def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db=Depends(get_db)):
+async def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db=Depends(get_db)):
     try:
         partida = PartidaService(db).obtener_por_id(id_partida)
         if partida is None:
@@ -722,7 +722,16 @@ def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db=Depen
         else:
             carta_evento.ubicacion = "evento_jugado"
             db.commit()
-        
-        print(f"El jugador {id_jugador} jugo la carta de evento {carta_evento}, que ahora figura como {carta_evento.ubicacion}")
+            
+        await manager.broadcast(id_partida, json.dumps({
+            "evento": "El jugador esta intentando jugar un evento.",
+            "carta": {
+                "id_carta": carta_evento.id_carta,
+                "nombre": carta_evento.nombre,
+                "tipo": carta_evento.tipo,
+                "ubicacion": carta_evento.ubicacion,
+            }
+        }))
+
     except Exception as e:
-            raise e
+        raise e

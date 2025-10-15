@@ -206,3 +206,49 @@ def ids_asesino_complice(db, id_partida: int):
         asesino_id = carta_asesino.jugador_id
     
         return {"asesino-id": asesino_id}
+    
+    
+def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> Carta:
+    
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    if partida is None:
+        raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
+    
+    if partida.turno_id != id_jugador:
+        raise ValueError(f"El jugador no esta en turno.")
+    
+    if partida.iniciada == False:
+        raise ValueError(f"Partida no iniciada")
+    
+    jugador = JugadorService(db).obtener_jugador(id_jugador)
+    if jugador is None:
+        raise ValueError(f"No se encontro el jugador {id_jugador}.")
+    
+    if jugador.partida_id != id_partida:
+        raise ValueError(f"El jugador con ID {id_jugador} no pertenece a la partida {id_partida}.")
+    
+    cartas_mano = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
+    
+    no_mas_eventos = CartaService(db).evento_jugado_en_turno(id_jugador)
+    
+    print("Se verifica que no haya otro evento jugado en turno")
+    if no_mas_eventos == True:
+        raise ValueError(f"Solo se puede jugar una carta de evento por turno.")
+    print("Se verifico que no hay eventos jugados en el turno")
+            
+    en_mano = False
+    for c in cartas_mano:
+        if c.id_carta == id_carta:
+            en_mano = True
+    if en_mano == False:
+        raise ValueError(f"La carta no se encuentra en la mano del jugador.")
+    
+    carta_evento = CartaService(db).obtener_carta_de_mano(id_carta, id_jugador)
+    
+    if carta_evento.tipo != "Event":
+        raise ValueError(f"La carta no es de tipo evento y no puede ser jugada como tal.")
+    else:
+        carta_evento.ubicacion = "evento_jugado"
+        db.commit()
+    
+    return carta_evento

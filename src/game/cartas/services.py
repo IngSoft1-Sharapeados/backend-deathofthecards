@@ -143,6 +143,18 @@ class CartaService:
         return mano_jugador
 
 
+    def ultimo_orden_descarte(self, id_partida: int) -> int:
+        
+        from sqlalchemy import func
+        
+        partida = PartidaService(self._db).obtener_por_id(id_partida)
+        ultimo_orden_descarte = (self._db.query(func.max(Carta.orden_descarte)).
+                                 filter(Carta.partida_id == partida.id).
+                                 scalar() or 0)
+        
+        return ultimo_orden_descarte
+    
+
     def descartar_cartas(self, id_jugador, cartas_descarte_id):
         """
         DOC
