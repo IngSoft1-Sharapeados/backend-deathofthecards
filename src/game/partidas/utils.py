@@ -118,6 +118,47 @@ def unir_a_partida(id_partida: int, jugador_info, db) -> JugadorOut:
             detail="No se pudo completar la solicitud por un error interno"
         )
 
+def mostrar_cartas_descarte(id_partida: int, id_jugador: int, cantidad:  int,  db):
+
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    
+    if partida is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No se encontro la partida con el ID {id_partida}.")
+        
+    jugador = JugadorService(db).obtener_jugador(id_jugador)  
+    
+    if jugador is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No se encontro el jugador {id_jugador}.")
+        
+    if jugador.partida_id != id_partida:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"El jugador con ID {id_jugador} no pertenece a la partida {id_partida}."
+            )
+    
+    if cantidad not in (5, 1):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Solo se mostrara 1 o las 5 ultimas cartas del mazo de descarte"
+        )
+        
+    try:    
+        desde_mazo_descarte = CartaService(db).obtener_cartas_descarte(id_partida, cantidad)            
+        cartas_de_descarte = [
+            {"id": carta.id_carta, "nombre": carta.nombre}
+            for carta in desde_mazo_descarte
+        ]
+        return cartas_de_descarte
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"No se pudo obtener las cartas del mazo descarte. Error: {e}"
+        )
+
 def mostrar_mazo_draft(id_partida: int, db):
     try:    
         mazo_descarte = CartaService(db).obtener_mazo_draft(id_partida)            
@@ -165,6 +206,53 @@ def ids_asesino_complice(db, id_partida: int):
         asesino_id = carta_asesino.jugador_id
     
         return {"asesino-id": asesino_id}
+    
+    
+def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> Carta:
+    
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    if partida is None:
+        raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
+    
+    if partida.iniciada == False:
+        raise ValueError(f"Partida no iniciada")
+    
+    jugador = JugadorService(db).obtener_jugador(id_jugador)
+    if jugador is None:
+        raise ValueError(f"No se encontro el jugador {id_jugador}.")
+    
+    if jugador.partida_id != id_partida:
+        raise ValueError(f"El jugador con ID {id_jugador} no pertenece a la partida {id_partida}.")
+    
+    if partida.turno_id != id_jugador:
+        raise ValueError(f"El jugador no esta en turno.")
+    
+    cartas_mano = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
+    
+    no_mas_eventos = CartaService(db).evento_jugado_en_turno(id_jugador)
+    
+    print("Se verifica que no haya otro evento jugado en turno")
+    if no_mas_eventos == True:
+        raise ValueError(f"Solo se puede jugar una carta de evento por turno.")
+    print("Se verifico que no hay eventos jugados en el turno")
+            
+    en_mano = False
+    for c in cartas_mano:
+        if c.id_carta == id_carta:
+            en_mano = True
+    if en_mano == False:
+        raise ValueError(f"La carta no se encuentra en la mano del jugador.")
+    
+    carta_evento = CartaService(db).obtener_carta_de_mano(id_carta, id_jugador)
+    
+    if carta_evento.tipo != "Event":
+        raise ValueError(f"La carta no es de tipo evento y no puede ser jugada como tal.")
+    else:
+        carta_evento.ubicacion = "evento_jugado"
+        db.commit()
+    db.refresh(carta_evento)
+    
+    return carta_evento
     
 def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> Carta:
     
