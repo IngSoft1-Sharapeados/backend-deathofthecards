@@ -526,21 +526,24 @@ async def mazo_descarte(id_partida: int, id_jugador: int, cantidad: int = 1, db=
 
 
 @partidas_router.patch(path="/{id_partida}/revelacion", status_code=status.HTTP_200_OK)
-async def revelar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: int,db=Depends(get_db)):
+async def revelar_secreto(id_partida: int, id_jugador_turno: int, id_unico_secreto: int, db=Depends(get_db)):
     """
-    Revela el secreto de un jugador dado su ID, el ID de la carta y el de la partida.
+    Revela el secreto de un jugador de la partida.
+    
+    Recibe el ID de la partida donde se ejecuta la acción, el ID del jugador del turno que revela
+    un secreto de otro jugador, y el ID de la carta a revelar.
     """
     try:
-        secreto_revelado = CartaService(db).revelar_secreto(id_partida, id_jugador, id_unico_secreto)
+        secreto_revelado = revelarSecreto(id_partida, id_jugador_turno, id_unico_secreto, db)
         
         if not secreto_revelado:
             return None
         
-        secretos_actuales = CartaService(db).obtener_secretos_jugador(id_jugador, id_partida)
+        secretos_actuales = CartaService(db).obtener_secretos_jugador(secreto_revelado.jugador_id, id_partida)
         print(f'secretos del jugador: {[{"id_carta": s.id, "bocaArriba": s.bocaArriba} for s in secretos_actuales]}')
         await manager.broadcast(id_partida, json.dumps({
             "evento": "actualizacion-secreto",
-            "jugador-id": id_jugador,
+            "jugador-id": secreto_revelado.jugador_id,
             "lista-secretos": [{"revelado": s.bocaArriba} for s in secretos_actuales]
         }))
 
@@ -548,17 +551,38 @@ async def revelar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: in
         if esAsesino:
             await manager.broadcast(id_partida, json.dumps({
             "evento": "fin-partida",
-            "jugador-perdedor-id": id_jugador,
+            "jugador-perdedor-id": secreto_revelado.jugador_id,
             "payload": {"ganadores": [], "asesinoGano": False}
         }))
-        return secreto_revelado
-        
 
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Hubo un error al revelar la carta secreto u obtener al jugador."
-        )
+        return {"id-secreto": secreto_revelado.id}
+        
+    except ValueError as e:
+        if ("No se ha encontrado" in str(e)):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(e)
+            )
+        elif ("Solo el jugador del turno puede realizar esta acción" in str(e)):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=str(e)
+            )
+        elif("no pertenece a la partida" in str(e)):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
+        elif("El secreto ya está revelado!" in str(e)):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=str(e)
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Hubo un error al revelar secreto."
+            )
 
 
 @partidas_router.put(
@@ -632,31 +656,55 @@ async def obtener_secretos_otro_jugador(id_partida: int, id_jugador: int, db=Dep
 
 
 @partidas_router.patch(path="/{id_partida}/ocultamiento", status_code=status.HTTP_200_OK)
-async def ocultar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: int,db=Depends(get_db)):
+async def ocultar_secreto(id_partida: int, id_jugador_turno: int, id_unico_secreto: int,db=Depends(get_db)):
     """
-    Oculta el secreto de un jugador dado su ID, el ID de la carta y el de la partida.
+    Oculta el secreto de un jugador de la partida.
+    
+    Recibe el ID de la partida donde se ejecuta la acción, el ID del jugador del turno que oculta
+    un secreto de otro jugador, y el ID de la carta a ocultar.
     """
     try:
-        secreto_ocultado = CartaService(db).ocultar_secreto(id_partida, id_jugador, id_unico_secreto)
+        secreto_ocultado = ocultarSecreto(id_partida, id_jugador_turno, id_unico_secreto, db)
         
         if not secreto_ocultado:
             return None
         
-        secretos_actuales = CartaService(db).obtener_secretos_jugador(id_jugador, id_partida)
+        secretos_actuales = CartaService(db).obtener_secretos_jugador(secreto_ocultado.jugador_id, id_partida)
         print(f'secretos del jugador: {[{"id_carta": s.id, "bocaArriba": s.bocaArriba} for s in secretos_actuales]}')
         await manager.broadcast(id_partida, json.dumps({
             "evento": "actualizacion-secreto",
-            "jugador-id": id_jugador,
+            "jugador-id": secreto_ocultado.jugador_id,
             "lista-secretos": [{"revelado": s.bocaArriba} for s in secretos_actuales]
         }))
 
-        return secreto_ocultado
+        return {"id-secreto": secreto_ocultado.id}
         
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Hubo un error al ocultar la carta secreto u obtener al jugador."
-        )
+    except ValueError as e:
+        if ("No se ha encontrado" in str(e)):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(e)
+            )
+        elif ("Solo el jugador del turno puede realizar esta acción" in str(e)):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=str(e)
+            )
+        elif("no pertenece a la partida" in str(e)):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
+        elif("El secreto ya está oculto!" in str(e)):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=str(e)
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Hubo un error al ocultar el secreto."
+            )
 
 
 @partidas_router.patch(path="/{id_partida}/robo-secreto", status_code=status.HTTP_200_OK)

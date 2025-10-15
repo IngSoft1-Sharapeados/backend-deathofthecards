@@ -255,3 +255,84 @@ def robar_secreto(id_partida: int, id_jugador_turno: int, id_jugador_destino:  i
             secreto_robado = CartaService(db).robar_secreto(secreto_a_robar, id_jugador_destino)
 
             return secreto_robado
+
+def revelarSecreto(id_partida: int, id_jugador_turno: int, id_unico_secreto: int, db) -> Carta:
+    """
+    Revela el secreto de un jugador en una partida específica
+    
+    
+    Parameters
+    ----------
+    id_partida: int
+        ID de la partida en la que se revelará un secreto.
+
+    id_jugador_turno: int
+        ID del jugador del turno que revelará un secreto de otro jugador.
+        
+    id_unico_secreto: int
+        ID del secreto que debe ser revelado
+    
+    Returns
+    -------
+    secreto_revelado: Carta
+        Carta secreto revelada.
+    """
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    if not partida:
+        raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
+    jugador_turno = JugadorService(db).obtener_jugador(id_jugador_turno)
+    if not jugador_turno:
+        raise ValueError(f"No se ha encontrado el jugador con el ID: {id_jugador_turno}")
+    if jugador_turno.id != partida.turno_id:
+        raise ValueError(f"Solo el jugador del turno puede realizar esta acción")
+    secreto_a_revelar = CartaService(db).obtener_carta_por_id(id_unico_secreto)
+    if not secreto_a_revelar:
+        raise ValueError(f"No se ha encontrado el secreto con el ID:{id_unico_secreto}")
+    if secreto_a_revelar.partida_id != id_partida:
+        raise ValueError(f"El secreto con el ID:{id_unico_secreto} no pertenece a la partida con el ID: {id_partida}")
+    if secreto_a_revelar.bocaArriba:
+        raise ValueError(f"El secreto ya está revelado!")
+    secreto_revelado = CartaService(db).revelar_secreto(secreto_a_revelar.id)
+
+    return secreto_revelado
+
+
+def ocultarSecreto(id_partida: int, id_jugador_turno: int, id_unico_secreto: int, db) -> Carta:
+    """
+    Oculta el secreto de un jugador en una partida específica
+
+
+    Parameters
+    ----------
+    id_partida: int
+        ID de la partida en la que se ocultará un secreto.
+
+    id_jugador_turno: int
+        ID del jugador del turno que ocultará un secreto de otro jugador.
+        
+    id_unico_secreto: int
+        ID del secreto que debe ser ocultado
+    
+    Returns
+    -------
+    secreto_ocultado: Carta
+        Carta secreto ocultada.
+    """
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    if not partida:
+        raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
+    jugador_turno = JugadorService(db).obtener_jugador(id_jugador_turno)
+    if not jugador_turno:
+        raise ValueError(f"No se ha encontrado el jugador con el ID: {id_jugador_turno}")
+    if jugador_turno.id != partida.turno_id:
+        raise ValueError(f"Solo el jugador del turno puede realizar esta acción")
+    secreto_a_ocultar = CartaService(db).obtener_carta_por_id(id_unico_secreto)
+    if not secreto_a_ocultar:
+        raise ValueError(f"No se ha encontrado el secreto con el ID:{id_unico_secreto}")
+    if secreto_a_ocultar.partida_id != id_partida:
+        raise ValueError(f"El secreto con el ID:{id_unico_secreto} no pertenece a la partida con el ID: {id_partida}")
+    if not secreto_a_ocultar.bocaArriba:
+        raise ValueError(f"El secreto ya está oculto!")
+    secreto_ocultado = CartaService(db).ocultar_secreto(secreto_a_ocultar.id)
+
+    return secreto_ocultado
