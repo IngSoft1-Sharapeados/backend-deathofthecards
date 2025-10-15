@@ -339,27 +339,26 @@ class CartaService:
         List[Carta]
             Lista de objetos Carta que representan los secretos.
         """
+
         secretos = []
-        for carta in secretosDict.values():
-            cantidad = carta["cantidad"]
-            while cantidad > 0:
-                secret = Carta(
-                    nombre=carta["carta"],
-                    tipo=carta["tipo"],
-                    bocaArriba=carta["bocaArriba"],
-                    ubicacion=carta["ubicacion"],
-                    jugador_id=0,
-                    partida_id=id_partida,
-                    id_carta=carta["id"]
+        for _ in range (18):
+            secret = Carta(
+                nombre="secreto_comun",
+                tipo="secreto",
+                bocaArriba=False,
+                ubicacion="mesa",
+                jugador_id=0,
+                partida_id=id_partida,
+                id_carta=6
                 )
-                cantidad -= 1
-                secretos.append(secret)
+            secretos.append(secret)
 
         self._db.add_all(secretos)
         self._db.commit()
 
         return secretos
 
+    
     def repartir_secretos(self, secretos: list[Carta], jugadores_en_partida: list[Jugador]):
         """
         Reparte las cartas secreto a los jugadores en una partida.
@@ -372,9 +371,7 @@ class CartaService:
         jugadores_en_partida: list[Jugador]
             Lista de jugadores en un
         """
-        # Lista de IDs de los jugadores en la partida
-        jugadores_ids = [jugador.id for jugador in jugadores_en_partida]
-        
+   
         # Se elige un jugador al azar para que sea el asesino
         index_murderer = random.randrange(len(jugadores_en_partida))
         id_asesino = jugadores_en_partida[index_murderer].id
@@ -387,9 +384,7 @@ class CartaService:
                 index_accomplice = random.randrange(len(jugadores_en_partida))
                 if index_accomplice != index_murderer:
                     accomplice_found = True
-            
-            # Saco el id del cómplice de la lista de IDs
-            jugadores_ids.remove(jugadores_en_partida[index_accomplice].id)
+                    id_complice = jugadores_en_partida[index_accomplice].id
         
         secret_index = 0
         for jugador in jugadores_en_partida:
@@ -423,7 +418,6 @@ class CartaService:
                     secret_index+=1
         
         self._db.commit()
-        
             
         print("se repartieron los secretos")
 
