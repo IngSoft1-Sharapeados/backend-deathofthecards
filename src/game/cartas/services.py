@@ -141,6 +141,19 @@ class CartaService:
         mano_jugador = self._db.query(Carta).filter_by(partida_id=id_partida, jugador_id=id_jugador, ubicacion="mano").all()
         return mano_jugador
 
+
+    def ultimo_orden_descarte(self, id_partida: int) -> int:
+        
+        from sqlalchemy import func
+        
+        partida = PartidaService(self._db).obtener_por_id(id_partida)
+        ultimo_orden_descarte = (self._db.query(func.max(Carta.orden_descarte)).
+                                 filter(Carta.partida_id == partida.id).
+                                 scalar() or 0)
+        
+        return ultimo_orden_descarte
+    
+
     def descartar_cartas(self, id_jugador, cartas_descarte_id):
 
         """Descarta cartas de la mano del jugador registrando auditoría en logs."""
@@ -597,4 +610,22 @@ class CartaService:
         secreto_ocultado = {"id-secreto": secreto_a_ocultar.id}
 
         return secreto_ocultado
-
+    
+    
+    def obtener_carta_de_mano(self, id_carta: int, id_jugador: int) -> Carta:
+    
+        carta = (self._db.query(Carta).
+                 filter(Carta.id_carta == id_carta, Carta.jugador_id == id_jugador, Carta.ubicacion == "mano").
+                 first())
+        return carta
+    
+    
+    def evento_jugado_en_turno(self, id_jugador: int) -> bool:
+        no_mas_eventos = False
+        evento_ya_jugado = (self._db.query(Carta).
+                 filter(Carta.jugador_id == id_jugador, Carta.ubicacion == "evento_jugado").
+                 first())
+        if evento_ya_jugado is not None:
+            no_mas_eventos = True
+            
+        return no_mas_eventos
