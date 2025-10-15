@@ -7,10 +7,13 @@ from game.jugadores.schemas import JugadorDTO
 import random
 from game.cartas.services import CartaService
 from typing import List, Dict, Any
+import logging
 
 from datetime import date
 import json
 
+
+logger = logging.getLogger(__name__)
 
 class PartidaService:
     def __init__(self, db):
@@ -178,10 +181,18 @@ class PartidaService:
         if partida.turno_id not in orden:
             # si no está, setear el primero
             nuevo = orden[0]
+            logger.info(
+                "TURNO FIX: partida=%s de=%s a=%s (no estaba en orden, set al primero)",
+                id_partida, partida.turno_id, nuevo,
+            )
             return self.set_turno_actual(id_partida, nuevo)
         idx = orden.index(partida.turno_id)
         nuevo_idx = (idx + 1) % len(orden)
         nuevo = orden[nuevo_idx]
+        logger.info(
+            "TURNO SIGUIENTE: partida=%s de=%s a=%s",
+            id_partida, partida.turno_id, nuevo,
+        )
         return self.set_turno_actual(id_partida, nuevo)
     
     def orden_turnos(self, id_partida: int, jugadores: list[Jugador]) -> list[int]:
@@ -237,24 +248,48 @@ class PartidaService:
             raise HTTPException(status_code=403, detail="No es tu turno")
 
         mano_actual = carta_service.obtener_mano_jugador(id_jugador, id_partida)
-        if len(mano_actual)+len(cartas_draft_ids) > 6:
+
+        logger.info(
+            "RECOGER: partida=%s jugador=%s mano_inicial=%s draft_ids=%s",
+            id_partida, id_jugador, len(mano_actual), cartas_draft_ids,
+        )
+        if len(mano_actual) >= 6:
+
             raise HTTPException(
                 status_code=403,
                 detail="No puedes tener más de 6 cartas en la mano."
             )
 
-        # Tomo las cartas del draft que el jugador ha elegido
+        # Tomo las cartas del draft que el jugador ha elegido, pero nunca más de las que faltan hasta 6
+        cartas_del_draft_objs = []
         if cartas_draft_ids:
-            carta_service.tomar_cartas_draft(id_partida, id_jugador, cartas_draft_ids)
-        
-        cartas_del_draft_objs = [carta_service.obtener_carta(cid) for cid in cartas_draft_ids]
+            faltantes_despues_descartar = max(0, 6 - len(mano_actual))
+            if faltantes_despues_descartar <= 0:
+                raise HTTPException(status_code=403, detail="No puedes tener más de 6 cartas en la mano.")
 
-        # Tomo del deck si es necesario para completar la mano a 6 cartas
-        mano_actual = carta_service.obtener_mano_jugador(id_jugador, id_partida)
-        cartas_faltantes = max(0, 6 - len(mano_actual))
+
+            ids_a_tomar = cartas_draft_ids[:faltantes_despues_descartar]
+            if ids_a_tomar:
+                # Pasar una copia para evitar que el método mutile la lista que usamos para responder
+                ids_para_respuesta = list(ids_a_tomar)
+                carta_service.tomar_cartas_draft(id_partida, id_jugador, list(ids_a_tomar))
+                cartas_del_draft_objs = [carta_service.obtener_carta(cid) for cid in ids_para_respuesta]
+                logger.info(
+                    "RECOGER DRAFT: partida=%s jugador=%s tomados=%s",
+                    id_partida, id_jugador, ids_para_respuesta,
+                )
+
+        # Recalcular mano luego de tomar del draft y completar desde el mazo sólo lo necesario hasta 6
+        mano_actual_actualizada = carta_service.obtener_mano_jugador(id_jugador, id_partida)
+        cartas_faltantes = max(0, 6 - len(mano_actual_actualizada))
+
         cartas_del_mazo_robadas = []
         if cartas_faltantes > 0:
             cartas_del_mazo_robadas = carta_service.robar_cartas(id_partida, id_jugador, cartas_faltantes)
+            logger.info(
+                "RECOGER MAZO: partida=%s jugador=%s cartas_faltantes=%s robadas=%s",
+                id_partida, id_jugador, cartas_faltantes, cartas_del_mazo_robadas,
+            )
         
         # Actualizo el turno y el draft
         nuevo_turno_id = self.avanzar_turno(id_partida)
@@ -267,6 +302,10 @@ class PartidaService:
         cartas_del_draft_dicts = [{"id": c.id_carta} for c in cartas_del_draft_objs]
         todas_las_cartas_nuevas = cartas_del_draft_dicts + cartas_del_mazo_robadas
 
+        logger.info(
+            "RECOGER OK: partida=%s jugador=%s nuevas_cartas_total=%s nuevo_turno=%s mazo_restante=%s",
+            id_partida, id_jugador, len(todas_las_cartas_nuevas), nuevo_turno_id, cantidad_final_mazo,
+        )
         # Retorno toda la info necesaria
         return {
             "nuevas_cartas": todas_las_cartas_nuevas,
