@@ -214,9 +214,6 @@ def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> C
     if partida is None:
         raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
     
-    if partida.turno_id != id_jugador:
-        raise ValueError(f"El jugador no esta en turno.")
-    
     if partida.iniciada == False:
         raise ValueError(f"Partida no iniciada")
     
@@ -226,6 +223,9 @@ def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> C
     
     if jugador.partida_id != id_partida:
         raise ValueError(f"El jugador con ID {id_jugador} no pertenece a la partida {id_partida}.")
+    
+    if partida.turno_id != id_jugador:
+        raise ValueError(f"El jugador no esta en turno.")
     
     cartas_mano = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
     
@@ -250,5 +250,6 @@ def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> C
     else:
         carta_evento.ubicacion = "evento_jugado"
         db.commit()
+    db.refresh(carta_evento)
     
     return carta_evento
