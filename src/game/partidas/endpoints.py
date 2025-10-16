@@ -21,6 +21,7 @@ import traceback
 import logging
 
 
+
 partidas_router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -802,14 +803,24 @@ async def ocultar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: in
         )
 
 @partidas_router.put(path='/{id_partida}/evento/CardsTable', status_code=status.HTTP_200_OK)
-def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int, id_carta: int, db=Depends(get_db)):
+async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int, id_carta: int, db=Depends(get_db)):
     """
     Se juega el evento Cards off the table(descarta los Not so fast de la mano de un jugador)
     """
     try:
-        jugar_carta_evento(id_partida, id_jugador, id_carta, db)
-        CartaService(db).jugar_cards_off_the_table(id_partida, id_jugador, id_objetivo)
-        return {"detail": "Evento jugado correctamente"}
+        if verif_evento("Cards off the table", id_carta):
+            jugar_carta_evento(id_partida, id_jugador, id_carta, db)
+            await manager.broadcast(id_partida, json.dumps({
+                "evento": "se-jugo-cards-off-the-table",
+            }))
+            sleep(3)
+            CartaService(db).jugar_cards_off_the_table(id_partida, id_jugador, id_objetivo)
+            return {"detail": "Evento jugado correctamente"}
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La carta no corresponde al evento Cards Off The table"
+                )
     except ValueError as e:
         msg = str(e)
 

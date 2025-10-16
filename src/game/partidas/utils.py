@@ -1,6 +1,7 @@
 from game.partidas.models import Partida
 from game.jugadores.models import Jugador
 from game.cartas.models import Carta
+from game.cartas.constants import *
 from game.jugadores.schemas import JugadorOut
 from game.partidas.schemas import PartidaData, PartidaResponse, IniciarPartidaData
 from game.partidas.services import PartidaService
@@ -10,6 +11,7 @@ from game.jugadores.services import JugadorService
 from game.jugadores.services import *
 from fastapi import HTTPException, status
 from game.modelos.db import get_db
+
 
 from datetime import date
 
@@ -254,6 +256,7 @@ def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> C
     
     return carta_evento
     
+
 def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> Carta:
     
     partida = PartidaService(db).obtener_por_id(id_partida)
@@ -299,3 +302,8 @@ def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> C
     db.refresh(carta_evento)
     
     return carta_evento
+
+
+def verif_evento(evento: str, id_carta: int) -> bool:
+    carta = next((v for v in cartasDict.values() if v["id"] == id_carta), None)
+    return (evento == carta["carta"])
