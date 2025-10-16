@@ -19,7 +19,7 @@ import json
 import traceback
 #from game.partidas.utils import *
 import logging
-
+from time import sleep
 
 
 partidas_router = APIRouter()
