@@ -90,8 +90,8 @@ def test_evento_partida_inexistente(mock_PartidaService, mock_CartaService, sess
 
     app.dependency_overrides.clear()
 
-    assert response.status_code == 500
-    assert response.json() == {"detail": "Error interno del servidor"}
+    assert response.status_code == 404
+    assert response.json() == {"detail": "No se ha encontrado la partida con el ID:999"}
     mock_partida_service_instance.obtener_por_id.assert_called_once_with(999)
 
 #----------- Test se juega evento Cards off the table jugador inexistente--------------
@@ -124,7 +124,7 @@ def test_cards_off_the_table_jugador_no_encontrado(mock_CartaService, mock_Parti
 
     app.dependency_overrides.clear()
 
-    assert response.status_code == 500
-    assert response.json() == {"detail": "Error interno del servidor"}
+    assert response.status_code == 404
+    assert response.json() == {"detail": "No se encontro el jugador 999."}
     mock_partida_service_instance.obtener_por_id.assert_called_once_with(1)
     mock_jugador_service_instance.obtener_jugador.assert_called_once_with(999)

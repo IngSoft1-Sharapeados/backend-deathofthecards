@@ -810,6 +810,28 @@ def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int, id_c
         jugar_carta_evento(id_partida, id_jugador, id_carta, db)
         CartaService(db).jugar_cards_off_the_table(id_partida, id_jugador, id_objetivo)
         return {"detail": "Evento jugado correctamente"}
+    except ValueError as e:
+        msg = str(e)
+
+        # Puedes analizar palabras clave para clasificar el tipo de error
+        if "No se ha encontrado la partida" in msg:
+            raise HTTPException(status_code=404, detail=msg)
+        elif "jugador" in msg and "no se encontro" in msg.lower():
+            raise HTTPException(status_code=404, detail=msg)
+        elif "Partida no iniciada" in msg:
+            raise HTTPException(status_code=403, detail=msg)
+        elif "no esta en turno" in msg.lower():
+            raise HTTPException(status_code=403, detail=msg)
+        elif "no pertenece a la partida" in msg.lower():
+            raise HTTPException(status_code=403, detail=msg)
+        elif "Solo se puede jugar una carta de evento" in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        elif "no se encuentra en la mano" in msg.lower():
+            raise HTTPException(status_code=400, detail=msg)
+        elif "no es de tipo evento" in msg.lower():
+            raise HTTPException(status_code=400, detail=msg)
+        else:
+            raise HTTPException(status_code=400, detail=f"Error de validación: {msg}")
     except HTTPException:
         raise
     except Exception as e:

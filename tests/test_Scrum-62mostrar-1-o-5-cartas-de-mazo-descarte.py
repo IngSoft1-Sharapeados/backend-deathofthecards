@@ -1,10 +1,11 @@
+import os
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import MagicMock, patch, AsyncMock
 from main import app
 from game.modelos.db import get_db
-import os
-os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+
 
 # ---------- FIXTURE DE DB ----------
 @pytest.fixture(name="session")
