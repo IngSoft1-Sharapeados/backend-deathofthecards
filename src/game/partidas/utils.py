@@ -306,4 +306,13 @@ def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> C
 
 def verif_evento(evento: str, id_carta: int) -> bool:
     carta = next((v for v in cartasDict.values() if v["id"] == id_carta), None)
+    if carta is None:
+        return False
     return (evento == carta["carta"])
+
+def verif_jugador_objetivo(id_jugador: int, id_objetivo: int, db):
+    jugador_objetivo = JugadorService(db).obtener_jugador(id_objetivo)
+    if jugador_objetivo is None:
+        raise ValueError(f"No se encontro el objetivo {id_objetivo}.")
+    if id_objetivo == id_jugador:
+        raise ValueError(f"No se puede aplicar el efecto.")

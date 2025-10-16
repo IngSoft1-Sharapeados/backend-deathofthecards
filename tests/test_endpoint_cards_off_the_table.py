@@ -36,7 +36,8 @@ def dbTesting_fixture():
 #----------- Test jugar carta de evento Cards off the table OK-----------------
 @patch("game.partidas.endpoints.CartaService")
 @patch("game.partidas.endpoints.jugar_carta_evento")
-def test_cards_off_the_table_completo(mock_jugar_carta_evento, mock_CartaService, session):
+@patch("game.partidas.utils.JugadorService")
+def test_cards_off_the_table_completo(mock_JugadorService, mock_jugar_carta_evento, mock_CartaService, session):
     """Test completo para Cards off the table usando la lógica del endpoint con mocks de cartas"""
 
     def get_db_override():
@@ -44,6 +45,12 @@ def test_cards_off_the_table_completo(mock_jugar_carta_evento, mock_CartaService
     app.dependency_overrides[get_db] = get_db_override
 
     client = TestClient(app)
+
+    mock_jugador_service_instance = MagicMock()
+    mock_jugador_objetivo = MagicMock()
+    mock_jugador_objetivo.id = 2
+    mock_jugador_service_instance.obtener_jugador.return_value = mock_jugador_objetivo
+    mock_JugadorService.return_value = mock_jugador_service_instance
 
     carta_evento = MagicMock(id_carta=17, tipo="Event", ubicacion="mano", nombre="Cards off the table")
     
@@ -70,12 +77,20 @@ def test_cards_off_the_table_completo(mock_jugar_carta_evento, mock_CartaService
 #----------------------Test de jugar cards off the table con un id inexistente ----------------------------
 @patch("game.partidas.endpoints.CartaService")
 @patch("game.partidas.utils.PartidaService")
-def test_evento_partida_inexistente(mock_PartidaService, mock_CartaService, session):
+@patch("game.partidas.utils.JugadorService")
+def test_evento_partida_inexistente(mock_JugadorService, mock_PartidaService, mock_CartaService, session):
     """Test para verificar que se maneja correctamente el caso cuando no existe la id de partida"""
     def get_db_override():
         yield session
     app.dependency_overrides[get_db] = get_db_override
     client = TestClient(app)
+
+    mock_jugador_service_instance = MagicMock()
+    mock_jugador_objetivo = MagicMock()
+    mock_jugador_objetivo.id = 2
+    mock_jugador_service_instance.obtener_jugador.return_value = mock_jugador_objetivo
+    mock_JugadorService.return_value = mock_jugador_service_instance
+
 
     mock_partida_service_instance = MagicMock()
     mock_partida_service_instance.obtener_por_id.return_value = None
@@ -111,8 +126,13 @@ def test_cards_off_the_table_jugador_no_encontrado(mock_CartaService, mock_Parti
         id_partida=1, iniciada=True, turno_id=1
     )
     mock_PartidaService.return_value = mock_partida_service_instance
+
+    mock_jugador_objetivo = MagicMock()
+    mock_jugador_objetivo.id = 2
+    mock_jugador_objetivo.partida_id = 1
+
     mock_jugador_service_instance = MagicMock()
-    mock_jugador_service_instance.obtener_jugador.return_value = None
+    mock_jugador_service_instance.obtener_jugador.side_effect = [mock_jugador_objetivo, None]
     mock_JugadorService.return_value = mock_jugador_service_instance
 
     mock_carta_service_instance = MagicMock()
@@ -127,4 +147,4 @@ def test_cards_off_the_table_jugador_no_encontrado(mock_CartaService, mock_Parti
     assert response.status_code == 404
     assert response.json() == {"detail": "No se encontro el jugador 999."}
     mock_partida_service_instance.obtener_por_id.assert_called_once_with(1)
-    mock_jugador_service_instance.obtener_jugador.assert_called_once_with(999)
+    

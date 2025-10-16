@@ -809,6 +809,7 @@ async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int
     """
     try:
         if verif_evento("Cards off the table", id_carta):
+            verif_jugador_objetivo(id_jugador, id_objetivo, db)
             jugar_carta_evento(id_partida, id_jugador, id_carta, db)
             await manager.broadcast(id_partida, json.dumps({
                 "evento": "se-jugo-cards-off-the-table",
@@ -824,8 +825,11 @@ async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int
     except ValueError as e:
         msg = str(e)
 
-        # Puedes analizar palabras clave para clasificar el tipo de error
-        if "No se ha encontrado la partida" in msg:
+        if "aplicar el efecto." in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        elif "No se ha encontrado la partida" in msg:
+            raise HTTPException(status_code=404, detail=msg)
+        elif "objetivo" in msg and "no se encontro" in msg.lower():
             raise HTTPException(status_code=404, detail=msg)
         elif "jugador" in msg and "no se encontro" in msg.lower():
             raise HTTPException(status_code=404, detail=msg)
