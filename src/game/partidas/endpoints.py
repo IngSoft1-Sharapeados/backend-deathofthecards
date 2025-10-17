@@ -708,7 +708,7 @@ async def ocultar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: in
             return None
         secreto_a_ocultar = db.get(Carta, id_unico_secreto)
         id_jugador_objetivo = secreto_a_ocultar.jugador_id
-        secretos_actuales = CartaService(db).obtener_secretos_jugador(id_jugador, id_partida)
+        secretos_actuales = CartaService(db).obtener_secretos_jugador(id_jugador_objetivo, id_partida)
         print(f'secretos del jugador: {[{"id_carta": s.id, "bocaArriba": s.bocaArriba} for s in secretos_actuales]}')
         await manager.broadcast(id_partida, json.dumps({
             "evento": "actualizacion-secreto",
