@@ -195,19 +195,19 @@ class CartaService:
             self._db.commit()
 
 
-        nombres = []
-        for carta_id in cartas_descarte_id:
-            carta_descarte = self._db.query(Carta).filter(Carta.id_carta == carta_id, Carta.jugador_id == id_jugador).first()
-            if carta_descarte:
-                carta_descarte.jugador_id = 0
-                carta_descarte.ubicacion = "descarte"
-                carta_descarte.bocaArriba = False
-                nombres.append(carta_descarte.nombre)
-                self._db.commit()
-        logger.info(
-            "DESCARTE HECHO: jugador=%s cantidad=%s ids=%s nombres=%s",
-            id_jugador, len(cartas_descarte_id), cartas_descarte_id, nombres,
-        )
+        # nombres = []
+        # for carta_id in cartas_descarte_id:
+        #     carta_descarte = self._db.query(Carta).filter(Carta.id_carta == carta_id, Carta.jugador_id == id_jugador).first()
+        #     if carta_descarte:
+        #         carta_descarte.jugador_id = 0
+        #         carta_descarte.ubicacion = "descarte"
+        #         carta_descarte.bocaArriba = False
+        #         nombres.append(carta_descarte.nombre)
+        #         self._db.commit()
+        # logger.info(
+        #     "DESCARTE HECHO: jugador=%s cantidad=%s ids=%s nombres=%s",
+        #     id_jugador, len(cartas_descarte_id), cartas_descarte_id, nombres,
+        # )
 
     def obtener_cantidad_mazo(self, id_partida: int) -> int:
         """

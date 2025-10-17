@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 class ConnectionManager:
     def __init__(self):
         self.active_connections: dict[int, list[WebSocket]] = defaultdict(list)
-        self.active_connections_personal: dict = dict()
+        self.active_connections_personal: dict[int, list[WebSocket]] = defaultdict(list)
 
     async def connect(self, websocket: WebSocket, id_partida: int, id_jugador: int):
         await websocket.accept()
@@ -37,14 +37,20 @@ class ConnectionManager:
         
         if websocket not in self.active_connections[id_partida]:
             self.active_connections[id_partida].append(websocket)
-        self.active_connections_personal[id_jugador] = websocket
+        
+        if websocket not in self.active_connections_personal[id_jugador]:
+            self.active_connections_personal[id_jugador].append(websocket)
     
     def disconnect(self, websocket: WebSocket, id_partida: int, id_jugador: int):
         logger.info("WS disconnect: jugador=%s partida=%s", id_jugador, id_partida)
         if id_partida in self.active_connections and websocket in self.active_connections[id_partida]:
             self.active_connections[id_partida].remove(websocket)
         if id_jugador in self.active_connections_personal:
-            self.active_connections_personal.pop(id_jugador)
+            if websocket in self.active_connections_personal[id_jugador]:
+                self.active_connections_personal[id_jugador].remove(websocket)
+                
+        if not self.active_connections_personal[id_jugador]:
+            del self.active_connections_personal[id_jugador]
 
     async def broadcast(self, id_partida: int, message: str):
         logger.debug("WS broadcast partida=%s payload=%s", id_partida, message)
@@ -57,10 +63,15 @@ class ConnectionManager:
                 logger.exception("WS broadcast error: %s", e)
                 continue
     
-    async def send_personal_message(self, id_jugador: int, message:str):
-        logger.debug("WS personal jugador=%s payload=%s", id_jugador, message)
-        await self.active_connections_personal[id_jugador].send_text(message)
-
+    async def send_personal_message(self, id_jugador: int, message: str):
+        websockets = self.active_connections_personal.get(id_jugador, [])
+        for websocket in websockets:
+            try:
+                logger.debug("WS personal jugador=%s payload=%s", id_jugador, message)
+                await websocket.send_text(message)
+            except Exception as e:
+                logger.warning("Error enviando WS a jugador %s: %s", id_jugador, e)
+            
 manager = ConnectionManager()
     
 def get_manager():
@@ -805,33 +816,54 @@ async def ocultar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: in
 @partidas_router.put(path='/{id_partida}/evento/CardsTable', status_code=status.HTTP_200_OK)
 async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int, id_carta: int, db=Depends(get_db)):
     """
-    Se juega el evento Cards off the table(descarta los Not so fast de la mano de un jugador)
+    Se juega el evento Cards off the table (descarta los 'Not so fast' de la mano de un jugador)
     """
     try:
-        if verif_evento("Cards off the table", id_carta):
-            verif_jugador_objetivo(id_jugador, id_objetivo, db)
-            jugar_carta_evento(id_partida, id_jugador, id_carta, db)
-            await manager.broadcast(id_partida, json.dumps({
-                "evento": "se-jugo-cards-off-the-table",
-            }))
-            sleep(3)
-            CartaService(db).jugar_cards_off_the_table(id_partida, id_jugador, id_objetivo)
-            return {"detail": "Evento jugado correctamente"}
-        else:
+        if not verif_evento("Cards off the table", id_carta):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="La carta no corresponde al evento Cards Off The table"
-                )
+                detail="La carta no corresponde al evento Cards Off The Table"
+            )
+
+        # Verificaciones básicas
+        verif_jugador_objetivo(id_jugador, id_objetivo, db)
+        jugar_carta_evento(id_partida, id_jugador, id_carta, db)
+
+        # Aplicar el efecto en la base
+        CartaService(db).jugar_cards_off_the_table(id_partida, id_jugador, id_objetivo)
+
+        # Avisar a todos que se jugó el evento
+        await manager.broadcast(id_partida, json.dumps({
+            "evento": "se-jugo-cards-off-the-table",
+            "jugador_id": id_jugador,
+            "objetivo_id": id_objetivo
+        }))
+
+        for jugador in [id_jugador, id_objetivo]:
+            mano_jugador = CartaService(db).obtener_mano_jugador(jugador, id_partida)
+            cartas_a_enviar = [{"id": carta.id_carta, "nombre": carta.nombre} for carta in mano_jugador]
+            
+            await manager.send_personal_message(
+                jugador,
+                json.dumps({
+                    "evento": "actualizacion-mano",
+                    "data": cartas_a_enviar
+                })
+            )
+
+        return {"detail": "Evento jugado correctamente"}
+
     except ValueError as e:
         msg = str(e)
+        print(f"Error de validación: {msg}")
 
         if "aplicar el efecto." in msg:
             raise HTTPException(status_code=400, detail=msg)
         elif "No se ha encontrado la partida" in msg:
             raise HTTPException(status_code=404, detail=msg)
-        elif "objetivo" in msg and "no se encontro" in msg.lower():
+        elif "objetivo" in msg.lower() and "no se encontro" in msg.lower():
             raise HTTPException(status_code=404, detail=msg)
-        elif "jugador" in msg and "no se encontro" in msg.lower():
+        elif "jugador" in msg.lower() and "no se encontro" in msg.lower():
             raise HTTPException(status_code=404, detail=msg)
         elif "Partida no iniciada" in msg:
             raise HTTPException(status_code=403, detail=msg)
@@ -847,8 +879,10 @@ async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int
             raise HTTPException(status_code=400, detail=msg)
         else:
             raise HTTPException(status_code=400, detail=f"Error de validación: {msg}")
+
     except HTTPException:
         raise
+
     except Exception as e:
-        print(f"Error al jugar carta de evento Cards off the table: {e}")
+        print(f"Error inesperado al jugar carta de evento Cards off the table: {e}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")    
