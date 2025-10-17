@@ -600,12 +600,17 @@ async def revelar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: in
         
         if not secreto_revelado:
             return None
-        
-        secretos_actuales = CartaService(db).obtener_secretos_jugador(id_jugador, id_partida)
-        print(f'secretos del jugador: {[{"id_carta": s.id, "bocaArriba": s.bocaArriba} for s in secretos_actuales]}')
+
+        secreto_a_revelar = db.get(Carta, id_unico_secreto)
+        id_jugador_objetivo = secreto_a_revelar.jugador_id
+
+        secretos_actuales = CartaService(db).obtener_secretos_jugador(id_jugador_objetivo, id_partida)
+        print(f"🔍 secretos del jugador {id_jugador_objetivo}: "
+              f"{[{'id_carta': s.id, 'bocaArriba': s.bocaArriba} for s in secretos_actuales]}")
+
         await manager.broadcast(id_partida, json.dumps({
             "evento": "actualizacion-secreto",
-            "jugador-id": id_jugador,
+            "jugador-id": id_jugador_objetivo,
             "lista-secretos": [{"revelado": s.bocaArriba} for s in secretos_actuales]
         }))
 
@@ -617,6 +622,7 @@ async def revelar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: in
             "payload": {"ganadores": [], "asesinoGano": False}
         }))
         return secreto_revelado
+
         
 
     except Exception as e:
@@ -700,12 +706,13 @@ async def ocultar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: in
         
         if not secreto_ocultado:
             return None
-        
+        secreto_a_ocultar = db.get(Carta, id_unico_secreto)
+        id_jugador_objetivo = secreto_a_ocultar.jugador_id
         secretos_actuales = CartaService(db).obtener_secretos_jugador(id_jugador, id_partida)
         print(f'secretos del jugador: {[{"id_carta": s.id, "bocaArriba": s.bocaArriba} for s in secretos_actuales]}')
         await manager.broadcast(id_partida, json.dumps({
             "evento": "actualizacion-secreto",
-            "jugador-id": id_jugador,
+            "jugador-id": id_jugador_objetivo,
             "lista-secretos": [{"revelado": s.bocaArriba} for s in secretos_actuales]
         }))
 
