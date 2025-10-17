@@ -449,7 +449,7 @@ async def robar_cartas(id_partida: int, id_jugador: int, cantidad: int = 1, db=D
             "ROBAR OK: partida=%s jugador=%s robadas=%s detalle=%s",
             id_partida, id_jugador, len(cartas), cartas,
         )
-
+        
         # Notificar actualización del mazo
         cantidad_restante = CartaService(db).obtener_cantidad_mazo(id_partida)
         await manager.broadcast(id_partida, json.dumps({
@@ -809,7 +809,7 @@ async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int
     """
     try:
         if verif_evento("Cards off the table", id_carta):
-            verif_jugador_objetivo(id_jugador, id_objetivo, db)
+            verif_jugador_objetivo(id_partida, id_jugador, id_objetivo, db)
             jugar_carta_evento(id_partida, id_jugador, id_carta, db)
             await manager.broadcast(id_partida, json.dumps({
                 "evento": "se-jugo-cards-off-the-table",
@@ -845,6 +845,10 @@ async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int
             raise HTTPException(status_code=400, detail=msg)
         elif "no es de tipo evento" in msg.lower():
             raise HTTPException(status_code=400, detail=msg)
+        elif "sobre el jugador que tiro la carta" in msg:
+            raise HTTPException(status_code=409, detail=msg)
+        elif "jugador" in msg and "no pertence a la partida" in msg:
+            raise HTTPException(status_code=403, detail=msg)
         else:
             raise HTTPException(status_code=400, detail=f"Error de validación: {msg}")
     except HTTPException:

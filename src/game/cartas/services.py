@@ -145,10 +145,8 @@ class CartaService:
     def ultimo_orden_descarte(self, id_partida: int) -> int:
         
         from sqlalchemy import func
-        
-        partida = PartidaService(self._db).obtener_por_id(id_partida)
         ultimo_orden_descarte = (self._db.query(func.max(Carta.orden_descarte)).
-                                 filter(Carta.partida_id == partida.id).
+                                 filter(Carta.partida_id == id_partida).
                                  scalar() or 0)
         
         return ultimo_orden_descarte
@@ -648,10 +646,12 @@ class CartaService:
         if cartas_jugador:
             id_cartas_jugador = [carta.id_carta for carta in cartas_jugador]
             self.descartar_cartas(id_objetivo, id_cartas_jugador)
-        
+            
+            
+    def descartar_eventos(self, id_partida: int, id_jugador: int):
         carta_jugada = self._db.query(Carta).filter_by(partida_id=id_partida,
-                                                          jugador_id=id_jugador, 
-                                                          ubicacion="evento_jugado",
-                                                          nombre="Cards off the table").first()
-        
-        self.descartar_cartas(id_jugador, [carta_jugada.id_carta])
+                                                    jugador_id=id_jugador, 
+                                                    ubicacion="evento_jugado",
+                                                    ).first()
+        if carta_jugada:
+            self.descartar_cartas(id_jugador, [carta_jugada.id_carta])
