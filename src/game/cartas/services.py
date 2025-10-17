@@ -164,10 +164,7 @@ class CartaService:
         """
         DOC
         """
-        from sqlalchemy import func
-   
         jugador = JugadorService(self._db).obtener_jugador(id_jugador)
-
 
         tiene_cartas = True
         cartas_mano = jugador.cartas
@@ -342,27 +339,26 @@ class CartaService:
         List[Carta]
             Lista de objetos Carta que representan los secretos.
         """
+
         secretos = []
-        for carta in secretosDict.values():
-            cantidad = carta["cantidad"]
-            while cantidad > 0:
-                secret = Carta(
-                    nombre=carta["carta"],
-                    tipo=carta["tipo"],
-                    bocaArriba=carta["bocaArriba"],
-                    ubicacion=carta["ubicacion"],
-                    jugador_id=0,
-                    partida_id=id_partida,
-                    id_carta=carta["id"]
+        for _ in range (18):
+            secret = Carta(
+                nombre="secreto_comun",
+                tipo="secreto",
+                bocaArriba=False,
+                ubicacion="mesa",
+                jugador_id=0,
+                partida_id=id_partida,
+                id_carta=6
                 )
-                cantidad -= 1
-                secretos.append(secret)
+            secretos.append(secret)
 
         self._db.add_all(secretos)
         self._db.commit()
 
         return secretos
 
+    
     def repartir_secretos(self, secretos: list[Carta], jugadores_en_partida: list[Jugador]):
         """
         Reparte las cartas secreto a los jugadores en una partida.
@@ -375,9 +371,7 @@ class CartaService:
         jugadores_en_partida: list[Jugador]
             Lista de jugadores en un
         """
-        # Lista de IDs de los jugadores en la partida
-        jugadores_ids = [jugador.id for jugador in jugadores_en_partida]
-        
+   
         # Se elige un jugador al azar para que sea el asesino
         index_murderer = random.randrange(len(jugadores_en_partida))
         id_asesino = jugadores_en_partida[index_murderer].id
@@ -390,9 +384,7 @@ class CartaService:
                 index_accomplice = random.randrange(len(jugadores_en_partida))
                 if index_accomplice != index_murderer:
                     accomplice_found = True
-            
-            # Saco el id del cómplice de la lista de IDs
-            jugadores_ids.remove(jugadores_en_partida[index_accomplice].id)
+                    id_complice = jugadores_en_partida[index_accomplice].id
         
         secret_index = 0
         for jugador in jugadores_en_partida:
@@ -426,7 +418,6 @@ class CartaService:
                     secret_index+=1
         
         self._db.commit()
-        
             
         print("se repartieron los secretos")
 
@@ -629,3 +620,38 @@ class CartaService:
             no_mas_eventos = True
             
         return no_mas_eventos
+
+    
+    def obtener_carta_de_mano(self, id_carta: int, id_jugador: int) -> Carta:
+    
+        carta = (self._db.query(Carta).
+                 filter(Carta.id_carta == id_carta, Carta.jugador_id == id_jugador, Carta.ubicacion == "mano").
+                 first())
+        return carta
+    
+    
+    def evento_jugado_en_turno(self, id_jugador: int) -> bool:
+        no_mas_eventos = False
+        evento_ya_jugado = (self._db.query(Carta).
+                 filter(Carta.jugador_id == id_jugador, Carta.ubicacion == "evento_jugado").
+                 first())
+        if evento_ya_jugado is not None:
+            no_mas_eventos = True
+            
+        return no_mas_eventos
+
+    def jugar_cards_off_the_table(self, id_partida: int, id_jugador: int, id_objetivo: int):
+        cartas_jugador = self._db.query(Carta).filter_by(partida_id=id_partida,
+                                                          jugador_id=id_objetivo, 
+                                                          ubicacion="mano",
+                                                          nombre="Not so fast").all()
+        if cartas_jugador:
+            id_cartas_jugador = [carta.id_carta for carta in cartas_jugador]
+            self.descartar_cartas(id_objetivo, id_cartas_jugador)
+        
+        carta_jugada = self._db.query(Carta).filter_by(partida_id=id_partida,
+                                                          jugador_id=id_jugador, 
+                                                          ubicacion="evento_jugado",
+                                                          nombre="Cards off the table").first()
+        
+        self.descartar_cartas(id_jugador, [carta_jugada.id_carta])

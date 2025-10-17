@@ -19,6 +19,7 @@ import json
 import traceback
 #from game.partidas.utils import *
 import logging
+from time import sleep
 
 
 partidas_router = APIRouter()
@@ -661,12 +662,6 @@ async def accion_recoger_cartas(
             "evento": "turno-actual",
             "turno-actual": nuevo_turno_id
         }))
-        mano_actual = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
-        await manager.broadcast(id_partida, json.dumps({
-            "evento": "mano-actualizada",
-            "id_jugador": id_jugador,
-            "mano": [{"id": c.id_carta, "nombre": c.nombre} for c in mano_actual]
-        }))
         if cantidad_final_mazo == 0:
             await manager.broadcast(id_partida, json.dumps({
                 "evento": "fin-partida", "ganadores": [], "asesino_gano": False
@@ -806,3 +801,54 @@ async def ocultar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: in
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Hubo un error al ocultar la carta secreto u obtener al jugador."
         )
+
+@partidas_router.put(path='/{id_partida}/evento/CardsTable', status_code=status.HTTP_200_OK)
+async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int, id_carta: int, db=Depends(get_db)):
+    """
+    Se juega el evento Cards off the table(descarta los Not so fast de la mano de un jugador)
+    """
+    try:
+        if verif_evento("Cards off the table", id_carta):
+            verif_jugador_objetivo(id_jugador, id_objetivo, db)
+            jugar_carta_evento(id_partida, id_jugador, id_carta, db)
+            await manager.broadcast(id_partida, json.dumps({
+                "evento": "se-jugo-cards-off-the-table",
+            }))
+            sleep(3)
+            CartaService(db).jugar_cards_off_the_table(id_partida, id_jugador, id_objetivo)
+            return {"detail": "Evento jugado correctamente"}
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La carta no corresponde al evento Cards Off The table"
+                )
+    except ValueError as e:
+        msg = str(e)
+
+        if "aplicar el efecto." in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        elif "No se ha encontrado la partida" in msg:
+            raise HTTPException(status_code=404, detail=msg)
+        elif "objetivo" in msg and "no se encontro" in msg.lower():
+            raise HTTPException(status_code=404, detail=msg)
+        elif "jugador" in msg and "no se encontro" in msg.lower():
+            raise HTTPException(status_code=404, detail=msg)
+        elif "Partida no iniciada" in msg:
+            raise HTTPException(status_code=403, detail=msg)
+        elif "no esta en turno" in msg.lower():
+            raise HTTPException(status_code=403, detail=msg)
+        elif "no pertenece a la partida" in msg.lower():
+            raise HTTPException(status_code=403, detail=msg)
+        elif "Solo se puede jugar una carta de evento" in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        elif "no se encuentra en la mano" in msg.lower():
+            raise HTTPException(status_code=400, detail=msg)
+        elif "no es de tipo evento" in msg.lower():
+            raise HTTPException(status_code=400, detail=msg)
+        else:
+            raise HTTPException(status_code=400, detail=f"Error de validación: {msg}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error al jugar carta de evento Cards off the table: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")    
