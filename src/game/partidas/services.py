@@ -6,6 +6,7 @@ from game.jugadores.models import Jugador
 from game.jugadores.schemas import JugadorDTO
 import random
 from game.cartas.services import CartaService
+from game.cartas.services import JugadorService
 from typing import List, Dict, Any
 import logging
 
@@ -317,10 +318,16 @@ class PartidaService:
         cartas_del_draft_dicts = [{"id": c.id_carta} for c in cartas_del_draft_objs]
         todas_las_cartas_nuevas = cartas_del_draft_dicts + cartas_del_mazo_robadas
 
-        # Retorno toda la info necesaria
-        return {
-            "nuevas_cartas": todas_las_cartas_nuevas,
-            "nuevo_turno_id": nuevo_turno_id,
-            "nuevo_draft": nuevo_draft,
-            "cantidad_final_mazo": cantidad_final_mazo,
-        }
+    def desgracia_social(self, id_partida: int, id_jugador: int):
+        PartidaService(self._db).obtener_por_id(id_partida)
+        jugador = JugadorService(self._db).obtener_jugador(id_jugador)
+        if jugador is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No se encontró al jugador con el ID proporcionado."
+                )
+        secretos = CartaService(self._db).obtener_secretos_jugador(id_jugador, id_partida)
+        if all(secreto.bocaArriba for secreto in secretos):
+                jugador.desgracia_social = True
+                self._db.commit()
+        return jugador.desgracia_social
