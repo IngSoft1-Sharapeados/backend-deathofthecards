@@ -655,3 +655,21 @@ class CartaService:
                                                           nombre="Cards off the table").first()
         
         self.descartar_cartas(id_jugador, [carta_jugada.id_carta])
+
+    
+    def descartar_eventos(self, id_partida: int, id_jugador: int):
+        carta_jugada = self._db.query(Carta).filter_by(partida_id=id_partida,
+                                                    jugador_id=id_jugador, 
+                                                    ubicacion="evento_jugado",
+                                                    ).first()
+        if carta_jugada:
+            self.descartar_cartas(id_jugador, [carta_jugada.id_carta])
+
+    def jugar_delay_the_murderer_escape(self, id_partida: int, cantidad):
+        
+        cartas = self.obtener_cartas_descarte(id_partida, cantidad)
+        for carta in cartas:
+            carta.ubicacion="mazo_robo"
+            carta.bocaArriba=False
+        
+        self._db.commit()

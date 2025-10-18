@@ -316,3 +316,10 @@ def verif_jugador_objetivo(id_jugador: int, id_objetivo: int, db):
         raise ValueError(f"No se encontro el objetivo {id_objetivo}.")
     if id_objetivo == id_jugador:
         raise ValueError(f"No se puede aplicar el efecto.")
+
+def verif_cantidad(id_partida: int, cantidad: int, db):
+    if cantidad < 1 or cantidad > 5:
+        raise ValueError("La cantidad debe estar entre 1 y 5 cartas.")
+    cantidad_cartas_descarte = CartaService(db).obtener_cartas_descarte(id_partida, cantidad)
+    if len(cantidad_cartas_descarte) < cantidad:
+        raise ValueError("No hay suficientes cartas en el mazo de descarte.")

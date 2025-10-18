@@ -292,6 +292,8 @@ class PartidaService:
             )
         
         # Actualizo el turno y el draft
+        CartaService(self._db).descartar_eventos(id_partida, id_jugador)
+        
         nuevo_turno_id = self.avanzar_turno(id_partida)
         carta_service.actualizar_mazo_draft(id_partida)
 
@@ -306,17 +308,6 @@ class PartidaService:
             "RECOGER OK: partida=%s jugador=%s nuevas_cartas_total=%s nuevo_turno=%s mazo_restante=%s",
             id_partida, id_jugador, len(todas_las_cartas_nuevas), nuevo_turno_id, cantidad_final_mazo,
         )
-        # Retorno toda la info necesaria
-        return {
-            "nuevas_cartas": todas_las_cartas_nuevas,
-            "nuevo_turno_id": nuevo_turno_id,
-            "nuevo_draft": nuevo_draft,
-            "cantidad_final_mazo": cantidad_final_mazo,
-        }
-
-        cartas_del_draft_dicts = [{"id": c.id_carta} for c in cartas_del_draft_objs]
-        todas_las_cartas_nuevas = cartas_del_draft_dicts + cartas_del_mazo_robadas
-
         # Retorno toda la info necesaria
         return {
             "nuevas_cartas": todas_las_cartas_nuevas,
