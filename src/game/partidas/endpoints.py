@@ -767,7 +767,7 @@ async def ocultar_secreto(id_partida: int, id_jugador_turno: int, id_unico_secre
 
 
 @partidas_router.patch(path="/{id_partida}/robo-secreto", status_code=status.HTTP_200_OK)
-async def robar_secreto_otro_jugador(id_partida: int, id_jugador_turno: int, id_jugador_destino, id_unico_secreto: int,db=Depends(get_db)):
+async def robar_secreto_otro_jugador(id_partida: int, id_jugador_turno: int, id_jugador_destino: int, id_unico_secreto: int, db=Depends(get_db)):
     """
     Roba el secreto de un jugador dado su ID, el ID del jugador del turno, el ID de la carta y el de la partida.
     """
