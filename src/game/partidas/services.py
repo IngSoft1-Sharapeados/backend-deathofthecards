@@ -19,7 +19,8 @@ class PartidaService:
     def __init__(self, db):
         self._db = db
         #self._JugadorService = JugadorService(db)
-    
+
+
     def crear(self, partida_dto: PartidaDTO) -> Partida:
         """
         Crea una nueva partida en la base de datos.
@@ -49,11 +50,13 @@ class PartidaService:
         self._db.refresh(nueva_partida)
         return nueva_partida
 
+
     def asignar_anfitrion(self, partida: Partida, id_jugador: int):
         partida.anfitrionId = id_jugador
         partida.cantJugadores += 1
         self._db.commit()
         self._db.refresh(partida)
+
 
     def obtener_por_id(self, id_partida: int) -> Partida:
         """
@@ -76,7 +79,8 @@ class PartidaService:
                 detail="No se encontró la partida con el ID proporcionado."
                 )
         return partida
-        
+
+
     def listar(self) -> List[Partida]:
         """
         Lista las partidas en la base de datos.
@@ -90,6 +94,8 @@ class PartidaService:
         return (self._db.query(Partida)
                 .filter(Partida.iniciada == False)
                 .all())
+
+
     # servicio unir jugador a partida
     def unir_jugador(self, id_partida, jugador_creado: Jugador):
         """
@@ -115,8 +121,8 @@ class PartidaService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail="La partida ya tiene el máximo de jugadores."
                 )
-         
-        
+
+
     def iniciar(self, id_partida: int, id_jugar_solicitante) -> Partida:
         """
         Inicia una partida por su ID.
@@ -153,6 +159,7 @@ class PartidaService:
         self._db.refresh(partida)
         return partida
 
+
     def obtener_turno_actual(self, id_partida) -> int:
         partida = PartidaService(self._db).obtener_por_id(id_partida)
         if not partida:
@@ -162,14 +169,16 @@ class PartidaService:
             )
 
         return partida.turno_id
-    
+
+
     def set_turno_actual(self, id_partida: int, id_jugador: int):
         partida = self.obtener_por_id(id_partida)
         partida.turno_id = id_jugador
         self._db.commit()
         self._db.refresh(partida)
         return id_jugador
-    
+
+
     def avanzar_turno(self, id_partida: int) -> int:
         """
         Avanza al siguiente jugador según el orden de turnos y retorna el nuevo id de turno.
@@ -194,7 +203,8 @@ class PartidaService:
             id_partida, partida.turno_id, nuevo,
         )
         return self.set_turno_actual(id_partida, nuevo)
-    
+
+
     def orden_turnos(self, id_partida: int, jugadores: list[Jugador]) -> list[int]:
         """
         Genera un orden de turnos para los jugadores en la partida.
@@ -234,7 +244,8 @@ class PartidaService:
         self._db.commit()
         self._db.refresh(partida)
         return orden_de_turnos
-    
+
+
     def manejar_accion_recoger(
     self, id_partida: int, id_jugador: int, cartas_draft_ids: List[int]) -> Dict[str, Any]:
         """
@@ -314,13 +325,3 @@ class PartidaService:
             "cantidad_final_mazo": cantidad_final_mazo,
         }
 
-        cartas_del_draft_dicts = [{"id": c.id_carta} for c in cartas_del_draft_objs]
-        todas_las_cartas_nuevas = cartas_del_draft_dicts + cartas_del_mazo_robadas
-
-        # Retorno toda la info necesaria
-        return {
-            "nuevas_cartas": todas_las_cartas_nuevas,
-            "nuevo_turno_id": nuevo_turno_id,
-            "nuevo_draft": nuevo_draft,
-            "cantidad_final_mazo": cantidad_final_mazo,
-        }
