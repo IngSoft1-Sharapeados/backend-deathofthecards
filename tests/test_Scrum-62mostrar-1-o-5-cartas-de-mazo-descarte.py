@@ -1,3 +1,5 @@
+import os
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import MagicMock, patch, AsyncMock

@@ -1,19 +1,22 @@
 from game.cartas.constants import cartasDict, secretosDict
-from game.cartas.models import Carta
+from game.cartas.models import Carta, SetJugado
 from game.jugadores.models import Jugador
 from game.jugadores.services import JugadorService
-#from game.partidas.models import Partida
+from game.partidas.utils import *
 import random
-from game.partidas.utils import * 
 from typing import List
 from collections import Counter
+import logging
+from sqlalchemy import func
 
+logger = logging.getLogger(__name__)
 
 class CartaService:
-    def __init__(self,db):
-        self._db = db
-        
     
+    def __init__(self, db):
+        self._db = db
+
+
     def crear_mazo_inicial(self, id_partida: int) -> list[Carta]:
         """
         Crea el mazo inicial de cartas para una partida.
@@ -27,10 +30,7 @@ class CartaService:
         -------
         List[Carta]
             Lista de objetos Carta que representan el mazo incicial.
-        """  
-
-        
-
+        """
         mazo_nuevo = []
         for carta in cartasDict.values():
             cantidad = carta["cantidad"]
@@ -43,7 +43,7 @@ class CartaService:
                     jugador_id=0,
                     partida_id=id_partida,
                     id_carta=carta["id"]
-                    )
+                )
                 cantidad -= 1
                 mazo_nuevo.append(cartita)
 
@@ -52,6 +52,7 @@ class CartaService:
 
         return mazo_nuevo
     
+
     def obtener_cartas_descarte(self, id_partida: int, cantidad: int) -> list[Carta]:
         """
         Obtiene las ultimas 'cantidad' cartas del mazo de descarte de una partida.
@@ -68,6 +69,7 @@ class CartaService:
                         .order_by(Carta.orden_descarte.desc()).limit(cantidad).all()
                         )
         return cartas_descarte
+
 
     def repartir_cartas_iniciales(self, mazo: list[Carta], jugadores_en_partida: list[Jugador]):
         """
@@ -100,11 +102,14 @@ class CartaService:
                     if cartas_jugador == 5:
                         break  # pasamos al siguiente jugador
         self._db.commit()
-        self._db.refresh(carta)
-            
-        print("se repartieron las cartas hasta 6")
-       
-                    
+        # refrescar última carta tocada si existe (defensivo)
+        try:
+            self._db.refresh(carta)  # type: ignore[name-defined]
+        except Exception:
+            pass
+        logger.info("REPARTO INICIAL: se repartieron cartas iniciales a jugadores")
+
+
     def obtener_mazo_de_robo(self, id_partida: int) -> list[Carta]:
         """
         Obtiene el mazo de robo para una partida específica.
@@ -121,8 +126,9 @@ class CartaService:
         """
         mazo_robo = self._db.query(Carta).filter_by(partida_id=id_partida, ubicacion="mazo_robo").all()
         return mazo_robo
-    
-    def obtener_mano_jugador(self, id_jugador:  int, id_partida: int) -> list[Carta]:
+
+
+    def obtener_mano_jugador(self, id_jugador: int, id_partida: int) -> list[Carta]:
         """
         Obtiene la mano de cartas de un jugador en una partida específica.
         
@@ -143,35 +149,63 @@ class CartaService:
         return mano_jugador
 
 
+    def ultimo_orden_descarte(self, id_partida: int) -> int:
+        
+        from sqlalchemy import func
+        
+        partida = PartidaService(self._db).obtener_por_id(id_partida)
+        ultimo_orden_descarte = (self._db.query(func.max(Carta.orden_descarte)).
+                                 filter(Carta.partida_id == partida.id).
+                                 scalar() or 0)
+        
+        return ultimo_orden_descarte
+    
+
     def descartar_cartas(self, id_jugador, cartas_descarte_id):
+
+        """Descarta cartas de la mano del jugador registrando auditoría en logs."""
+        logger.info(
+            "DESCARTE: jugador=%s cantidad=%s ids=%s",
+            id_jugador, len(cartas_descarte_id), cartas_descarte_id,
+        )
         """
         DOC
         """
-        from sqlalchemy import func
-   
         jugador = JugadorService(self._db).obtener_jugador(id_jugador)
+
         tiene_cartas = True
         cartas_mano = jugador.cartas
         for carta_id in cartas_descarte_id:
             enMano = False
             for carta in cartas_mano:
                 if (carta_id == carta.id_carta):
-                    enMano = enMano or True 
+                    enMano = enMano or True
             tiene_cartas = tiene_cartas and enMano
 
         if not tiene_cartas:
+            logger.error(
+                "DESCARTE ERROR: jugador=%s intenta descartar ids=%s pero no están en mano",
+                id_jugador, cartas_descarte_id,
+            )
             raise Exception("Una o mas cartas no se encuentran en la mano del jugador")
+
         
         ultimo_orden = self._db.query(func.max(Carta.orden_descarte)).filter(Carta.partida_id == jugador.partida_id).scalar() or 0
+        nombres = []
         for carta in cartas_descarte_id:
             carta_descarte = self._db.query(Carta).filter(Carta.id_carta == carta, Carta.jugador_id == id_jugador).first()
             print(f"[DEBUG] Intentando descartar id={carta} (jugador {id_jugador}) → encontrado: {carta_descarte}")
             carta_descarte.jugador_id = 0
             carta_descarte.ubicacion = "descarte"
             carta_descarte.bocaArriba = True
+            nombres.append(carta_descarte.nombre)
             ultimo_orden = ultimo_orden + 1
             carta_descarte.orden_descarte = ultimo_orden
             self._db.commit()
+        logger.info(
+            "DESCARTE HECHO: jugador=%s cantidad=%s ids=%s nombres=%s",
+            id_jugador, len(cartas_descarte_id), cartas_descarte_id, nombres,
+        )
 
 
     def obtener_cantidad_mazo(self, id_partida: int) -> int:
@@ -205,11 +239,16 @@ class CartaService:
 
         self._db.commit()
 
-        # Retornar información mínima al frontend
-        return [
+        resultado = [
             {"id": carta.id_carta, "nombre": carta.nombre}
             for carta in cartas_a_robar
         ]
+        logger.info(
+            "ROBAR SERVICIO: partida=%s jugador=%s cantidad=%s detalle=%s",
+            id_partida, id_jugador, len(resultado), resultado,
+        )
+        # Retornar información mínima al frontend
+        return resultado
 
 
     def actualizar_mazo_draft(self, id_partida: int):
@@ -222,16 +261,17 @@ class CartaService:
 
         """
         mazo_draft = (
-        self._db.query(Carta)
-        .filter(Carta.partida_id == id_partida, Carta.ubicacion == "draft")
-        .all())
+            self._db.query(Carta)
+            .filter(Carta.partida_id == id_partida, Carta.ubicacion == "draft")
+            .all()
+        )
 
         cartas_draft = len(mazo_draft)
         if cartas_draft <= 2:
             mazo_robo = self.obtener_mazo_de_robo(id_partida)
             random.shuffle(mazo_robo)
-            for cartas in mazo_robo:
-                cartas.ubicacion = "draft"
+            for carta in mazo_robo:
+                carta.ubicacion = "draft"
                 cartas_draft += 1
                 if cartas_draft == 3:
                     break
@@ -252,11 +292,11 @@ class CartaService:
             list[Carta]
         """
         mazo_draft = (self._db.query(Carta)
-                        .filter(Carta.partida_id == id_partida, Carta.ubicacion == "draft")
-                        .all())
-                
+                      .filter(Carta.partida_id == id_partida, Carta.ubicacion == "draft")
+                      .all())
+        
         return mazo_draft
-    
+
 
     def tomar_cartas_draft(self, id_partida: int, id_jugador: int, cartas_tomadas_ids: List[int]):
         """
@@ -265,23 +305,27 @@ class CartaService:
         if not cartas_tomadas_ids:
             return
 
-        cartas_a_mover = (
-            self._db.query(Carta)
-            .filter(
-                Carta.partida_id == id_partida,
-                Carta.ubicacion == "draft",
-                Carta.id_carta.in_(cartas_tomadas_ids)
-            )
-            .all() 
-        )
+        mazo = self.obtener_mazo_draft(id_partida)
+        ids_cartas = [carta.id_carta for carta in mazo]
+        if not all(id in ids_cartas for id in cartas_tomadas_ids):
+            raise Exception("Una o más cartas seleccionadas no se encuentran en el draft.")
 
-        for carta in cartas_a_mover:
-            carta.jugador_id = id_jugador
-            carta.ubicacion = "mano"
+        original_ids = list(cartas_tomadas_ids)
+        tomados_nombres = []
+        for carta in mazo:
+            if carta.id_carta in cartas_tomadas_ids:
+                carta.jugador_id = id_jugador
+                carta.ubicacion = "mano"
+                cartas_tomadas_ids.remove(carta.id_carta)
+                tomados_nombres.append(carta.nombre)
 
         self._db.commit()
+        logger.info(
+            "DRAFT TOMAR: partida=%s jugador=%s ids=%s nombres=%s",
+            id_partida, id_jugador, original_ids, tomados_nombres,
+        )
 
-    
+
     def crear_secretos(self, id_partida):
         """
         Crea las cartas secreto para una partida. Todas las cartas creadas son secretos comunes,
@@ -390,7 +434,7 @@ class CartaService:
         return carta
 
 
-    def obtener_secretos_jugador(self, id_jugador:  int, id_partida: int) -> list[Carta]:
+    def obtener_secretos_jugador(self, id_jugador: int, id_partida: int) -> list[Carta]:
         """
         Obtiene los secretos de un jugador en una partida específica.
         
@@ -436,14 +480,13 @@ class CartaService:
 
 
     def obtener_secretos_ajenos(self, id_jugador: int, id_partida: int):
-        secretos_ajenos = CartaService(self._db).obtener_secretos_jugador(id_jugador, id_partida)
+        secretos_ajenos = self.obtener_secretos_jugador(id_jugador, id_partida)
         # Si no hay secretos, devolver lista vacía
         if not secretos_ajenos:
             return []
         
         #Crear lista de cartas a enviar
         secretos_a_enviar = []
-        print(f'{secretos_a_enviar}')
         for carta in secretos_ajenos:
             if carta.bocaArriba:
                 secretos_a_enviar.append({
@@ -457,13 +500,130 @@ class CartaService:
                     "id": carta.id,
                     "bocaArriba": carta.bocaArriba
                 })
-        print(f"secretos a enviar: {secretos_a_enviar}")
         return secretos_a_enviar
-    
+
 
     def es_asesino(self, id_unico_secreto: int):
         secreto = self._db.get(Carta, id_unico_secreto)
         return (secreto.nombre == "murderer")
+
+
+    def obtener_asesino_complice(self, id_partida):
+        carta_asesino = self._db.query(Carta).filter_by(partida_id=id_partida, tipo="secreto", nombre="murderer").first()
+        asesino_id = carta_asesino.jugador_id if carta_asesino else None
+        carta_complice = self._db.query(Carta).filter_by(partida_id=id_partida, tipo="secreto", nombre="accomplice").first()
+        complice_id = carta_complice.jugador_id if carta_complice else None
+        
+        return {"asesino-id": asesino_id, "complice-id": complice_id}
+
+
+    def obtener_carta_por_id(self, id_carta: int) -> Carta:
+        carta = self._db.query(Carta).filter(Carta.id == id_carta).first()
+        if not carta:
+            raise ValueError(f"No se encontró la carta con id {id_carta}")
+        return carta
+
+
+    def mover_set(self, set_cartas: list[int]) -> list[Carta]:
+        set_jugado = []
+        for carta_id in set_cartas:
+            carta = self.obtener_carta_por_id(carta_id)
+            carta.ubicacion = "set_jugado"
+            set_jugado.append(carta)
+            self._db.add(carta)
+        self._db.commit()
+        return set_jugado
+
+
+    def registrar_set_jugado(self, id_partida: int, id_jugador: int, cartas: list[Carta]):
+        # Representación del set: NUNCA usar comodín (Harley Quin, id=14)
+        # Elegir la primera carta no comodín; si por algún motivo no hay, usar la primera
+        WILDCARD_ID = 14
+        representacion_id = 1
+        if cartas:
+            no_wildcards = [c for c in cartas if c.id_carta != WILDCARD_ID]
+            representacion_id = (no_wildcards[0].id_carta if no_wildcards else cartas[0].id_carta)
+        ids_csv = ",".join(str(c.id_carta) for c in cartas)
+        registro = SetJugado(
+            partida_id=id_partida,
+            jugador_id=id_jugador,
+            representacion_id_carta=representacion_id,
+            cartas_ids_csv=ids_csv,
+        )
+        self._db.add(registro)
+        self._db.commit()
+        return registro
+
+
+    def obtener_sets_jugados(self, id_partida: int):
+        """Devuelve [{ jugador_id, representacion_id_carta, cartas_ids: [int,int...] }]"""
+        registros = self._db.query(SetJugado).filter(SetJugado.partida_id == id_partida).all()
+        WILDCARD_ID = 14
+        salida = []
+        for r in registros:
+            ids = [int(x) for x in r.cartas_ids_csv.split(",") if x]
+            rep = r.representacion_id_carta
+            # Corrección retroactiva: si por error quedó comodín como representación, usar primer no comodín
+            if rep == WILDCARD_ID:
+                rep_candidates = [i for i in ids if i != WILDCARD_ID]
+                if rep_candidates:
+                    rep = rep_candidates[0]
+            salida.append({
+                "jugador_id": r.jugador_id,
+                "representacion_id_carta": rep,
+                "cartas_ids": ids,
+            })
+        return salida
+
+
+    def obtener_asesino_complice(self, id_partida):
+        carta_asesino = self._db.query(Carta).filter_by(partida_id=id_partida, tipo="secreto", nombre="murderer").first()
+        asesino_id = carta_asesino.jugador_id if carta_asesino else None
+        carta_complice = self._db.query(Carta).filter_by(partida_id=id_partida, tipo="secreto", nombre="accomplice").first()
+        complice_id = carta_complice.jugador_id if carta_complice else None
+        
+        return {"asesino-id": asesino_id, "complice-id": complice_id}
+
+
+    def registrar_set_jugado(self, id_partida: int, id_jugador: int, cartas: list[Carta]):
+        # Representación del set: NUNCA usar comodín (Harley Quin, id=14)
+        # Elegir la primera carta no comodín; si por algún motivo no hay, usar la primera
+        WILDCARD_ID = 14
+        representacion_id = 1
+        if cartas:
+            no_wildcards = [c for c in cartas if c.id_carta != WILDCARD_ID]
+            representacion_id = (no_wildcards[0].id_carta if no_wildcards else cartas[0].id_carta)
+        ids_csv = ",".join(str(c.id_carta) for c in cartas)
+        registro = SetJugado(
+            partida_id=id_partida,
+            jugador_id=id_jugador,
+            representacion_id_carta=representacion_id,
+            cartas_ids_csv=ids_csv,
+        )
+        self._db.add(registro)
+        self._db.commit()
+        return registro
+
+
+    def obtener_sets_jugados(self, id_partida: int):
+        """Devuelve [{ jugador_id, representacion_id_carta, cartas_ids: [int,int...] }]"""
+        registros = self._db.query(SetJugado).filter(SetJugado.partida_id == id_partida).all()
+        WILDCARD_ID = 14
+        salida = []
+        for r in registros:
+            ids = [int(x) for x in r.cartas_ids_csv.split(",") if x]
+            rep = r.representacion_id_carta
+            # Corrección retroactiva: si por error quedó comodín como representación, usar primer no comodín
+            if rep == WILDCARD_ID:
+                rep_candidates = [i for i in ids if i != WILDCARD_ID]
+                if rep_candidates:
+                    rep = rep_candidates[0]
+            salida.append({
+                "jugador_id": r.jugador_id,
+                "representacion_id_carta": rep,
+                "cartas_ids": ids,
+            })
+        return salida
 
 
     def ocultar_secreto(self, id_unico_secreto: int) -> Carta:
@@ -502,3 +662,50 @@ class CartaService:
         self._db.commit()
         secreto_robado = {"id-secreto": secreto_a_robar.id}
         return secreto_robado
+
+
+    def obtener_carta_de_mano(self, id_carta: int, id_jugador: int) -> Carta:
+    
+        carta = (self._db.query(Carta).
+                 filter(Carta.id_carta == id_carta, Carta.jugador_id == id_jugador, Carta.ubicacion == "mano").
+                 first())
+        return carta
+    
+    
+    def evento_jugado_en_turno(self, id_jugador: int) -> bool:
+        no_mas_eventos = False
+        evento_ya_jugado = (self._db.query(Carta).
+                 filter(Carta.jugador_id == id_jugador, Carta.ubicacion == "evento_jugado").
+                 first())
+        if evento_ya_jugado is not None:
+            no_mas_eventos = True
+            
+        return no_mas_eventos
+    
+    
+    def evento_jugado_en_turno(self, id_jugador: int) -> bool:
+        no_mas_eventos = False
+        evento_ya_jugado = (self._db.query(Carta).
+                 filter(Carta.jugador_id == id_jugador, Carta.ubicacion == "evento_jugado").
+                 first())
+        if evento_ya_jugado is not None:
+            no_mas_eventos = True
+            
+        return no_mas_eventos
+
+
+    def jugar_cards_off_the_table(self, id_partida: int, id_jugador: int, id_objetivo: int):
+        cartas_jugador = self._db.query(Carta).filter_by(partida_id=id_partida,
+                                                          jugador_id=id_objetivo, 
+                                                          ubicacion="mano",
+                                                          nombre="Not so fast").all()
+        if cartas_jugador:
+            id_cartas_jugador = [carta.id_carta for carta in cartas_jugador]
+            self.descartar_cartas(id_objetivo, id_cartas_jugador)
+        
+        carta_jugada = self._db.query(Carta).filter_by(partida_id=id_partida,
+                                                          jugador_id=id_jugador, 
+                                                          ubicacion="evento_jugado",
+                                                          nombre="Cards off the table").first()
+        
+        self.descartar_cartas(id_jugador, [carta_jugada.id_carta])

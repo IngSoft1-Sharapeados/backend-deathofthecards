@@ -1,6 +1,7 @@
 from game.partidas.models import Partida
 from game.jugadores.models import Jugador
 from game.cartas.models import Carta
+from game.cartas.constants import *
 from game.jugadores.schemas import JugadorOut
 from game.partidas.schemas import PartidaData, PartidaResponse, IniciarPartidaData
 from game.partidas.services import PartidaService
@@ -10,8 +11,8 @@ from game.jugadores.services import JugadorService
 from game.jugadores.services import *
 from fastapi import HTTPException, status
 from game.modelos.db import get_db
-
 from datetime import date
+
 
 def listar_jugadores(partida: Partida) -> list[JugadorOut]:
     jugadores_out = []
@@ -24,6 +25,7 @@ def listar_jugadores(partida: Partida) -> list[JugadorOut]:
             )
         )
     return jugadores_out
+
 
 def distancia_fechas(fecha: date) -> int:
     f = date(2000, fecha.month, fecha.day)   # normalizo al año 2000
@@ -118,6 +120,7 @@ def unir_a_partida(id_partida: int, jugador_info, db) -> JugadorOut:
             detail="No se pudo completar la solicitud por un error interno"
         )
 
+
 def mostrar_cartas_descarte(id_partida: int, id_jugador: int, cantidad:  int,  db):
 
     partida = PartidaService(db).obtener_por_id(id_partida)
@@ -159,6 +162,7 @@ def mostrar_cartas_descarte(id_partida: int, id_jugador: int, cantidad:  int,  d
             detail=f"No se pudo obtener las cartas del mazo descarte. Error: {e}"
         )
 
+
 def mostrar_mazo_draft(id_partida: int, db):
     try:    
         mazo_descarte = CartaService(db).obtener_mazo_draft(id_partida)            
@@ -172,7 +176,8 @@ def mostrar_mazo_draft(id_partida: int, db):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"No se pudo obtener el mazo de descarte. Error: {e}"
         )
-    
+
+
 def ids_asesino_complice(db, id_partida: int):
     """
     Metodo que dado el ID de una partida, devuelve el ID del asesino, y el ID del cómplice
@@ -209,52 +214,53 @@ def ids_asesino_complice(db, id_partida: int):
 
 
 def robar_secreto(id_partida: int, id_jugador_turno: int, id_jugador_destino:  int, id_unico_secreto: int, db) -> dict:
-            """
-            Roba el secreto revelado de un jugador en una partida específica,
-            y se lo agrega boca abajo a los secretos propios o de otro jugador.
-            
-            Parameters
-            ----------
-            id_jugador_turno: int
-                ID del jugador del turno que robará un secreto de otro jugador.
-            
-            id_jugador_destino: int
-                ID del jugador que recibirá el secreto robado.
+    """
+    Roba el secreto revelado de un jugador en una partida específica,
+    y se lo agrega boca abajo a los secretos propios o de otro jugador.
+    
+    Parameters
+    ----------
+    id_jugador_turno: int
+        ID del jugador del turno que robará un secreto de otro jugador.
+    
+    id_jugador_destino: int
+        ID del jugador que recibirá el secreto robado.
 
-            id_partida: int
-                ID de la partida para la cual se obtiene los secretos.
-            
-            id_unico_secreto: int
-                ID del secreto que debe ser ocultado
-            
-            Returns
-            -------
-            secreto_robado: dict
-                diccionario con el id del secreto robado. {"id-secreto": secreto.id}
-            """
-            partida = PartidaService(db).obtener_por_id(id_partida)
-            if not partida:
-                raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
-            jugador_turno = JugadorService(db).obtener_jugador(id_jugador_turno)
-            if not jugador_turno:
-                raise ValueError(f"No se ha encontrado el jugador con el ID: {id_jugador_turno}")
-            jugador_destino = JugadorService(db).obtener_jugador(id_jugador_destino)
-            if not jugador_destino:
-                raise ValueError(f"No se ha encontrado el jugador con el ID: {id_jugador_destino}")
-            if jugador_turno.id != partida.turno_id:
-                raise ValueError(f"Solo el jugador del turno puede realizar esta acción")
-            #secreto_a_robar: Carta
-            #secreto_a_robar = self._db.get(Carta, id_unico_secreto)
-            secreto_a_robar = CartaService(db).obtener_carta_por_id(id_unico_secreto)
-            if not secreto_a_robar:
-                raise ValueError(f"No se ha encontrado el secreto con el ID:{id_unico_secreto}")
-            if secreto_a_robar.partida_id != id_partida:
-                raise ValueError(f"El secreto con el ID:{id_unico_secreto} no pertenece a la partida con el ID: {id_partida}")
-            if not secreto_a_robar.bocaArriba:
-                raise ValueError(f"No se puede robar un secreto que está oculto!")
-            secreto_robado = CartaService(db).robar_secreto(secreto_a_robar, id_jugador_destino)
+    id_partida: int
+        ID de la partida para la cual se obtiene los secretos.
+    
+    id_unico_secreto: int
+        ID del secreto que debe ser ocultado
+    
+    Returns
+    -------
+    secreto_robado: dict
+        diccionario con el id del secreto robado. {"id-secreto": secreto.id}
+    """
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    if not partida:
+        raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
+    jugador_turno = JugadorService(db).obtener_jugador(id_jugador_turno)
+    if not jugador_turno:
+        raise ValueError(f"No se ha encontrado el jugador con el ID: {id_jugador_turno}")
+    jugador_destino = JugadorService(db).obtener_jugador(id_jugador_destino)
+    if not jugador_destino:
+        raise ValueError(f"No se ha encontrado el jugador con el ID: {id_jugador_destino}")
+    if jugador_turno.id != partida.turno_id:
+        raise ValueError(f"Solo el jugador del turno puede realizar esta acción")
+    #secreto_a_robar: Carta
+    #secreto_a_robar = self._db.get(Carta, id_unico_secreto)
+    secreto_a_robar = CartaService(db).obtener_carta_por_id(id_unico_secreto)
+    if not secreto_a_robar:
+        raise ValueError(f"No se ha encontrado el secreto con el ID:{id_unico_secreto}")
+    if secreto_a_robar.partida_id != id_partida:
+        raise ValueError(f"El secreto con el ID:{id_unico_secreto} no pertenece a la partida con el ID: {id_partida}")
+    if not secreto_a_robar.bocaArriba:
+        raise ValueError(f"No se puede robar un secreto que está oculto!")
+    secreto_robado = CartaService(db).robar_secreto(secreto_a_robar, id_jugador_destino)
 
-            return secreto_robado
+    return secreto_robado
+
 
 def revelarSecreto(id_partida: int, id_jugador_turno: int, id_unico_secreto: int, db) -> Carta:
     """
@@ -336,3 +342,66 @@ def ocultarSecreto(id_partida: int, id_jugador_turno: int, id_unico_secreto: int
     secreto_ocultado = CartaService(db).ocultar_secreto(secreto_a_ocultar.id)
 
     return secreto_ocultado
+
+
+def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> Carta:
+    
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    if partida is None:
+        raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
+    
+    jugador = JugadorService(db).obtener_jugador(id_jugador)
+    if jugador is None:
+        raise ValueError(f"No se encontro el jugador {id_jugador}.")
+    
+    if partida.iniciada == False:
+        raise ValueError(f"Partida no iniciada")
+    
+    if partida.turno_id != id_jugador:
+        raise ValueError(f"El jugador no esta en turno.")
+    
+    if jugador.partida_id != id_partida:
+        raise ValueError(f"El jugador con ID {id_jugador} no pertenece a la partida {id_partida}.")
+    
+    cartas_mano = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
+    
+    no_mas_eventos = CartaService(db).evento_jugado_en_turno(id_jugador)
+    
+    print("Se verifica que no haya otro evento jugado en turno")
+    if no_mas_eventos == True:
+        raise ValueError(f"Solo se puede jugar una carta de evento por turno.")
+    print("Se verifico que no hay eventos jugados en el turno")
+            
+    en_mano = False
+    for c in cartas_mano:
+        if c.id_carta == id_carta:
+            en_mano = True
+    if en_mano == False:
+        raise ValueError(f"La carta no se encuentra en la mano del jugador.")
+    
+    carta_evento = CartaService(db).obtener_carta_de_mano(id_carta, id_jugador)
+    
+    if carta_evento.tipo != "Event":
+        raise ValueError(f"La carta no es de tipo evento y no puede ser jugada como tal.")
+    else:
+        carta_evento.ubicacion = "evento_jugado"
+        db.commit()
+    db.refresh(carta_evento)
+    
+    return carta_evento
+
+
+def verif_evento(evento: str, id_carta: int) -> bool:
+    carta = next((v for v in cartasDict.values() if v["id"] == id_carta), None)
+    if carta is None:
+        return False
+    return (evento == carta["carta"])
+
+
+def verif_jugador_objetivo(id_jugador: int, id_objetivo: int, db):
+    jugador_objetivo = JugadorService(db).obtener_jugador(id_objetivo)
+    if jugador_objetivo is None:
+        raise ValueError(f"No se encontro el objetivo {id_objetivo}.")
+    if id_objetivo == id_jugador:
+        raise ValueError(f"No se puede aplicar el efecto.")
+
