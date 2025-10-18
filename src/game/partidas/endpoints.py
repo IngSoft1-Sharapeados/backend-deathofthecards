@@ -6,7 +6,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi import WebSocket, WebSocketException, WebSocketDisconnect
 from game.partidas.models import Partida
-from game.partidas.schemas import PartidaData, PartidaResponse, PartidaOut, PartidaListar, IniciarPartidaData, RecogerCartasPayload
+from game.partidas.schemas import PartidaData, PartidaResponse, PartidaOut, PartidaListar, IniciarPartidaData, RecogerCartasPayload, AnotherVictimPayload
 #from game.partidas.services import PartidaService
 from game.jugadores.models import Jugador
 from game.jugadores.schemas import JugadorData, JugadorResponse, JugadorOut
@@ -15,6 +15,7 @@ from game.jugadores.schemas import JugadorData, JugadorResponse, JugadorOut
 from game.modelos.db import get_db
 from game.partidas.utils import *
 from game.cartas.utils import jugar_set_detective
+
 import json
 import traceback
 #from game.partidas.utils import *
@@ -372,23 +373,6 @@ async def descarte_cartas(id_partida: int, id_jugador: int, cartas_descarte: lis
         
         await manager.broadcast(id_partida, json.dumps(evento))
         await manager.broadcast(id_partida, json.dumps(evento2))
-
-        logger.info(
-            "DESCARTE OK: partida=%s jugador=%s cartas_descarte=%s",
-            id_partida, id_jugador, cartas_descarte,
-        )
-
-        evento2= {
-            "evento": "carta-descartada", 
-            "payload": {
-                        "discardted":
-                        cartas_descarte
-                    } 
-        }
-        
-        await manager.broadcast(id_partida, json.dumps(evento))
-        await manager.broadcast(id_partida, json.dumps(evento2))
-
 
         return {"detail": "Descarte exitoso"}
     
@@ -838,6 +822,16 @@ async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int
             "jugador_id": id_jugador,
             "objetivo_id": id_objetivo
         }))
+        
+        
+        evento= {
+        "evento": "carta-descartada", 
+        "payload": {
+                    "discardted":
+                    [id_carta]
+                } 
+        }
+        await manager.broadcast(id_partida, json.dumps(evento))
 
         for jugador in [id_jugador, id_objetivo]:
             mano_jugador = CartaService(db).obtener_mano_jugador(jugador, id_partida)
@@ -888,10 +882,9 @@ async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int
         raise HTTPException(status_code=500, detail="Error interno del servidor")    
 
 @partidas_router.put(path='/{id_partida}/evento/AnotherVictim', status_code=status.HTTP_200_OK)
-async def another_victim(id_partida: int, id_jugador: int,
-                                id_objetivo: int, id_representacion_carta: int,
-                                ids_cartas: list[int],
-                                id_carta: int ,db=Depends(get_db)):
+async def another_victim(id_partida: int, id_jugador: int, id_carta: int, 
+                             payload: AnotherVictimPayload, 
+                             db=Depends(get_db)):
     """
     juega el evento Another Victim (el jugador que juega la carta roba un set a eleccion)
     parameters:
@@ -908,14 +901,24 @@ async def another_victim(id_partida: int, id_jugador: int,
     """
     try:
         if verif_evento("Another Victim", id_carta):
-            verif_jugador_objetivo(id_jugador, id_objetivo, db)
+            verif_jugador_objetivo(id_jugador, payload.id_objetivo, db)
             jugar_carta_evento(id_partida, id_jugador, id_carta, db)
+            
+            CartaService(db).robar_set(id_partida, id_jugador, payload.id_objetivo, payload.id_representacion_carta, payload.ids_cartas)
+            
             await manager.broadcast(id_partida, json.dumps({
                 "evento": "se-jugo-another-victim",
+                "jugador_id": id_jugador,
+                "objetivo_id": payload.id_objetivo
             }))
-            sleep(3)
-            CartaService(db).robar_set(id_partida, id_jugador, id_objetivo, id_representacion_carta, ids_cartas)
-            return {"detail": "Evento jugado correctamente"}
+            evento= {
+            "evento": "carta-descartada", 
+            "payload": {
+                        "discardted":
+                        [id_carta]
+                    } 
+            }
+            await manager.broadcast(id_partida, json.dumps(evento))
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
