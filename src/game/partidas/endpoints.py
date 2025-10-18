@@ -966,3 +966,41 @@ async def revelar_secreto_propio(id_partida: int, id_jugador: int, id_unico_secr
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Hubo un error al revelar secreto."
             )
+
+
+@partidas_router.post(path="/{id_partida}/solicitar-revelacion", status_code=status.HTTP_200_OK)
+async def solicitar_revelacion(
+    id_partida: int,
+    id_jugador_solicitante: int,
+    id_jugador_objetivo: int,
+    motivo: str = "lady-brent",
+    db=Depends(get_db),
+    manager=Depends(get_manager),
+):
+    """Solicita a un jugador que revele uno de sus secretos mediante un mensaje personal por WebSocket.
+
+    Usado por efectos como Lady Eileen "Bundle" Brent, donde el objetivo elige el secreto a revelar.
+    """
+    try:
+        partida = PartidaService(db).obtener_por_id(id_partida)
+        if partida is None:
+            raise HTTPException(status_code=404, detail="Partida no encontrada")
+
+        jugador_obj = JugadorService(db).obtener_jugador(id_jugador_objetivo)
+        if jugador_obj is None or jugador_obj.partida_id != id_partida:
+            raise HTTPException(status_code=404, detail="Jugador objetivo no válido para esta partida")
+
+        payload = {
+            "evento": "solicitar-revelacion-secreto",
+            "motivo": motivo,  # valores posibles: 'lady-brent', 'beresford'
+            "solicitante-id": id_jugador_solicitante,
+            "partida-id": id_partida,
+        }
+        await manager.send_personal_message(id_jugador_objetivo, json.dumps(payload))
+        return {"detail": "Solicitud enviada"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
