@@ -636,7 +636,7 @@ async def revelar_secreto(id_partida: int, id_jugador_turno: int, id_unico_secre
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=str(e)
             )
-        elif("no pertenece a la partida" in str(e)):
+        elif("no pertenece a" in str(e)):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=str(e)
@@ -749,7 +749,7 @@ async def ocultar_secreto(id_partida: int, id_jugador_turno: int, id_unico_secre
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=str(e)
             )
-        elif("no pertenece a la partida" in str(e)):
+        elif("no pertenece a" in str(e)):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=str(e)
@@ -798,7 +798,7 @@ async def robar_secreto_otro_jugador(id_partida: int, id_jugador_turno: int, id_
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=str(e)
             )
-        elif("no pertenece a la partida" in str(e)):
+        elif("no pertenece a" in str(e)):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=str(e)
@@ -951,7 +951,7 @@ async def revelar_secreto_propio(id_partida: int, id_jugador: int, id_unico_secr
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=str(e)
             )
-        elif("no pertenece a la partida" in str(e)):
+        elif("no pertenece a" in str(e)):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=str(e)

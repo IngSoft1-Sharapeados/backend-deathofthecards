@@ -253,6 +253,8 @@ def robar_secreto(id_partida: int, id_jugador_turno: int, id_jugador_destino:  i
     secreto_a_robar = CartaService(db).obtener_carta_por_id(id_unico_secreto)
     if not secreto_a_robar:
         raise ValueError(f"No se ha encontrado el secreto con el ID:{id_unico_secreto}")
+    if secreto_a_robar.tipo != "secreto":
+        raise ValueError(f"La carta no pertenece a la categoría secreto")
     if secreto_a_robar.partida_id != id_partida:
         raise ValueError(f"El secreto con el ID:{id_unico_secreto} no pertenece a la partida con el ID: {id_partida}")
     if not secreto_a_robar.bocaArriba:
@@ -294,6 +296,8 @@ def revelarSecreto(id_partida: int, id_jugador_turno: int, id_unico_secreto: int
     secreto_a_revelar = CartaService(db).obtener_carta_por_id(id_unico_secreto)
     if not secreto_a_revelar:
         raise ValueError(f"No se ha encontrado el secreto con el ID:{id_unico_secreto}")
+    if secreto_a_revelar.tipo != "secreto":
+        raise ValueError(f"La carta no pertenece a la categoría secreto")
     if secreto_a_revelar.partida_id != id_partida:
         raise ValueError(f"El secreto con el ID:{id_unico_secreto} no pertenece a la partida con el ID: {id_partida}")
     if secreto_a_revelar.bocaArriba:
@@ -335,6 +339,8 @@ def ocultarSecreto(id_partida: int, id_jugador_turno: int, id_unico_secreto: int
     secreto_a_ocultar = CartaService(db).obtener_carta_por_id(id_unico_secreto)
     if not secreto_a_ocultar:
         raise ValueError(f"No se ha encontrado el secreto con el ID:{id_unico_secreto}")
+    if secreto_a_ocultar.tipo != "secreto":
+        raise ValueError(f"La carta no pertenece a la categoría secreto")
     if secreto_a_ocultar.partida_id != id_partida:
         raise ValueError(f"El secreto con el ID:{id_unico_secreto} no pertenece a la partida con el ID: {id_partida}")
     if not secreto_a_ocultar.bocaArriba:
@@ -438,6 +444,8 @@ def revelarSecretoPropio(id_partida: int, id_jugador: int, id_unico_secreto: int
     secreto_a_revelar = CartaService(db).obtener_carta_por_id(id_unico_secreto)
     if not secreto_a_revelar:
         raise ValueError(f"No se ha encontrado el secreto con el ID:{id_unico_secreto}")
+    if secreto_a_revelar.tipo != "secreto":
+        raise ValueError(f"La carta no pertenece a la categoría secreto")
     if secreto_a_revelar.partida_id != id_partida:
         raise ValueError(f"El secreto con el ID:{id_unico_secreto} no pertenece a la partida con el ID: {id_partida}")
     if secreto_a_revelar.bocaArriba:
