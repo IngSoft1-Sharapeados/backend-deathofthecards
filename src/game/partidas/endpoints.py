@@ -906,3 +906,63 @@ async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int
     except Exception as e:
         print(f"Error al jugar carta de evento Cards off the table: {e}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")    
+
+
+@partidas_router.patch(path="/{id_partida}/revelacion-propia", status_code=status.HTTP_200_OK)
+async def revelar_secreto_propio(id_partida: int, id_jugador: int, id_unico_secreto: int, db=Depends(get_db)):
+    """
+    Revela el secreto de un jugador de la partida.
+    
+    Recibe el ID de la partida donde se ejecuta la acción, el ID del jugador que revela
+    un secreto propio, y el ID de la carta a revelar.
+    """
+    try:
+        secreto_revelado = revelarSecretoPropio(id_partida, id_jugador, id_unico_secreto, db)
+        
+        if not secreto_revelado:
+            return None
+        
+        secretos_actuales = CartaService(db).obtener_secretos_jugador(secreto_revelado.jugador_id, id_partida)
+        print(f'secretos del jugador: {[{"id_carta": s.id, "bocaArriba": s.bocaArriba} for s in secretos_actuales]}')
+        await manager.broadcast(id_partida, json.dumps({
+            "evento": "actualizacion-secreto",
+            "jugador-id": secreto_revelado.jugador_id,
+            "lista-secretos": [{"revelado": s.bocaArriba} for s in secretos_actuales]
+        }))
+
+        esAsesino = CartaService(db).es_asesino(id_unico_secreto)
+        if esAsesino:
+            await manager.broadcast(id_partida, json.dumps({
+            "evento": "fin-partida",
+            "jugador-perdedor-id": secreto_revelado.jugador_id,
+            "payload": {"ganadores": [], "asesinoGano": False}
+        }))
+
+        return {"id-secreto": secreto_revelado.id}
+        
+    except ValueError as e:
+        if ("No se ha encontrado" in str(e)):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(e)
+            )
+        elif ("Solo el jugador del turno puede realizar esta acción" in str(e)):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=str(e)
+            )
+        elif("no pertenece a la partida" in str(e)):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
+        elif("El secreto ya está revelado!" in str(e)):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=str(e)
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Hubo un error al revelar secreto."
+            )

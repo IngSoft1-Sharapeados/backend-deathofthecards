@@ -405,3 +405,43 @@ def verif_jugador_objetivo(id_jugador: int, id_objetivo: int, db):
     if id_objetivo == id_jugador:
         raise ValueError(f"No se puede aplicar el efecto.")
 
+
+def revelarSecretoPropio(id_partida: int, id_jugador: int, id_unico_secreto: int, db) -> Carta:
+    """
+    Revela el secreto de un jugador en una partida específica
+    
+    
+    Parameters
+    ----------
+    id_partida: int
+        ID de la partida en la que se revelará un secreto.
+
+    id_jugador: int
+        ID del jugador del turno que revelará un secreto propio.
+        
+    id_unico_secreto: int
+        ID del secreto que debe ser revelado
+    
+    Returns
+    -------
+    secreto_revelado: Carta
+        Carta secreto revelada.
+    """
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    if not partida:
+        raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
+    jugador = JugadorService(db).obtener_jugador(id_jugador)
+    if not jugador:
+        raise ValueError(f"No se ha encontrado el jugador con el ID: {id_jugador}")
+    if jugador.partida_id != partida.id:
+        raise ValueError(f"El jugador no pertenece a la partida indicada")
+    secreto_a_revelar = CartaService(db).obtener_carta_por_id(id_unico_secreto)
+    if not secreto_a_revelar:
+        raise ValueError(f"No se ha encontrado el secreto con el ID:{id_unico_secreto}")
+    if secreto_a_revelar.partida_id != id_partida:
+        raise ValueError(f"El secreto con el ID:{id_unico_secreto} no pertenece a la partida con el ID: {id_partida}")
+    if secreto_a_revelar.bocaArriba:
+        raise ValueError(f"El secreto ya está revelado!")
+    secreto_revelado = CartaService(db).revelar_secreto(secreto_a_revelar.id)
+
+    return secreto_revelado
