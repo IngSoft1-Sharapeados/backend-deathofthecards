@@ -330,6 +330,11 @@ async def descarte_cartas(id_partida: int, id_jugador: int, cartas_descarte: lis
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail="No es tu turno"
                                 )
+        desgracia_social = PartidaService(db).desgracia_social(id_partida, id_jugador)
+        if desgracia_social and (len(cartas_descarte) != 1):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                    detail="El jugador esta en desgracia socail, solo puede descartar una carta."
+                    )
 
         CartaService(db).descartar_cartas(id_jugador, cartas_descarte)
         # Emitimos actualización del mazo (por si alguna lógica futura mueve entre mazos)
@@ -596,6 +601,11 @@ async def revelar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: in
     Revela el secreto de un jugador dado su ID, el ID de la carta y el de la partida.
     """
     try:
+        desgraciaSocial_aux = True
+        desgracia_social = PartidaService(db).desgracia_social(id_partida, id_jugador)
+        if not desgracia_social:
+            desgraciaSocial_aux = False
+
         secreto_revelado = CartaService(db).revelar_secreto(id_partida, id_jugador, id_unico_secreto)
         
         if not secreto_revelado:
@@ -616,9 +626,16 @@ async def revelar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: in
             "jugador-perdedor-id": id_jugador,
             "payload": {"ganadores": [], "asesinoGano": False}
         }))
+        desgracia_social = PartidaService(db).desgracia_social(id_partida, id_jugador)
+        if (not desgraciaSocial_aux) and (desgracia_social):
+            print(f"desgracia socail: El jugador {id_jugador} entro en desgracia social")
+            await manager.broadcast(id_partida, json.dumps({
+                "evento": "El jugador entro en estado desgracia social",
+                "jugador-id": id_jugador,
+                "desgracia_socail": True
+            }))
         return secreto_revelado
         
-
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -689,35 +706,6 @@ async def obtener_secretos_otro_jugador(id_partida: int, id_jugador: int, db=Dep
         print(f"Error al obtener secretos: {e}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
-
-@partidas_router.patch(path="/{id_partida}/ocultamiento", status_code=status.HTTP_200_OK)
-async def ocultar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: int,db=Depends(get_db)):
-    """
-    Oculta el secreto de un jugador dado su ID, el ID de la carta y el de la partida.
-    """
-    try:
-        secreto_ocultado = CartaService(db).ocultar_secreto(id_partida, id_jugador, id_unico_secreto)
-        
-        if not secreto_ocultado:
-            return None
-        
-        secretos_actuales = CartaService(db).obtener_secretos_jugador(id_jugador, id_partida)
-        print(f'secretos del jugador: {[{"id_carta": s.id, "bocaArriba": s.bocaArriba} for s in secretos_actuales]}')
-        await manager.broadcast(id_partida, json.dumps({
-            "evento": "actualizacion-secreto",
-            "jugador-id": id_jugador,
-            "lista-secretos": [{"revelado": s.bocaArriba} for s in secretos_actuales]
-        }))
-
-        return secreto_ocultado
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Hubo un error al ocultar la carta secreto u obtener al jugador."
-        )
-
-
 #Endpoint Jugar set 
 @partidas_router.post(path='/{id_partida}/Jugar-set', status_code=status.HTTP_200_OK)
 async def jugar_set(id_partida: int, id_jugador: int, set_cartas: list[int], db=Depends(get_db), manager=Depends(get_manager)):
@@ -781,11 +769,15 @@ async def ocultar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: in
     Oculta el secreto de un jugador dado su ID, el ID de la carta y el de la partida.
     """
     try:
+        desgraciaSocial_aux = False
+        desgracia_socail = PartidaService(db).desgracia_social(id_partida, id_jugador)
+        if desgracia_socail:
+            desgraciaSocial_aux = True
+
         secreto_ocultado = CartaService(db).ocultar_secreto(id_partida, id_jugador, id_unico_secreto)
         
         if not secreto_ocultado:
             return None
-        
         secretos_actuales = CartaService(db).obtener_secretos_jugador(id_jugador, id_partida)
         print(f'secretos del jugador: {[{"id_carta": s.id, "bocaArriba": s.bocaArriba} for s in secretos_actuales]}')
         await manager.broadcast(id_partida, json.dumps({
@@ -793,6 +785,14 @@ async def ocultar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: in
             "jugador-id": id_jugador,
             "lista-secretos": [{"revelado": s.bocaArriba} for s in secretos_actuales]
         }))
+        desgracia_socail = PartidaService(db).desgracia_social(id_partida, id_jugador)
+        if desgraciaSocial_aux and (not desgracia_socail):
+            print(f"desgracia socail: El jugador {id_jugador} salio de desgracia social")
+            await manager.broadcast(id_partida, json.dumps({
+                "evento": "El jugador salio del estado desgracia social",
+                "jugador-id": id_jugador,
+                "desgracia_socail": False
+            })) 
 
         return secreto_ocultado
         
@@ -838,6 +838,8 @@ async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int
         elif "no esta en turno" in msg.lower():
             raise HTTPException(status_code=403, detail=msg)
         elif "no pertenece a la partida" in msg.lower():
+            raise HTTPException(status_code=403, detail=msg)
+        elif "desgracia_social" in msg:
             raise HTTPException(status_code=403, detail=msg)
         elif "Solo se puede jugar una carta de evento" in msg:
             raise HTTPException(status_code=400, detail=msg)

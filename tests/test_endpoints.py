@@ -953,7 +953,8 @@ def test_obtener_mano_error(mock_CartaService, session):
 @patch("game.partidas.endpoints.manager")
 @patch("game.partidas.endpoints.PartidaService")
 @patch("game.partidas.endpoints.CartaService")
-def test_descartar_carta_ok(mock_CartaService, mock_PartidaService, mock_manager, session):
+@patch("game.partidas.endpoints.JugadorService")
+def test_descartar_carta_ok(mock_JugadorService,mock_CartaService, mock_PartidaService, mock_manager, session):
     def get_db_override():
         yield session
     app.dependency_overrides[get_db] = get_db_override
@@ -966,6 +967,12 @@ def test_descartar_carta_ok(mock_CartaService, mock_PartidaService, mock_manager
     mock_partida = MagicMock()
     mock_partida.turno_id = 1
     mock_PartidaService.return_value.obtener_por_id.return_value = mock_partida
+    mock_PartidaService.return_value.desgracia_social.return_value = False
+
+    mock_jugador = MagicMock()
+    mock_jugador.id = 1
+    mock_jugador.desgracia_social = False
+    mock_JugadorService.return_value = mock_jugador
 
     # Mock de CartaService
     mock_carta_service_instance = MagicMock()
