@@ -630,8 +630,6 @@ async def revelar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: in
         if (not desgraciaSocial_aux) and (desgracia_social):
             print(f"desgracia socail: El jugador {id_jugador} entro en desgracia social")
             await manager.broadcast(id_partida, json.dumps({
-                "evento": "El jugador entro en estado desgracia social",
-                "jugador-id": id_jugador,
                 "desgracia_socail": True
             }))
         return secreto_revelado
@@ -789,8 +787,6 @@ async def ocultar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: in
         if desgraciaSocial_aux and (not desgracia_socail):
             print(f"desgracia socail: El jugador {id_jugador} salio de desgracia social")
             await manager.broadcast(id_partida, json.dumps({
-                "evento": "El jugador salio del estado desgracia social",
-                "jugador-id": id_jugador,
                 "desgracia_socail": False
             })) 
 
