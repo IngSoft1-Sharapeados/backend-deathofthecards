@@ -864,10 +864,10 @@ async def delay_the_murderer_escape(id_partida: int, id_jugador: int, id_carta: 
             verif_cantidad(id_partida, cantidad, db)
             jugar_carta_evento(id_partida, id_jugador, id_carta, db)
             await manager.broadcast(id_partida, json.dumps({
-                "evento": "Se jugo Delay the murderer's espace!"
+                "evento": "se-jugo-delay-espace"
             }))
             sleep(3)
-            CartaService(db).jugar_delay_the_murderer_escape(id_partida, cantidad)
+            CartaService(db).jugar_delay_the_murderer_escape(id_partida, id_jugador, cantidad)
             return {"detail": "Evento jugado correctamente"}
         else:
             raise HTTPException(
