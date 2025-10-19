@@ -369,6 +369,24 @@ def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> C
     if jugador.partida_id != id_partida:
         raise ValueError(f"El jugador con ID {id_jugador} no pertenece a la partida {id_partida}.")
     
+    
+    if partida.iniciada == False:
+        raise ValueError(f"Partida no iniciada")
+    
+    jugador = JugadorService(db).obtener_jugador(id_jugador)
+    if jugador is None:
+        raise ValueError(f"No se encontro el jugador {id_jugador}.")
+    
+    if jugador.partida_id != id_partida:
+        raise ValueError(f"El jugador con ID {id_jugador} no pertenece a la partida {id_partida}.")
+    
+    if partida.turno_id != id_jugador:
+        raise ValueError(f"El jugador no esta en turno.")
+    
+    desgracia_social = PartidaService(db).desgracia_social(id_partida, id_jugador)
+    if desgracia_social:
+        raise ValueError(f"El jugador {id_jugador} esta en desgracia desgracia_social")
+
     cartas_mano = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
     
     no_mas_eventos = CartaService(db).evento_jugado_en_turno(id_jugador)
@@ -395,7 +413,6 @@ def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> C
     db.refresh(carta_evento)
     
     return carta_evento
-
 
 def verif_evento(evento: str, id_carta: int) -> bool:
     carta = next((v for v in cartasDict.values() if v["id"] == id_carta), None)

@@ -46,7 +46,7 @@ def test_robar_secreto_otro_jugador_ok(
     jugador_turno = MagicMock(id=1)
     jugador_destino = MagicMock(id=2)
 
-    carta_mock = MagicMock(id=1, bocaArriba=True, jugador_id=2, partida_id=1)
+    carta_mock = MagicMock(id=1, bocaArriba=True, jugador_id=2, partida_id=1, tipo="secreto")
 
     # Retorno de CartaService (endpoint y utils apuntan al mismo, así que se mockean ambos)
     carta_service_instance = MagicMock()

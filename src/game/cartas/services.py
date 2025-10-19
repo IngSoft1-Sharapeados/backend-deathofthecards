@@ -162,12 +162,6 @@ class CartaService:
     
 
     def descartar_cartas(self, id_jugador, cartas_descarte_id):
-
-        """Descarta cartas de la mano del jugador registrando auditoría en logs."""
-        logger.info(
-            "DESCARTE: jugador=%s cantidad=%s ids=%s",
-            id_jugador, len(cartas_descarte_id), cartas_descarte_id,
-        )
         """
         DOC
         """
@@ -179,34 +173,20 @@ class CartaService:
             enMano = False
             for carta in cartas_mano:
                 if (carta_id == carta.id_carta):
-                    enMano = enMano or True
+                    enMano = enMano or True 
             tiene_cartas = tiene_cartas and enMano
 
         if not tiene_cartas:
-            logger.error(
-                "DESCARTE ERROR: jugador=%s intenta descartar ids=%s pero no están en mano",
-                id_jugador, cartas_descarte_id,
-            )
             raise Exception("Una o mas cartas no se encuentran en la mano del jugador")
-
         
-        ultimo_orden = self._db.query(func.max(Carta.orden_descarte)).filter(Carta.partida_id == jugador.partida_id).scalar() or 0
-        nombres = []
+        
         for carta in cartas_descarte_id:
             carta_descarte = self._db.query(Carta).filter(Carta.id_carta == carta, Carta.jugador_id == id_jugador).first()
-            print(f"[DEBUG] Intentando descartar id={carta} (jugador {id_jugador}) → encontrado: {carta_descarte}")
             carta_descarte.jugador_id = 0
             carta_descarte.ubicacion = "descarte"
-            carta_descarte.bocaArriba = True
-            nombres.append(carta_descarte.nombre)
-            ultimo_orden = ultimo_orden + 1
-            carta_descarte.orden_descarte = ultimo_orden
+            carta_descarte.bocaArriba = False
             self._db.commit()
-        logger.info(
-            "DESCARTE HECHO: jugador=%s cantidad=%s ids=%s nombres=%s",
-            id_jugador, len(cartas_descarte_id), cartas_descarte_id, nombres,
-        )
-
+            print(f'Se descarto la carta con id {carta_descarte.id} y nombre {carta_descarte.nombre}.')
 
     def obtener_cantidad_mazo(self, id_partida: int) -> int:
         """
