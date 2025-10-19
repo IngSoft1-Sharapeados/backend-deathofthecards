@@ -1270,18 +1270,21 @@ def test_obtener_secretos(mock_CartaService, session):
     mock_secreto1.nombre = "murderer"
     mock_secreto1.jugador_id = 1
     mock_secreto1.bocaArriba = False
+    mock_secreto1.id = 1 
 
     mock_secreto2 = MagicMock()
     mock_secreto2.id_carta = 6
     mock_secreto2.nombre = "secreto_comun"
     mock_secreto2.jugador_id = 1
     mock_secreto2.bocaArriba = False
+    mock_secreto2.id = 2
 
     mock_secreto3 = MagicMock()
     mock_secreto3.id_carta = 6
     mock_secreto3.nombre = "secreto_comun"
     mock_secreto3.jugador_id = 1
     mock_secreto3.bocaArriba = False
+    mock_secreto3.id = 2
 
     #Configurar instancia mock de CartaService
     mock_carta_service_instance = MagicMock()
@@ -1295,9 +1298,9 @@ def test_obtener_secretos(mock_CartaService, session):
     assert response.status_code == 200
     assert len(response.json()) == 3
     assert response.json() == [
-        {"id": 3, "nombre": "murderer", "revelada": False},
-        {"id": 6, "nombre": "secreto_comun", "revelada": False},
-        {"id": 6, "nombre": "secreto_comun", "revelada": False}
+        {"id": 3, "nombre": "murderer",  "id_instancia": 1, "revelada": False},
+        {"id": 6, "nombre": "secreto_comun", "id_instancia": 2, "revelada": False},
+        {"id": 6, "nombre": "secreto_comun", "id_instancia": 2, "revelada": False}
     ]
 
     # Verificamos que el método se llamó correctamente

@@ -333,7 +333,7 @@ async def descarte_cartas(id_partida: int, id_jugador: int, cartas_descarte: lis
         desgracia_social = PartidaService(db).desgracia_social(id_partida, id_jugador)
         if desgracia_social and (len(cartas_descarte) != 1):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                    detail="El jugador esta en desgracia socail, solo puede descartar una carta."
+                    detail="El jugador esta en desgracia social, solo puede descartar una carta."
                     )
 
         CartaService(db).descartar_cartas(id_jugador, cartas_descarte)
@@ -539,7 +539,7 @@ async def obtener_secretos(id_partida: int, id_jugador: int, db=Depends(get_db))
             return []
 
         cartas_a_enviar = [
-            {"id": carta.id_carta, "nombre": carta.nombre, "revelada": carta.bocaArriba}
+            {"id": carta.id_carta, "nombre": carta.nombre, "id_instancia": carta.id,  "revelada": carta.bocaArriba}
             for carta in secretos_jugador
         ]
         
@@ -634,9 +634,10 @@ async def revelar_secreto(id_partida: int, id_jugador_turno: int, id_unico_secre
         }))
         desgracia_social = PartidaService(db).desgracia_social(id_partida, id_jugador_turno)
         if (not desgraciaSocial_aux) and (desgracia_social):
-            print(f"desgracia socail: El jugador {id_jugador_turno} entro en desgracia social")
+            print(f"desgracia social: El jugador {id_jugador_turno} entro en desgracia social")
             await manager.broadcast(id_partida, json.dumps({
-                "desgracia_socail": True
+                "desgracia_social": True,
+                "Jugador": {id_jugador_turno}
             }))
 
         return {"id-secreto": secreto_revelado.id}
@@ -895,8 +896,8 @@ async def ocultar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: in
     """
     try:
         desgraciaSocial_aux = False
-        desgracia_socail = PartidaService(db).desgracia_social(id_partida, id_jugador)
-        if desgracia_socail:
+        desgracia_social = PartidaService(db).desgracia_social(id_partida, id_jugador)
+        if desgracia_social:
             desgraciaSocial_aux = True
 
         secreto_ocultado = CartaService(db).ocultar_secreto(id_partida, id_jugador, id_unico_secreto)
@@ -910,11 +911,12 @@ async def ocultar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: in
             "jugador-id": id_jugador,
             "lista-secretos": [{"revelado": s.bocaArriba} for s in secretos_actuales]
         }))
-        desgracia_socail = PartidaService(db).desgracia_social(id_partida, id_jugador)
-        if desgraciaSocial_aux and (not desgracia_socail):
-            print(f"desgracia socail: El jugador {id_jugador} salio de desgracia social")
+        desgracia_social = PartidaService(db).desgracia_social(id_partida, id_jugador)
+        if desgraciaSocial_aux and (not desgracia_social):
+            print(f"desgracia social: El jugador {id_jugador} salio de desgracia social")
             await manager.broadcast(id_partida, json.dumps({
-                "desgracia_socail": False
+                "desgracia_social": False,
+                "Jugador": {id_jugador}
             })) 
 
         return secreto_ocultado
