@@ -1370,19 +1370,27 @@ def test_revelar_secreto(session):
         cantJugadores=2,
         iniciada=True,
         maxJugadores=4,
-        minJugadores=2
+        minJugadores=2,
+        turno_id = 1
     )
     session.add(partida)
     session.commit()
 
-    # Crear Jugador
-    jugador = Jugador(
+    # Crear Jugadores
+    jugador1 = Jugador(
         id=1,
         nombre="Jugador Test",
         fecha_nacimiento=date(2023, 2, 2),
         partida_id=partida.id
     )
-    session.add(jugador)
+    jugador2 = Jugador(
+        id=2,
+        nombre="Jugador Test",
+        fecha_nacimiento=date(2023, 3, 2),
+        partida_id=partida.id
+    )
+    session.add(jugador1)
+    session.add(jugador2)
     session.commit()
 
     # Carta secreto
@@ -1395,7 +1403,7 @@ def test_revelar_secreto(session):
         ubicacion="mesa",
         descripcion="Eres el asesino",
         partida_id=partida.id,
-        jugador_id=jugador.id
+        jugador_id=jugador2.id
     )
     session.add(carta)
     session.commit()
@@ -1403,7 +1411,7 @@ def test_revelar_secreto(session):
     client = TestClient(app)
     url = f"/partidas/{partida.id}/revelacion"
     params = {
-        "id_jugador": jugador.id,
+        "id_jugador_turno": jugador1.id,
         "id_unico_secreto": carta.id
     }
     response = client.patch(url, params=params)
@@ -1428,7 +1436,7 @@ def test_revelar_secreto_id_carta_invalido(session):
 
     app.dependency_overrides[get_db] = get_db_override
     # Crear partida y jugador
-    partida = Partida(nombre="Test", anfitrionId=1, cantJugadores=1)
+    partida = Partida(nombre="Test", anfitrionId=1, cantJugadores=1, turno_id=1)
     session.add(partida)
     session.commit()
     jugador = Jugador(nombre="Jugador", fecha_nacimiento=date(2000, 1, 1), partida_id=partida.id)
@@ -1439,9 +1447,9 @@ def test_revelar_secreto_id_carta_invalido(session):
     # Llamo al endpoint con id inexistente
     response = client.patch(
         f"/partidas/{partida.id}/revelacion",
-        params={"id_jugador": jugador.id, "id_unico_secreto": 9999},
+        params={"id_jugador_turno": jugador.id, "id_unico_secreto": 9999},
     )
-    assert response.status_code == 500
+    assert response.status_code == 404
 
 
 def test_ocultar_secreto(session):
@@ -1460,19 +1468,27 @@ def test_ocultar_secreto(session):
         cantJugadores=2,
         iniciada=True,
         maxJugadores=4,
-        minJugadores=2
+        minJugadores=2,
+        turno_id = 1
     )
     session.add(partida)
     session.commit()
 
     # Crear Jugador
-    jugador = Jugador(
+    jugador1 = Jugador(
         id=1,
         nombre="Jugador Test",
         fecha_nacimiento=date(2023, 2, 2),
         partida_id=partida.id
     )
-    session.add(jugador)
+    jugador2 = Jugador(
+        id=2,
+        nombre="Jugador Test",
+        fecha_nacimiento=date(2023, 3, 2),
+        partida_id=partida.id
+    )
+    session.add(jugador1)
+    session.add(jugador2)
     session.commit()
 
     # Carta secreto
@@ -1485,7 +1501,7 @@ def test_ocultar_secreto(session):
         ubicacion="mesa",
         descripcion="",
         partida_id=partida.id,
-        jugador_id=jugador.id
+        jugador_id=jugador2.id
     )
     session.add(carta)
     session.commit()
@@ -1493,7 +1509,7 @@ def test_ocultar_secreto(session):
     client = TestClient(app)
     url = f"/partidas/{partida.id}/ocultamiento"
     params = {
-        "id_jugador": jugador.id,
+        "id_jugador_turno": jugador1.id,
         "id_unico_secreto": carta.id
     }
     response = client.patch(url, params=params)
@@ -1518,7 +1534,7 @@ def test_ocultar_secreto_id_carta_invalido(session):
 
     app.dependency_overrides[get_db] = get_db_override
     # Crear partida y jugador
-    partida = Partida(nombre="Test", anfitrionId=1, cantJugadores=1)
+    partida = Partida(nombre="Test", anfitrionId=1, cantJugadores=1, turno_id=1)
     session.add(partida)
     session.commit()
     jugador = Jugador(nombre="Jugador", fecha_nacimiento=date(2000, 1, 1), partida_id=partida.id)
@@ -1529,7 +1545,7 @@ def test_ocultar_secreto_id_carta_invalido(session):
     # Llamo al endpoint con id inexistente
     response = client.patch(
         f"/partidas/{partida.id}/ocultamiento",
-        params={"id_jugador": jugador.id, "id_unico_secreto": 9999},
+        params={"id_jugador_turno": jugador.id, "id_unico_secreto": 9999},
     )
-    assert response.status_code == 500
+    assert response.status_code == 404
 
