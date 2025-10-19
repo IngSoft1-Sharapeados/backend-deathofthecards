@@ -291,9 +291,10 @@ class PartidaService:
                 id_partida, id_jugador, cartas_faltantes, cartas_del_mazo_robadas,
             )
         
-        # Actualizo el turno y el draft
+        #Descarto la carta de evento jugada en el turno (si la hay, sino no hago nada).
         CartaService(self._db).descartar_eventos(id_partida, id_jugador)
         
+        # Actualizo el turno y el draft
         nuevo_turno_id = self.avanzar_turno(id_partida)
         carta_service.actualizar_mazo_draft(id_partida)
 

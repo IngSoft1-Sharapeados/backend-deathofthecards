@@ -261,7 +261,7 @@ def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> C
     
     partida = PartidaService(db).obtener_por_id(id_partida)
     if partida is None:
-        raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
+        raise ValueError(f"No se ha encontro la partida con el ID:{id_partida}")
     
     if partida.iniciada == False:
         raise ValueError(f"Partida no iniciada")
@@ -301,6 +301,7 @@ def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> C
         raise ValueError(f"La carta no es de tipo evento y no puede ser jugada como tal.")
     else:
         carta_evento.ubicacion = "evento_jugado"
+        carta_evento.bocaArriba = True
         db.commit()
     db.refresh(carta_evento)
     
@@ -321,3 +322,23 @@ def verif_jugador_objetivo(id_partida: int, id_jugador: int, id_objetivo: int, d
         raise ValueError(f"El efecto de evento no puede aplicar sobre el jugador que tiro la carta.")
     if id_partida != jugador_objetivo.partida_id:
         raise ValueError(f"El jugador al que se quiere aplicar el evento no pertence a la partida.")
+    
+
+def jugar_look_into_ashes(id_partida: int, id_jugador: int, id_carta_objetivo: int, db):
+
+    carta_evento_jugada = CartaService(db).obtener_evento_jugado(id_partida,
+                                                        id_jugador,
+                                                        "Look into the ashes")
+    print(carta_evento_jugada)
+    if not carta_evento_jugada:
+        raise ValueError(f"No se jugo el evento Look Into The Ashes.")
+            
+    ultimas_5 = mostrar_cartas_descarte(id_partida, id_jugador, 5, db)
+    entre_top5 = False
+    for c in ultimas_5:
+        if id_carta_objetivo == c["id"]:
+            entre_top5 = True
+    if entre_top5 == False:
+        raise ValueError(f"La carta a robar no esta entre las top 5 cartas del mazo descarte")
+    else:
+        CartaService(db).tomar_into_the_ashes(id_jugador, id_carta_objetivo)

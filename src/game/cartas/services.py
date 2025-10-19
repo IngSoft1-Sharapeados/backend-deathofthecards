@@ -193,19 +193,19 @@ class CartaService:
             self._db.commit()
 
 
-        nombres = []
-        for carta_id in cartas_descarte_id:
-            carta_descarte = self._db.query(Carta).filter(Carta.id_carta == carta_id, Carta.jugador_id == id_jugador).first()
-            if carta_descarte:
-                carta_descarte.jugador_id = 0
-                carta_descarte.ubicacion = "descarte"
-                carta_descarte.bocaArriba = False
-                nombres.append(carta_descarte.nombre)
-                self._db.commit()
-        logger.info(
-            "DESCARTE HECHO: jugador=%s cantidad=%s ids=%s nombres=%s",
-            id_jugador, len(cartas_descarte_id), cartas_descarte_id, nombres,
-        )
+            # nombres = []
+            # for carta_id in cartas_descarte_id:
+            #     carta_descarte = self._db.query(Carta).filter(Carta.id_carta == carta_id, Carta.jugador_id == id_jugador).first()
+            #     if carta_descarte:
+            #         carta_descarte.jugador_id = 0
+            #         carta_descarte.ubicacion = "descarte"
+            #         carta_descarte.bocaArriba = False
+            #         nombres.append(carta_descarte.nombre)
+            #         self._db.commit()
+            # logger.info(
+            #     "DESCARTE HECHO: jugador=%s cantidad=%s ids=%s nombres=%s",
+            #     id_jugador, len(cartas_descarte_id), cartas_descarte_id, nombres,
+            # )
 
     def obtener_cantidad_mazo(self, id_partida: int) -> int:
         """
@@ -655,3 +655,18 @@ class CartaService:
                                                     ).first()
         if carta_jugada:
             self.descartar_cartas(id_jugador, [carta_jugada.id_carta])
+            
+    def obtener_cartas_jugadas(self, id_partida: int, id_jugador: int, nombre: str, ubicacion: str):
+        carta_evento = self._db.query(Carta).filter_by(partida_id=id_partida,
+                                                        jugador_id=id_jugador, 
+                                                        ubicacion=ubicacion,
+                                                        nombre=nombre).all()
+        return carta_evento
+        
+    def tomar_into_the_ashes(self, id_jugador, id_carta_objetivo):
+        carta_objetivo = self.obtener_carta_por_id(id_carta_objetivo)
+        
+        carta_objetivo.jugador_id = id_jugador
+        carta_objetivo.ubicacion = "mano"
+        carta_objetivo.bocaArriba = False
+        self._db.commit()
