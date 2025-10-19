@@ -953,7 +953,8 @@ def test_obtener_mano_error(mock_CartaService, session):
 @patch("game.partidas.endpoints.manager")
 @patch("game.partidas.endpoints.PartidaService")
 @patch("game.partidas.endpoints.CartaService")
-def test_descartar_carta_ok(mock_CartaService, mock_PartidaService, mock_manager, session):
+@patch("game.partidas.endpoints.JugadorService")
+def test_descartar_carta_ok(mock_JugadorService,mock_CartaService, mock_PartidaService, mock_manager, session):
     def get_db_override():
         yield session
     app.dependency_overrides[get_db] = get_db_override
@@ -966,6 +967,12 @@ def test_descartar_carta_ok(mock_CartaService, mock_PartidaService, mock_manager
     mock_partida = MagicMock()
     mock_partida.turno_id = 1
     mock_PartidaService.return_value.obtener_por_id.return_value = mock_partida
+    mock_PartidaService.return_value.desgracia_social.return_value = False
+
+    mock_jugador = MagicMock()
+    mock_jugador.id = 1
+    mock_jugador.desgracia_social = False
+    mock_JugadorService.return_value = mock_jugador
 
     # Mock de CartaService
     mock_carta_service_instance = MagicMock()
@@ -1263,18 +1270,21 @@ def test_obtener_secretos(mock_CartaService, session):
     mock_secreto1.nombre = "murderer"
     mock_secreto1.jugador_id = 1
     mock_secreto1.bocaArriba = False
+    mock_secreto1.id = 1 
 
     mock_secreto2 = MagicMock()
     mock_secreto2.id_carta = 6
     mock_secreto2.nombre = "secreto_comun"
     mock_secreto2.jugador_id = 1
     mock_secreto2.bocaArriba = False
+    mock_secreto2.id = 2
 
     mock_secreto3 = MagicMock()
     mock_secreto3.id_carta = 6
     mock_secreto3.nombre = "secreto_comun"
     mock_secreto3.jugador_id = 1
     mock_secreto3.bocaArriba = False
+    mock_secreto3.id = 2
 
     #Configurar instancia mock de CartaService
     mock_carta_service_instance = MagicMock()
@@ -1288,9 +1298,9 @@ def test_obtener_secretos(mock_CartaService, session):
     assert response.status_code == 200
     assert len(response.json()) == 3
     assert response.json() == [
-        {"id": 3, "nombre": "murderer", "revelada": False},
-        {"id": 6, "nombre": "secreto_comun", "revelada": False},
-        {"id": 6, "nombre": "secreto_comun", "revelada": False}
+        {"id": 3, "nombre": "murderer",  "id_instancia": 1, "revelada": False},
+        {"id": 6, "nombre": "secreto_comun", "id_instancia": 2, "revelada": False},
+        {"id": 6, "nombre": "secreto_comun", "id_instancia": 2, "revelada": False}
     ]
 
     # Verificamos que el método se llamó correctamente
@@ -1363,19 +1373,27 @@ def test_revelar_secreto(session):
         cantJugadores=2,
         iniciada=True,
         maxJugadores=4,
-        minJugadores=2
+        minJugadores=2,
+        turno_id = 1
     )
     session.add(partida)
     session.commit()
 
-    # Crear Jugador
-    jugador = Jugador(
+    # Crear Jugadores
+    jugador1 = Jugador(
         id=1,
         nombre="Jugador Test",
         fecha_nacimiento=date(2023, 2, 2),
         partida_id=partida.id
     )
-    session.add(jugador)
+    jugador2 = Jugador(
+        id=2,
+        nombre="Jugador Test",
+        fecha_nacimiento=date(2023, 3, 2),
+        partida_id=partida.id
+    )
+    session.add(jugador1)
+    session.add(jugador2)
     session.commit()
 
     # Carta secreto
@@ -1388,7 +1406,7 @@ def test_revelar_secreto(session):
         ubicacion="mesa",
         descripcion="Eres el asesino",
         partida_id=partida.id,
-        jugador_id=jugador.id
+        jugador_id=jugador2.id
     )
     session.add(carta)
     session.commit()
@@ -1396,7 +1414,7 @@ def test_revelar_secreto(session):
     client = TestClient(app)
     url = f"/partidas/{partida.id}/revelacion"
     params = {
-        "id_jugador": jugador.id,
+        "id_jugador_turno": jugador1.id,
         "id_unico_secreto": carta.id
     }
     response = client.patch(url, params=params)
@@ -1421,7 +1439,7 @@ def test_revelar_secreto_id_carta_invalido(session):
 
     app.dependency_overrides[get_db] = get_db_override
     # Crear partida y jugador
-    partida = Partida(nombre="Test", anfitrionId=1, cantJugadores=1)
+    partida = Partida(nombre="Test", anfitrionId=1, cantJugadores=1, turno_id=1)
     session.add(partida)
     session.commit()
     jugador = Jugador(nombre="Jugador", fecha_nacimiento=date(2000, 1, 1), partida_id=partida.id)
@@ -1432,9 +1450,9 @@ def test_revelar_secreto_id_carta_invalido(session):
     # Llamo al endpoint con id inexistente
     response = client.patch(
         f"/partidas/{partida.id}/revelacion",
-        params={"id_jugador": jugador.id, "id_unico_secreto": 9999},
+        params={"id_jugador_turno": jugador.id, "id_unico_secreto": 9999},
     )
-    assert response.status_code == 500
+    assert response.status_code == 404
 
 
 def test_ocultar_secreto(session):
@@ -1453,19 +1471,27 @@ def test_ocultar_secreto(session):
         cantJugadores=2,
         iniciada=True,
         maxJugadores=4,
-        minJugadores=2
+        minJugadores=2,
+        turno_id = 1
     )
     session.add(partida)
     session.commit()
 
     # Crear Jugador
-    jugador = Jugador(
+    jugador1 = Jugador(
         id=1,
         nombre="Jugador Test",
         fecha_nacimiento=date(2023, 2, 2),
         partida_id=partida.id
     )
-    session.add(jugador)
+    jugador2 = Jugador(
+        id=2,
+        nombre="Jugador Test",
+        fecha_nacimiento=date(2023, 3, 2),
+        partida_id=partida.id
+    )
+    session.add(jugador1)
+    session.add(jugador2)
     session.commit()
 
     # Carta secreto
@@ -1478,7 +1504,7 @@ def test_ocultar_secreto(session):
         ubicacion="mesa",
         descripcion="",
         partida_id=partida.id,
-        jugador_id=jugador.id
+        jugador_id=jugador2.id
     )
     session.add(carta)
     session.commit()
@@ -1486,7 +1512,7 @@ def test_ocultar_secreto(session):
     client = TestClient(app)
     url = f"/partidas/{partida.id}/ocultamiento"
     params = {
-        "id_jugador": jugador.id,
+        "id_jugador_turno": jugador1.id,
         "id_unico_secreto": carta.id
     }
     response = client.patch(url, params=params)
@@ -1511,7 +1537,7 @@ def test_ocultar_secreto_id_carta_invalido(session):
 
     app.dependency_overrides[get_db] = get_db_override
     # Crear partida y jugador
-    partida = Partida(nombre="Test", anfitrionId=1, cantJugadores=1)
+    partida = Partida(nombre="Test", anfitrionId=1, cantJugadores=1, turno_id=1)
     session.add(partida)
     session.commit()
     jugador = Jugador(nombre="Jugador", fecha_nacimiento=date(2000, 1, 1), partida_id=partida.id)
@@ -1522,7 +1548,7 @@ def test_ocultar_secreto_id_carta_invalido(session):
     # Llamo al endpoint con id inexistente
     response = client.patch(
         f"/partidas/{partida.id}/ocultamiento",
-        params={"id_jugador": jugador.id, "id_unico_secreto": 9999},
+        params={"id_jugador_turno": jugador.id, "id_unico_secreto": 9999},
     )
-    assert response.status_code == 500
+    assert response.status_code == 404
 

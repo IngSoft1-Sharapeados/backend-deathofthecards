@@ -88,6 +88,10 @@ def jugar_set_detective(id_partida: int, id_jugador: int, set_cartas: list[int],
 
     #fin de la verificacion de que sean todos detectives ------------------------------
 
+    desgracia_social = PartidaService(db).desgracia_social(id_partida, id_jugador)
+    if desgracia_social:
+        raise HTTPException(status_code=403, detail=f"El jugador {id_jugador} se encuentra en desgracia social")
+
     #---------------------------------------------------------------------------------
 
     #verificar que las cartas sean jugables -------------------------------------------
