@@ -761,3 +761,36 @@ class CartaService:
         except Exception as e:
             self._db.rollback()
             raise ValueError(f"Error al eliminar la carta: {str(e)}")
+
+    def jugar_early_train_to_paddington(self, id_partida: int, id_jugador: int):
+            """
+            Mueve las primeras 6 cartas del mazo de robo al de descarte, boca arriba,
+            y remueve la carta de evento jugada.
+            """
+            cartas_a_mover = self._db.query(Carta)\
+                .filter_by(partida_id=id_partida, ubicacion="mazo_robo")\
+                .order_by(Carta.orden_mazo.desc())\
+                .limit(6)\
+                .all()
+
+            if cartas_a_mover:
+                max_orden_descarte = self._db.query(func.max(Carta.orden_mazo))\
+                    .filter_by(partida_id=id_partida, ubicacion="descarte")\
+                    .scalar() or 0
+
+                for i, carta in enumerate(cartas_a_mover, start=1):
+                    carta.ubicacion = "descarte"
+                    carta.bocaArriba = True
+                    carta.orden_mazo = max_orden_descarte + i
+
+            carta_evento_jugada = self._db.query(Carta).filter_by(
+                partida_id=id_partida,
+                jugador_id=id_jugador,
+                ubicacion="evento_jugado",
+                nombre="Early train to paddington" 
+            ).first()
+
+            if carta_evento_jugada:
+                carta_evento_jugada.ubicacion = "removida"
+            
+            self._db.commit()
