@@ -334,6 +334,12 @@ def jugar_look_into_ashes(id_partida: int, id_jugador: int, id_carta_objetivo: i
     
     if not carta_evento_jugada:
         raise ValueError(f"No se jugo el evento Look Into The Ashes.")
+    
+    carta_evento_jugada = carta_evento_jugada[0]
+    print(f"IDD de la carta o algo asi: {carta_evento_jugada.id}")
+    if id_carta_objetivo == 20:
+        CartaService(db).anular_look_into(id_jugador, carta_evento_jugada.id)
+        return True  
             
     ultimas_5 = CartaService(db).obtener_cartas_descarte(id_partida, 5)
     entre_top5 = False

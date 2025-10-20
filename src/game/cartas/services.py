@@ -678,14 +678,25 @@ class CartaService:
     #     self._db.refresh(carta_objetivo)
     
     def tomar_into_the_ashes(self, id_partida: int, id_jugador: int, id_carta_objetivo: int):
+        
         carta_objetivo = self._db.query(Carta).filter_by(partida_id=id_partida,
-                                                        jugador_id=0,
-                                                        id_carta=id_carta_objetivo,
-                                                        ubicacion="descarte"
-                                                        ).first()
+                                                    jugador_id=0,
+                                                    id_carta=id_carta_objetivo,
+                                                    ubicacion="descarte"
+                                                    ).first()
         
         carta_objetivo.jugador_id = id_jugador
         carta_objetivo.ubicacion = "mano"
         carta_objetivo.bocaArriba = False
         self._db.commit()
         self._db.refresh(carta_objetivo)
+        
+    def anular_look_into(self, id_jugador: int, carta_evento_jugada_id: int):
+        print(f"estoy por anular.")
+        carta_evento_jugada =  self._db.get(Carta, carta_evento_jugada_id)
+                                                                
+        print(f"estoy anulando el evento: {carta_evento_jugada.ubicacion}")
+        carta_evento_jugada.jugador_id = id_jugador
+        carta_evento_jugada.ubicacion = "mano"
+        carta_evento_jugada.bocaArriba = False
+        self._db.commit()

@@ -875,12 +875,8 @@ async def look_into_the_ashes(id_partida: int, id_jugador: int, db=Depends(get_d
             if verif_evento("Look into the ashes", id_carta):
                 carta_evento = jugar_carta_evento(id_partida, id_jugador, id_carta, db)
                 await manager.broadcast(id_partida, json.dumps({
-                    "evento": "se-jugo-Look-into-the-ashes",
-                    "carta": {
-                        "id": carta_evento.id_carta,
-                        "ubicacion": carta_evento.ubicacion,
-                        "jugador": carta_evento.jugador_id
-                    }
+                    "evento": "se-jugo-look-into-the-ashes",
+                    "jugador_id": id_jugador
                 }))
                 await asyncio.sleep(3)
         
