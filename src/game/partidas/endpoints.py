@@ -1040,9 +1040,7 @@ async def one_more(id_partida: int, id_jugador: int, id_carta: int,
         if jugador_fuente.partida_id != id_partida or jugador_destino.partida_id != id_partida:
             raise ValueError("Los jugadores seleccionados no pertenecen a la partida indicada.")
 
-        # No tiene sentido mover el secreto al mismo jugador
-        if payload.id_destino == payload.id_fuente:
-            raise ValueError("El jugador destino no puede ser el mismo que el jugador fuente.")
+        # Se permite mover el secreto al mismo jugador (queda oculto en destino)
         
         # jugar carta de evento (marca evento_jugado y valida turno/mano)
         jugar_carta_evento(id_partida, id_jugador, id_carta, db)
