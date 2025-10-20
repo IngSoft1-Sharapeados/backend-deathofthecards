@@ -209,53 +209,6 @@ def ids_asesino_complice(db, id_partida: int):
     
         return {"asesino-id": asesino_id}
     
-    
-def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> Carta:
-    
-    partida = PartidaService(db).obtener_por_id(id_partida)
-    if partida is None:
-        raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
-    
-    if partida.iniciada == False:
-        raise ValueError(f"Partida no iniciada")
-    
-    jugador = JugadorService(db).obtener_jugador(id_jugador)
-    if jugador is None:
-        raise ValueError(f"No se encontro el jugador {id_jugador}.")
-    
-    if jugador.partida_id != id_partida:
-        raise ValueError(f"El jugador con ID {id_jugador} no pertenece a la partida {id_partida}.")
-    
-    if partida.turno_id != id_jugador:
-        raise ValueError(f"El jugador no esta en turno.")
-    
-    cartas_mano = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
-    
-    no_mas_eventos = CartaService(db).evento_jugado_en_turno(id_jugador)
-    
-    print("Se verifica que no haya otro evento jugado en turno")
-    if no_mas_eventos == True:
-        raise ValueError(f"Solo se puede jugar una carta de evento por turno.")
-    print("Se verifico que no hay eventos jugados en el turno")
-            
-    en_mano = False
-    for c in cartas_mano:
-        if c.id_carta == id_carta:
-            en_mano = True
-    if en_mano == False:
-        raise ValueError(f"La carta no se encuentra en la mano del jugador.")
-    
-    carta_evento = CartaService(db).obtener_carta_de_mano(id_carta, id_jugador)
-    
-    if carta_evento.tipo != "Event":
-        raise ValueError(f"La carta no es de tipo evento y no puede ser jugada como tal.")
-    else:
-        carta_evento.ubicacion = "evento_jugado"
-        db.commit()
-    db.refresh(carta_evento)
-    
-    return carta_evento
-    
 
 def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> Carta:
     
@@ -280,10 +233,8 @@ def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> C
     
     no_mas_eventos = CartaService(db).evento_jugado_en_turno(id_jugador)
     
-    print("Se verifica que no haya otro evento jugado en turno")
     if no_mas_eventos == True:
         raise ValueError(f"Solo se puede jugar una carta de evento por turno.")
-    print("Se verifico que no hay eventos jugados en el turno")
     
     en_mano = False
     for c in cartas_mano:
@@ -336,7 +287,6 @@ def jugar_look_into_ashes(id_partida: int, id_jugador: int, id_carta_objetivo: i
         raise ValueError(f"No se jugo el evento Look Into The Ashes.")
     
     carta_evento_jugada = carta_evento_jugada[0]
-    print(f"IDD de la carta o algo asi: {carta_evento_jugada.id}")
     if id_carta_objetivo == 20:
         CartaService(db).anular_look_into(id_jugador, carta_evento_jugada.id)
         return True  
@@ -352,18 +302,3 @@ def jugar_look_into_ashes(id_partida: int, id_jugador: int, id_carta_objetivo: i
         CartaService(db).tomar_into_the_ashes(id_partida, id_jugador, id_carta_objetivo)
          # descartar la carta evento después de tomar la carta
         CartaService(db).descartar_cartas(id_jugador, [20])
-# def jugar_look_into_ashes(id_partida: int, id_jugador: int, carta_id_tipo: int, db):
-#     carta_evento_jugada = CartaService(db).obtener_evento_jugado(id_partida,
-#                                                         id_jugador,
-#                                                         "Look into the ashes")
-#     print(carta_evento_jugada)
-#     if not carta_evento_jugada:
-#         raise ValueError(f"No se jugo el evento Look Into The Ashes.")
-    
-#     # Obtener el id único de la carta basándose en el carta_id (tipo)
-#     try:
-#         id_carta_objetivo = CartaService(db).obtener_id_carta_descarte(id_partida, carta_id_tipo, 5)
-#         # Ahora sí, tomar la carta con el id único correcto (DENTRO del try)
-#         CartaService(db).tomar_into_the_ashes(id_jugador, id_carta_objetivo)
-#     except ValueError as e:
-#         raise ValueError(f"La carta a robar no esta entre las top 5 cartas del mazo descarte")

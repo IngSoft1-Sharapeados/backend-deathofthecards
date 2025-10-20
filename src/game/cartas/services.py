@@ -184,7 +184,6 @@ class CartaService:
         ultimo_orden = self._db.query(func.max(Carta.orden_descarte)).filter(Carta.partida_id == jugador.partida_id).scalar() or 0
         for carta in cartas_descarte_id:
             carta_descarte = self._db.query(Carta).filter(Carta.id_carta == carta, Carta.jugador_id == id_jugador).first()
-            print(f"[DEBUG] Intentando descartar id={carta} (jugador {id_jugador}) → encontrado: {carta_descarte}")
             carta_descarte.jugador_id = 0
             carta_descarte.ubicacion = "descarte"
             carta_descarte.bocaArriba = True
@@ -652,30 +651,7 @@ class CartaService:
                                                         ubicacion=ubicacion,
                                                         nombre=nombre).all()
         return carta_evento
-        
-        
-    # def EnTop5_descarte(self, id_partida, id_jugador, id_carta_objetivo):
-    #     ultimas_5 = self.obtener_cartas_descarte(id_partida, id_jugador, 5)
-    #     entre_top5 = False
-    #     for c in ultimas_5:
-    #         if id_carta_objetivo == c["id"]:
-    #             entre_top5 = True
-    #     if entre_top5 == False:
-    #         raise ValueError(f"La carta a robar no esta entre las top 5 cartas del mazo descarte")
-            
-
-    # def tomar_into_the_ashes(self, id_jugador, id_carta_objetivo):
-    #     carta_objetivo = self.obtener_carta(id_carta_objetivo)
-        
-    #     if carta_objetivo is None:
-    #         raise ValueError(f"No se encontró la carta con ID {id_carta_objetivo}")
     
-    #     carta_objetivo.jugador_id = id_jugador
-    #     carta_objetivo.ubicacion = "mano"
-    #     carta_objetivo.bocaArriba = False
-
-    #     self._db.commit()
-    #     self._db.refresh(carta_objetivo)
     
     def tomar_into_the_ashes(self, id_partida: int, id_jugador: int, id_carta_objetivo: int):
         
@@ -691,11 +667,10 @@ class CartaService:
         self._db.commit()
         self._db.refresh(carta_objetivo)
         
+        
     def anular_look_into(self, id_jugador: int, carta_evento_jugada_id: int):
-        print(f"estoy por anular.")
         carta_evento_jugada =  self._db.get(Carta, carta_evento_jugada_id)
                                                                 
-        print(f"estoy anulando el evento: {carta_evento_jugada.ubicacion}")
         carta_evento_jugada.jugador_id = id_jugador
         carta_evento_jugada.ubicacion = "mano"
         carta_evento_jugada.bocaArriba = False
