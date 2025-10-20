@@ -719,3 +719,11 @@ class CartaService:
 
         self.descartar_cartas(id_jugador, [carta_jugada.id_carta])
  
+
+    def eliminar_carta(self, carta: Carta):
+        try:
+            self._db.delete(carta)
+            self._db.commit()
+        except Exception as e:
+            self._db.rollback()
+            raise ValueError(f"Error al eliminar la carta: {str(e)}")

@@ -470,3 +470,81 @@ def revelarSecretoPropio(id_partida: int, id_jugador: int, id_unico_secreto: int
     secreto_revelado = CartaService(db).revelar_secreto(secreto_a_revelar.id)
 
     return secreto_revelado
+
+
+def abandonarPartida(id_partida: int, id_jugador: int, db) -> dict:
+    """
+    Se elimina el jugador de una partida dado su ID y el ID de la partida.
+     Si el jugador es el anfitrión, se elimina la partida y todos sus jugadores.
+    
+    
+    Parameters
+    ----------
+    id_partida: int
+        ID de la partida que abandonará el jugador
+    
+    id_jugador: int
+        ID del jugador que abandonará la partida
+
+    Returns
+    -------
+    diccionario: dict
+        Diccionario que contiene datos según si el que abandona es el anfitrion o un invitado.
+            En caso que sea el anfitrion:
+                {"rol":"anfitrion"}
+            En caso que sea un invitado: 
+                {"rol":"invitado",
+                    "id_jugador": int,
+                    "nombre_jugador": str,
+                    "jugadoresRestantes": int
+                }
+    """
+
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    if not partida:
+        raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
+    if partida.iniciada:
+        raise ValueError("No se puede abandonar la partida una vez iniciada!")
+    jugador = JugadorService(db).obtener_jugador(id_jugador)
+    if not jugador:
+        raise ValueError(f"No se ha encontrado el jugador con el ID: {id_jugador}")
+    if jugador.partida_id != partida.id:
+        raise ValueError(f"El jugador no pertenece a la partida indicada")
+    
+    jugadorID = jugador.id
+    jugadorNombre = jugador.nombre
+
+    try:
+        # Si el jugador es anfitrión, eliminar la partida y todos los jugadores
+        if jugador.id == partida.anfitrionId:
+            # Eliminar a todos los jugadores
+            for jugador in partida.jugadores:
+                JugadorService(db).eliminar_jugador(jugador)
+
+            # Eliminar la partida
+            PartidaService(db).eliminar_partida(partida)
+
+            return {"rol":"anfitrion"}
+
+        # El jugador no es el anfitrión
+        else:
+            JugadorService(db).eliminar_jugador(jugador)
+            cantJugadores = PartidaService(db).actualizar_cant_jugadores(id_partida)
+
+            return {"rol":"invitado",
+                    "id_jugador": jugadorID,
+                    "nombre_jugador": jugadorNombre,
+                    "jugadoresRestantes": cantJugadores,
+                    }
+
+    except Exception as e:
+        raise ValueError(f"Hubo un error al abandonar la partida: {str(e)}")
+
+
+def eliminarPartida(id_partida: int, db):
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    for jugador in partida.jugadores:
+        JugadorService(db).eliminar_jugador(jugador)
+    for carta in partida.cartas:
+        CartaService(db).eliminar_carta(carta)
+    PartidaService(db).eliminar_partida(partida)
