@@ -11,7 +11,7 @@ cartasDict = {
     10: {"id":16 ,"tipo": "Instant", "carta": "Not so fast", "cantidad": 10, "bocaArriba": False, "ubicacion": "mazo_robo"},
     11: {"id":26 ,"tipo": "Deviuos", "carta": "Blackmailed", "cantidad": 1, "bocaArriba": False, "ubicacion": "mazo_robo"},
     12: {"id":27 ,"tipo": "Deviuos", "carta": "Social Faux Pas", "cantidad": 3, "bocaArriba": False, "ubicacion": "mazo_robo"},
-    13: {"id":23 ,"tipo": "Event", "carta": "Delay the murderer's espace!", "cantidad": 3, "bocaArriba": False, "ubicacion": "mazo_robo"},
+    13: {"id":23 ,"tipo": "Event", "carta": "Delay the murderer's escape!", "cantidad": 3, "bocaArriba": False, "ubicacion": "mazo_robo"},
     14: {"id":25 ,"tipo": "Event", "carta": "Point your suspicions", "cantidad": 3, "bocaArriba": False, "ubicacion": "mazo_robo"},
     15: {"id":19 ,"tipo": "Event", "carta": "Dead card folly", "cantidad": 3, "bocaArriba": False, "ubicacion": "mazo_robo"},
     16: {"id":18 ,"tipo": "Event", "carta": "Another Victim", "cantidad": 2, "bocaArriba": False, "ubicacion": "mazo_robo"},
