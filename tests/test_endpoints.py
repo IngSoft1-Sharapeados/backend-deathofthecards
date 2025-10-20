@@ -953,7 +953,8 @@ def test_obtener_mano_error(mock_CartaService, session):
 @patch("game.partidas.endpoints.manager")
 @patch("game.partidas.endpoints.PartidaService")
 @patch("game.partidas.endpoints.CartaService")
-def test_descartar_carta_ok(mock_CartaService, mock_PartidaService, mock_manager, session):
+@patch("game.partidas.endpoints.JugadorService")
+def test_descartar_carta_ok(mock_JugadorService,mock_CartaService, mock_PartidaService, mock_manager, session):
     def get_db_override():
         yield session
     app.dependency_overrides[get_db] = get_db_override
@@ -966,6 +967,12 @@ def test_descartar_carta_ok(mock_CartaService, mock_PartidaService, mock_manager
     mock_partida = MagicMock()
     mock_partida.turno_id = 1
     mock_PartidaService.return_value.obtener_por_id.return_value = mock_partida
+    mock_PartidaService.return_value.desgracia_social.return_value = False
+
+    mock_jugador = MagicMock()
+    mock_jugador.id = 1
+    mock_jugador.desgracia_social = False
+    mock_JugadorService.return_value = mock_jugador
 
     # Mock de CartaService
     mock_carta_service_instance = MagicMock()
@@ -1211,6 +1218,30 @@ def test_robar_cartas_fin_de_partida(mock_PartidaService, mock_CartaService, ses
     app.dependency_overrides[get_db] = get_db_override
     client = TestClient(app)
 
+# Crear una instancia de partida en la base de datos en memoria
+    partida = Partida(
+        id=1, 
+        nombre="Partida Test",  # Asegúrate de dar un nombre válido
+        anfitrionId=1,  # Otro campo requerido, el anfitrión
+        cantJugadores=3,  # Número de jugadores
+        turno_id=1,  # Jugador 1 como turno inicial
+        ordenTurnos=json.dumps([1, 2, 3])  # Orden de turnos
+    )
+    session.add(partida)
+    session.commit()
+
+    # Crear una instancia de jugador con un valor para 'fecha_nacimiento'
+    jugador = Jugador(
+        id=1, 
+        nombre="Jugador 1",
+        fecha_nacimiento=date(1990, 1, 1),  # Fecha de nacimiento válida
+        desgracia_social=False,
+        partida_id=1  # Relación con la partida
+    )
+    session.add(jugador)
+    session.commit()
+
+
     # Setup mocks
     mock_partida_service = MagicMock()
     mock_partida_service.obtener_turno_actual.return_value = 1
@@ -1220,7 +1251,8 @@ def test_robar_cartas_fin_de_partida(mock_PartidaService, mock_CartaService, ses
     mock_carta_service = MagicMock()
     mock_carta_service.obtener_mano_jugador.side_effect = [
         [{"id": 1}, {"id": 2}],  # mano inicial → faltan 4
-        [{"id": 1}, {"id": 2}, {"id": 3}, {"id": 4}, {"id": 5}, {"id": 6}]  # mano final
+        # [{"id": 1}, {"id": 2}, {"id": 3}, {"id": 4}, {"id": 5}, {"id": 6}]  # mano final
+        [{"id": 1}, {"id": 2}, {"id": 101}]  # mano final
     ]
     mock_carta_service.obtener_cantidad_mazo.side_effect = [1, 0]  # antes y después del robo
     mock_carta_service.robar_cartas.return_value = [{"id": 101, "nombre": "Poirot"}]
@@ -1231,6 +1263,7 @@ def test_robar_cartas_fin_de_partida(mock_PartidaService, mock_CartaService, ses
 
     app.dependency_overrides.clear()
 
+    print(f"DETALLE: {response.content}")
     # Assert
     assert response.status_code == 200
     assert response.json() == [{"id": 101, "nombre": "Poirot"}]
@@ -1238,12 +1271,6 @@ def test_robar_cartas_fin_de_partida(mock_PartidaService, mock_CartaService, ses
     mock_partida_service.avanzar_turno.assert_called_once_with(1)
 
     app.dependency_overrides.clear()
-
-    # Assert
-    assert response.status_code == 200
-    assert response.json() == [{"id": 101, "nombre": "Poirot"}]
-    mock_carta_service.robar_cartas.assert_called_once()
-    mock_partida_service.avanzar_turno.assert_called_once_with(1)
 
 
 @patch("game.partidas.endpoints.CartaService")
@@ -1263,18 +1290,21 @@ def test_obtener_secretos(mock_CartaService, session):
     mock_secreto1.nombre = "murderer"
     mock_secreto1.jugador_id = 1
     mock_secreto1.bocaArriba = False
+    mock_secreto1.id = 1 
 
     mock_secreto2 = MagicMock()
     mock_secreto2.id_carta = 6
     mock_secreto2.nombre = "secreto_comun"
     mock_secreto2.jugador_id = 1
     mock_secreto2.bocaArriba = False
+    mock_secreto2.id = 2
 
     mock_secreto3 = MagicMock()
     mock_secreto3.id_carta = 6
     mock_secreto3.nombre = "secreto_comun"
     mock_secreto3.jugador_id = 1
     mock_secreto3.bocaArriba = False
+    mock_secreto3.id = 2
 
     #Configurar instancia mock de CartaService
     mock_carta_service_instance = MagicMock()
@@ -1288,9 +1318,9 @@ def test_obtener_secretos(mock_CartaService, session):
     assert response.status_code == 200
     assert len(response.json()) == 3
     assert response.json() == [
-        {"id": 3, "nombre": "murderer", "revelada": False},
-        {"id": 6, "nombre": "secreto_comun", "revelada": False},
-        {"id": 6, "nombre": "secreto_comun", "revelada": False}
+        {"id": 3, "nombre": "murderer",  "id_instancia": 1, "revelada": False},
+        {"id": 6, "nombre": "secreto_comun", "id_instancia": 2, "revelada": False},
+        {"id": 6, "nombre": "secreto_comun", "id_instancia": 2, "revelada": False}
     ]
 
     # Verificamos que el método se llamó correctamente
@@ -1363,32 +1393,40 @@ def test_revelar_secreto(session):
         cantJugadores=2,
         iniciada=True,
         maxJugadores=4,
-        minJugadores=2
+        minJugadores=2,
+        turno_id = 1
     )
     session.add(partida)
     session.commit()
 
-    # Crear Jugador
-    jugador = Jugador(
+    # Crear Jugadores
+    jugador1 = Jugador(
         id=1,
         nombre="Jugador Test",
         fecha_nacimiento=date(2023, 2, 2),
         partida_id=partida.id
     )
-    session.add(jugador)
+    jugador2 = Jugador(
+        id=2,
+        nombre="Jugador Test",
+        fecha_nacimiento=date(2023, 3, 2),
+        partida_id=partida.id
+    )
+    session.add(jugador1)
+    session.add(jugador2)
     session.commit()
 
     # Carta secreto
     carta = Carta(
         id=1,
         id_carta=3,
-        nombre="murderer",
+        nombre="accomplice",
         tipo="secreto",
         bocaArriba=False,
         ubicacion="mesa",
-        descripcion="Eres el asesino",
+        descripcion="Eres el cómplice",
         partida_id=partida.id,
-        jugador_id=jugador.id
+        jugador_id=jugador2.id
     )
     session.add(carta)
     session.commit()
@@ -1396,7 +1434,7 @@ def test_revelar_secreto(session):
     client = TestClient(app)
     url = f"/partidas/{partida.id}/revelacion"
     params = {
-        "id_jugador": jugador.id,
+        "id_jugador_turno": jugador1.id,
         "id_unico_secreto": carta.id
     }
     response = client.patch(url, params=params)
@@ -1421,7 +1459,7 @@ def test_revelar_secreto_id_carta_invalido(session):
 
     app.dependency_overrides[get_db] = get_db_override
     # Crear partida y jugador
-    partida = Partida(nombre="Test", anfitrionId=1, cantJugadores=1)
+    partida = Partida(nombre="Test", anfitrionId=1, cantJugadores=1, turno_id=1)
     session.add(partida)
     session.commit()
     jugador = Jugador(nombre="Jugador", fecha_nacimiento=date(2000, 1, 1), partida_id=partida.id)
@@ -1432,9 +1470,9 @@ def test_revelar_secreto_id_carta_invalido(session):
     # Llamo al endpoint con id inexistente
     response = client.patch(
         f"/partidas/{partida.id}/revelacion",
-        params={"id_jugador": jugador.id, "id_unico_secreto": 9999},
+        params={"id_jugador_turno": jugador.id, "id_unico_secreto": 9999},
     )
-    assert response.status_code == 500
+    assert response.status_code == 404
 
 
 def test_ocultar_secreto(session):
@@ -1453,19 +1491,27 @@ def test_ocultar_secreto(session):
         cantJugadores=2,
         iniciada=True,
         maxJugadores=4,
-        minJugadores=2
+        minJugadores=2,
+        turno_id = 1
     )
     session.add(partida)
     session.commit()
 
     # Crear Jugador
-    jugador = Jugador(
+    jugador1 = Jugador(
         id=1,
         nombre="Jugador Test",
         fecha_nacimiento=date(2023, 2, 2),
         partida_id=partida.id
     )
-    session.add(jugador)
+    jugador2 = Jugador(
+        id=2,
+        nombre="Jugador Test",
+        fecha_nacimiento=date(2023, 3, 2),
+        partida_id=partida.id
+    )
+    session.add(jugador1)
+    session.add(jugador2)
     session.commit()
 
     # Carta secreto
@@ -1478,7 +1524,7 @@ def test_ocultar_secreto(session):
         ubicacion="mesa",
         descripcion="",
         partida_id=partida.id,
-        jugador_id=jugador.id
+        jugador_id=jugador2.id
     )
     session.add(carta)
     session.commit()
@@ -1486,7 +1532,7 @@ def test_ocultar_secreto(session):
     client = TestClient(app)
     url = f"/partidas/{partida.id}/ocultamiento"
     params = {
-        "id_jugador": jugador.id,
+        "id_jugador_turno": jugador1.id,
         "id_unico_secreto": carta.id
     }
     response = client.patch(url, params=params)
@@ -1511,7 +1557,7 @@ def test_ocultar_secreto_id_carta_invalido(session):
 
     app.dependency_overrides[get_db] = get_db_override
     # Crear partida y jugador
-    partida = Partida(nombre="Test", anfitrionId=1, cantJugadores=1)
+    partida = Partida(nombre="Test", anfitrionId=1, cantJugadores=1, turno_id=1)
     session.add(partida)
     session.commit()
     jugador = Jugador(nombre="Jugador", fecha_nacimiento=date(2000, 1, 1), partida_id=partida.id)
@@ -1522,7 +1568,7 @@ def test_ocultar_secreto_id_carta_invalido(session):
     # Llamo al endpoint con id inexistente
     response = client.patch(
         f"/partidas/{partida.id}/ocultamiento",
-        params={"id_jugador": jugador.id, "id_unico_secreto": 9999},
+        params={"id_jugador_turno": jugador.id, "id_unico_secreto": 9999},
     )
-    assert response.status_code == 500
+    assert response.status_code == 404
 

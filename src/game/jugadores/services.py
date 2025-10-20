@@ -64,13 +64,14 @@ class JugadorService:
         self._db.refresh(nuevo_jugador)
         return nuevo_jugador
     
+
     def obtener_jugador(self, id_jugador: int) -> Optional[Jugador]:
         """
         Obtiene un jugador por su ID .
         
         Parameters
         ----------
-            id_jugador: int
+        id_jugador: int
             ID del jugador
         
         Returns
@@ -78,12 +79,23 @@ class JugadorService:
         Optional[Jugador]
             El jugador si se encuentra, o None si no existe.
         """
-        #db = get_db()
-        # partida = PartidaService(db).obtener_por_id(id_partida)
-        # if partida:
-        #     for jugador in partida.jugadores:
-        #         if jugador.id == id_jugador:
-        #             return jugador
         jugador = self._db.query(Jugador).filter(Jugador.id == id_jugador).first()
         return jugador
 
+
+    def eliminar_jugador(self, jugador: Jugador):
+        """
+        Método para eliminar un jugador de la base de datos.
+
+        Parameters
+        ----------
+            jugador: Jugador
+                Objeto Jugador de la base de datos 
+        
+        """
+        try:
+            self._db.delete(jugador)
+            self._db.commit()
+        except Exception as e:
+            self._db.rollback()
+            raise ValueError(f"Error al eliminar el jugador: {str(e)}")

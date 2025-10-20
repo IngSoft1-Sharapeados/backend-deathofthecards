@@ -14,6 +14,7 @@ class Jugador(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String, nullable=False)
     fecha_nacimiento: Mapped[date] = mapped_column(Date, nullable=False)
+    desgracia_social: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
  
     # Relación de 1 a muchos con Carta
     cartas: Mapped[List["Carta"]] = relationship("Carta", back_populates="jugador", cascade="all, delete-orphan")
