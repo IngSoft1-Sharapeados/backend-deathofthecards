@@ -47,12 +47,15 @@ class CartaService:
                 cantidad -= 1
                 mazo_nuevo.append(cartita)
 
+        random.shuffle(mazo_nuevo)
+        for i, carta in enumerate(mazo_nuevo):
+            carta.orden_mazo = i
+
         self._db.add_all(mazo_nuevo)
         self._db.commit()
-
         return mazo_nuevo
-    
 
+    
     def obtener_cartas_descarte(self, id_partida: int, cantidad: int) -> list[Carta]:
         """
         Obtiene las ultimas 'cantidad' cartas del mazo de descarte de una partida.
@@ -83,7 +86,6 @@ class CartaService:
         jugadores_en_partida: list[Jugador]
             Lista de jugadores en un
         """
-        random.shuffle(mazo)
         # Una carta "Not so fast" por jugador
         for jugador in jugadores_en_partida:
             for carta in mazo:
@@ -185,6 +187,7 @@ class CartaService:
             carta_descarte.jugador_id = 0
             carta_descarte.ubicacion = "descarte"
             carta_descarte.bocaArriba = False
+            carta_descarte.orden_mazo = None
             self._db.commit()
             print(f'Se descarto la carta con id {carta_descarte.id} y nombre {carta_descarte.nombre}.')
 
@@ -208,14 +211,14 @@ class CartaService:
         if len(mazo) < cantidad:
             cantidad = len(mazo)
 
-        # Mezclar para simular robo aleatorio y tomar 'cantidad'
-        random.shuffle(mazo)
         cartas_a_robar = mazo[:cantidad]
 
         # Asignar cartas al jugador
         for carta in cartas_a_robar:
             carta.jugador_id = id_jugador
             carta.ubicacion = "mano"
+            carta.orden_mazo = None
+        self.descartar_eventos(id_partida, id_jugador)
 
         self._db.commit()
 
@@ -249,7 +252,6 @@ class CartaService:
         cartas_draft = len(mazo_draft)
         if cartas_draft <= 2:
             mazo_robo = self.obtener_mazo_de_robo(id_partida)
-            random.shuffle(mazo_robo)
             for carta in mazo_robo:
                 carta.ubicacion = "draft"
                 cartas_draft += 1
@@ -661,18 +663,6 @@ class CartaService:
             no_mas_eventos = True
             
         return no_mas_eventos
-    
-    
-    def evento_jugado_en_turno(self, id_jugador: int) -> bool:
-        no_mas_eventos = False
-        evento_ya_jugado = (self._db.query(Carta).
-                 filter(Carta.jugador_id == id_jugador, Carta.ubicacion == "evento_jugado").
-                 first())
-        if evento_ya_jugado is not None:
-            no_mas_eventos = True
-            
-        return no_mas_eventos
-
 
     def jugar_cards_off_the_table(self, id_partida: int, id_jugador: int, id_objetivo: int):
         cartas_jugador = self._db.query(Carta).filter_by(partida_id=id_partida,
@@ -689,6 +679,38 @@ class CartaService:
                                                           nombre="Cards off the table").first()
         
         self.descartar_cartas(id_jugador, [carta_jugada.id_carta])
+
+    
+    def descartar_eventos(self, id_partida: int, id_jugador: int):
+        carta_jugada = self._db.query(Carta).filter_by(partida_id=id_partida,
+                                                    jugador_id=id_jugador, 
+                                                    ubicacion="evento_jugado",
+                                                    ).first()
+    
+        if carta_jugada is None:
+            return
+        if carta_jugada.nombre == "Delay the murderer's escape!":
+            carta_jugada.partida_id = 0
+            carta_jugada.ubicacion = "eliminada"
+            carta_jugada.jugador_id = 0
+            self._db.commit()
+        else:
+            self.descartar_cartas(id_jugador, [carta_jugada.id_carta])
+
+    def jugar_delay_the_murderer_escape(self, id_partida: int, id_jugador: int,cantidad: int):
+    
+        cartas = self.obtener_cartas_descarte(id_partida, cantidad) 
+        min_orden = self._db.query(func.min(Carta.orden_mazo)).filter_by(partida_id=id_partida, ubicacion="mazo_robo").scalar()
+        if min_orden is None:
+            min_orden = 0
+
+        for i, carta in enumerate(cartas, start=1):
+            carta.ubicacion = "mazo_robo"
+            carta.bocaArriba = False
+            carta.orden_mazo = min_orden - i
+
+        self._db.commit()
+
 
     def robar_set(self, id_partida: int, id_jugador: int, id_objetivo: int, id_representacion_carta: int, ids_cartas: list[int]):
         # Convertimos la lista de cartas a CSV para comparar correctamente

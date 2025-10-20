@@ -571,7 +571,6 @@ async def mazo_descarte(id_partida: int, id_jugador: int, cantidad: int = 1, db=
     try:
         cartas_descarte = mostrar_cartas_descarte(id_partida, id_jugador, cantidad, db)
         carta_top = cartas_descarte[0] if cartas_descarte else None
-        
         if cantidad == 1:
             await manager.broadcast(id_partida, json.dumps({
                 "evento": "mazo-descarte-top",
@@ -959,6 +958,8 @@ async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int
             raise HTTPException(status_code=403, detail=msg)
         elif "no pertenece a la partida" in msg.lower():
             raise HTTPException(status_code=403, detail=msg)
+        elif "desgracia social" in msg:
+            raise HTTPException(status_code=403, detail=msg)
         elif "Solo se puede jugar una carta de evento" in msg:
             raise HTTPException(status_code=400, detail=msg)
         elif "no se encuentra en la mano" in msg.lower():
@@ -1052,7 +1053,6 @@ async def another_victim(id_partida: int, id_jugador: int, id_carta: int,
         print(f"Error al jugar carta de evento Another victim: {e}")
         raise HTTPException(status_code=500, detail="Error interno del servidor") 
 
-
 @partidas_router.patch(path="/{id_partida}/revelacion-propia", status_code=status.HTTP_200_OK)
 async def revelar_secreto_propio(id_partida: int, id_jugador: int, id_unico_secreto: int, db=Depends(get_db)):
     """
@@ -1113,7 +1113,6 @@ async def revelar_secreto_propio(id_partida: int, id_jugador: int, id_unico_secr
                 detail="Hubo un error al revelar secreto."
             )
 
-
 @partidas_router.post(path="/{id_partida}/solicitar-revelacion", status_code=status.HTTP_200_OK)
 async def solicitar_revelacion(
     id_partida: int,
@@ -1149,7 +1148,66 @@ async def solicitar_revelacion(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
+@partidas_router.put(path='/{id_partida}/evento/DelayMurderer', status_code=status.HTTP_200_OK)
+async def delay_the_murderer_escape(id_partida: int, id_jugador: int, id_carta: int, cantidad: int, db=Depends(get_db)):
+    """
+    Se juega el evento delay_the_murderer_escape(agrega hasta 5 cartas del mazo de descarte al de robo)
+    """
+    try:
+        if verif_evento("Delay the murderer's escape!", id_carta):
+            verif_cantidad(id_partida, cantidad, db)
+            jugar_carta_evento(id_partida, id_jugador, id_carta, db)
+            await manager.broadcast(id_partida, json.dumps({
+                "evento": "se-jugo-delay-escape"
+            }))
+            CartaService(db).jugar_delay_the_murderer_escape(id_partida, id_jugador, cantidad)
+            cantidad_restante = CartaService(db).obtener_cantidad_mazo(id_partida)
+            await manager.broadcast(id_partida, json.dumps({
+                "evento": "actualizacion-mazo",
+                "cantidad-restante-mazo": cantidad_restante
+            }))
+            nueva_carta_tope = CartaService(db).obtener_cartas_descarte(id_partida, 1)
+            await manager.broadcast(id_partida, json.dumps({
+                "evento": "carta-descartada", 
+                "payload": [{"id": c.id_carta} for c in nueva_carta_tope]
+            }))
+            return {"detail": "Evento jugado correctamente"}
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La carta no corresponde al evento Delay the murderer's escape!"
+                )
+    except ValueError as e:
+        msg = str(e)
+        if "1 y 5" in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        elif "mazo de descarte" in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        elif "No se ha encontrado la partida" in msg:
+            raise HTTPException(status_code=404, detail=msg)
+        elif "jugador" in msg and "no se encontro" in msg.lower():
+            raise HTTPException(status_code=404, detail=msg)
+        elif "Partida no iniciada" in msg:
+            raise HTTPException(status_code=403, detail=msg)
+        elif "no esta en turno" in msg.lower():
+            raise HTTPException(status_code=403, detail=msg)
+        elif "no pertenece a la partida" in msg.lower():
+            raise HTTPException(status_code=403, detail=msg)
+        elif "desgracia social" in msg:
+            raise HTTPException(status_code=403, detail=msg)
+        elif "Solo se puede jugar una carta de evento" in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        elif "no se encuentra en la mano" in msg.lower():
+            raise HTTPException(status_code=400, detail=msg)
+        elif "no es de tipo evento" in msg.lower():
+            raise HTTPException(status_code=400, detail=msg)
+        else:
+            raise HTTPException(status_code=400, detail=f"Error de validación: {msg}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error al jugar carta de evento Delay the murderer's escape!: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")    
 # Endpoint abandonar partida
 @partidas_router.post(path="/{id_partida}/abandonar", status_code=status.HTTP_200_OK)
 async def abandonar_partida(id_partida: int, id_jugador: int, db=Depends(get_db), manager=Depends(get_manager)):

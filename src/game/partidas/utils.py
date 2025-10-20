@@ -385,7 +385,7 @@ def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> C
     
     desgracia_social = PartidaService(db).desgracia_social(id_partida, id_jugador)
     if desgracia_social:
-        raise ValueError(f"El jugador {id_jugador} esta en desgracia desgracia_social")
+        raise ValueError(f"El jugador {id_jugador} esta en desgracia social")
 
     cartas_mano = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
     
@@ -548,3 +548,10 @@ def eliminarPartida(id_partida: int, db):
     for carta in partida.cartas:
         CartaService(db).eliminar_carta(carta)
     PartidaService(db).eliminar_partida(partida)
+
+def verif_cantidad(id_partida: int, cantidad: int, db):
+    if cantidad < 1 or cantidad > 5:
+        raise ValueError("La cantidad debe estar entre 1 y 5 cartas.")
+    cantidad_cartas_descarte = CartaService(db).obtener_cartas_descarte(id_partida, cantidad)
+    if len(cantidad_cartas_descarte) < cantidad:
+        raise ValueError("No hay suficientes cartas en el mazo de descarte.")

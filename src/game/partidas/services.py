@@ -304,6 +304,8 @@ class PartidaService:
             )
         
         # Actualizo el turno y el draft
+        CartaService(self._db).descartar_eventos(id_partida, id_jugador)
+        
         nuevo_turno_id = self.avanzar_turno(id_partida)
         carta_service.actualizar_mazo_draft(id_partida)
 
