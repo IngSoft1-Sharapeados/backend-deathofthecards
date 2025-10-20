@@ -326,6 +326,7 @@ class PartidaService:
             "cantidad_final_mazo": cantidad_final_mazo,
         }
 
+
     def desgracia_social(self, id_partida: int, id_jugador: int):
         PartidaService(self._db).obtener_por_id(id_partida)
         jugador = JugadorService(self._db).obtener_jugador(id_jugador)

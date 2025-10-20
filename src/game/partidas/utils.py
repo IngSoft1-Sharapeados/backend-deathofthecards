@@ -540,3 +540,11 @@ def abandonarPartida(id_partida: int, id_jugador: int, db) -> dict:
     except Exception as e:
         raise ValueError(f"Hubo un error al abandonar la partida: {str(e)}")
 
+
+def eliminarPartida(id_partida: int, db):
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    for jugador in partida.jugadores:
+        JugadorService(db).eliminar_jugador(jugador)
+    for carta in partida.cartas:
+        CartaService(db).eliminar_carta(carta)
+    PartidaService(db).eliminar_partida(partida)
