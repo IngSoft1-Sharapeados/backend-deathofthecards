@@ -912,7 +912,7 @@ async def look_into_the_ashes(id_partida: int, id_jugador: int, db=Depends(get_d
     elif id_carta == None and id_carta_objetivo != None:
         try:
             jugar_look_into_ashes(id_partida, id_jugador, id_carta_objetivo, db)
-            
+        
         except Exception as e:
             msg = str(e)
         

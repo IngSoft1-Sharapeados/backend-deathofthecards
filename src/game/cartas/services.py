@@ -607,17 +607,6 @@ class CartaService:
                  filter(Carta.id_carta == id_carta, Carta.jugador_id == id_jugador, Carta.ubicacion == "mano").
                  first())
         return carta
-    
-    
-    def evento_jugado_en_turno(self, id_jugador: int) -> bool:
-        no_mas_eventos = False
-        evento_ya_jugado = (self._db.query(Carta).
-                 filter(Carta.jugador_id == id_jugador, Carta.ubicacion == "evento_jugado").
-                 first())
-        if evento_ya_jugado is not None:
-            no_mas_eventos = True
-            
-        return no_mas_eventos
 
     
     def obtener_carta_de_mano(self, id_carta: int, id_jugador: int) -> Carta:
@@ -656,6 +645,7 @@ class CartaService:
         if carta_jugada:
             self.descartar_cartas(id_jugador, [carta_jugada.id_carta])
             
+    
     def obtener_cartas_jugadas(self, id_partida: int, id_jugador: int, nombre: str, ubicacion: str):
         carta_evento = self._db.query(Carta).filter_by(partida_id=id_partida,
                                                         jugador_id=id_jugador, 
@@ -663,10 +653,39 @@ class CartaService:
                                                         nombre=nombre).all()
         return carta_evento
         
-    def tomar_into_the_ashes(self, id_jugador, id_carta_objetivo):
-        carta_objetivo = self.obtener_carta_por_id(id_carta_objetivo)
+        
+    # def EnTop5_descarte(self, id_partida, id_jugador, id_carta_objetivo):
+    #     ultimas_5 = self.obtener_cartas_descarte(id_partida, id_jugador, 5)
+    #     entre_top5 = False
+    #     for c in ultimas_5:
+    #         if id_carta_objetivo == c["id"]:
+    #             entre_top5 = True
+    #     if entre_top5 == False:
+    #         raise ValueError(f"La carta a robar no esta entre las top 5 cartas del mazo descarte")
+            
+
+    # def tomar_into_the_ashes(self, id_jugador, id_carta_objetivo):
+    #     carta_objetivo = self.obtener_carta(id_carta_objetivo)
+        
+    #     if carta_objetivo is None:
+    #         raise ValueError(f"No se encontró la carta con ID {id_carta_objetivo}")
+    
+    #     carta_objetivo.jugador_id = id_jugador
+    #     carta_objetivo.ubicacion = "mano"
+    #     carta_objetivo.bocaArriba = False
+
+    #     self._db.commit()
+    #     self._db.refresh(carta_objetivo)
+    
+    def tomar_into_the_ashes(self, id_partida: int, id_jugador: int, id_carta_objetivo: int):
+        carta_objetivo = self._db.query(Carta).filter_by(partida_id=id_partida,
+                                                        jugador_id=0,
+                                                        id_carta=id_carta_objetivo,
+                                                        ubicacion="descarte"
+                                                        ).first()
         
         carta_objetivo.jugador_id = id_jugador
         carta_objetivo.ubicacion = "mano"
         carta_objetivo.bocaArriba = False
         self._db.commit()
+        self._db.refresh(carta_objetivo)

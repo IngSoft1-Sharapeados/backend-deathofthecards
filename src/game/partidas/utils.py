@@ -326,19 +326,37 @@ def verif_jugador_objetivo(id_partida: int, id_jugador: int, id_objetivo: int, d
 
 def jugar_look_into_ashes(id_partida: int, id_jugador: int, id_carta_objetivo: int, db):
 
-    carta_evento_jugada = CartaService(db).obtener_evento_jugado(id_partida,
+    carta_evento_jugada = CartaService(db).obtener_cartas_jugadas(id_partida,
                                                         id_jugador,
-                                                        "Look into the ashes")
-    print(carta_evento_jugada)
+                                                        "Look into the ashes",
+                                                        "evento_jugado"
+                                                        )
+    
     if not carta_evento_jugada:
         raise ValueError(f"No se jugo el evento Look Into The Ashes.")
             
-    ultimas_5 = mostrar_cartas_descarte(id_partida, id_jugador, 5, db)
+    ultimas_5 = CartaService(db).obtener_cartas_descarte(id_partida, 5)
     entre_top5 = False
     for c in ultimas_5:
-        if id_carta_objetivo == c["id"]:
+        if id_carta_objetivo == c.id_carta:
             entre_top5 = True
     if entre_top5 == False:
         raise ValueError(f"La carta a robar no esta entre las top 5 cartas del mazo descarte")
     else:
-        CartaService(db).tomar_into_the_ashes(id_jugador, id_carta_objetivo)
+        CartaService(db).tomar_into_the_ashes(id_partida, id_jugador, id_carta_objetivo)
+
+# def jugar_look_into_ashes(id_partida: int, id_jugador: int, carta_id_tipo: int, db):
+#     carta_evento_jugada = CartaService(db).obtener_evento_jugado(id_partida,
+#                                                         id_jugador,
+#                                                         "Look into the ashes")
+#     print(carta_evento_jugada)
+#     if not carta_evento_jugada:
+#         raise ValueError(f"No se jugo el evento Look Into The Ashes.")
+    
+#     # Obtener el id único de la carta basándose en el carta_id (tipo)
+#     try:
+#         id_carta_objetivo = CartaService(db).obtener_id_carta_descarte(id_partida, carta_id_tipo, 5)
+#         # Ahora sí, tomar la carta con el id único correcto (DENTRO del try)
+#         CartaService(db).tomar_into_the_ashes(id_jugador, id_carta_objetivo)
+#     except ValueError as e:
+#         raise ValueError(f"La carta a robar no esta entre las top 5 cartas del mazo descarte")
