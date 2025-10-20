@@ -1086,14 +1086,18 @@ async def delay_the_murderer_escape(id_partida: int, id_jugador: int, id_carta: 
             await manager.broadcast(id_partida, json.dumps({
                 "evento": "se-jugo-delay-escape"
             }))
-            sleep(3)
             CartaService(db).jugar_delay_the_murderer_escape(id_partida, id_jugador, cantidad)
             cantidad_restante = CartaService(db).obtener_cantidad_mazo(id_partida)
             await manager.broadcast(id_partida, json.dumps({
                 "evento": "actualizacion-mazo",
                 "cantidad-restante-mazo": cantidad_restante
             }))
+            nueva_carta_tope = CartaService(db).obtener_cartas_descarte(id_partida, 1)
             
+            await manager.broadcast(id_partida, json.dumps({
+                "evento": "carta-descartada", 
+                "payload": [{"id": c.id_carta} for c in nueva_carta_tope]
+            }))
             return {"detail": "Evento jugado correctamente"}
         else:
             raise HTTPException(
