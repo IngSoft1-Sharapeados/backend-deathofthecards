@@ -350,7 +350,8 @@ def jugar_look_into_ashes(id_partida: int, id_jugador: int, id_carta_objetivo: i
         raise ValueError(f"La carta a robar no esta entre las top 5 cartas del mazo descarte")
     else:
         CartaService(db).tomar_into_the_ashes(id_partida, id_jugador, id_carta_objetivo)
-
+         # descartar la carta evento después de tomar la carta
+        CartaService(db).descartar_cartas(id_jugador, [20])
 # def jugar_look_into_ashes(id_partida: int, id_jugador: int, carta_id_tipo: int, db):
 #     carta_evento_jugada = CartaService(db).obtener_evento_jugado(id_partida,
 #                                                         id_jugador,
