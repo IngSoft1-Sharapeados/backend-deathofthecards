@@ -69,3 +69,13 @@ class AnotherVictimPayload(BaseModel):
     id_objetivo: int
     id_representacion_carta: int
     ids_cartas: list[int]
+
+class OneMorePayload(BaseModel):
+    """Payload para el evento 'And then there was one more...'
+    - id_fuente: jugador desde el cual se roba el secreto (debe tenerlo revelado)
+    - id_destino: jugador que recibirá el secreto (se agrega oculto)
+    - id_unico_secreto: ID único del secreto a trasladar
+    """
+    id_fuente: int
+    id_destino: int
+    id_unico_secreto: int

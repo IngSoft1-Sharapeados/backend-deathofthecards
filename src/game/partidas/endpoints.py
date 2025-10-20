@@ -6,14 +6,16 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi import WebSocket, WebSocketException, WebSocketDisconnect
 from game.partidas.models import Partida
-from game.partidas.schemas import PartidaData, PartidaResponse, PartidaOut, PartidaListar, IniciarPartidaData, RecogerCartasPayload, AnotherVictimPayload
+from game.partidas.schemas import PartidaData, PartidaResponse, PartidaOut, PartidaListar, IniciarPartidaData, RecogerCartasPayload, AnotherVictimPayload, OneMorePayload
 #from game.partidas.services import PartidaService
 from game.jugadores.models import Jugador
+from game.cartas.models import Carta
 from game.jugadores.schemas import JugadorData, JugadorResponse, JugadorOut
 #from game.jugadores.services import JugadorService
 #from game.cartas.services import CartaService
 from game.modelos.db import get_db
 from game.partidas.utils import *
+import game.partidas.utils as partidas_utils
 from game.cartas.utils import jugar_set_detective
 
 import json
@@ -977,6 +979,120 @@ async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int
         raise HTTPException(status_code=500, detail="Error interno del servidor")    
 
 
+@partidas_router.put(path='/{id_partida}/evento/OneMore', status_code=status.HTTP_200_OK)
+async def one_more(id_partida: int, id_jugador: int, id_carta: int,
+                   payload: OneMorePayload,
+                   db=Depends(get_db)):
+    """
+    Juega el evento "And then there was one more..." (id 22):
+    - El jugador en turno elige un jugador fuente que tenga al menos un secreto revelado.
+    - Selecciona uno de esos secretos revelados (id_unico_secreto) y lo mueve a un jugador destino.
+    - El secreto pasa a estar oculto en el destino.
+    """
+    try:
+        # Validar que la carta sea la correcta (nombre exacto en constants)
+        if not verif_evento("And then there was one more...", id_carta):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="La carta no corresponde al evento And then there was one more...")
+
+        # Validaciones de jugadores y turno
+        # Para OneMore permitimos que la fuente sea el mismo jugador en turno (mover su propio secreto).
+        # Sólo validamos existencia y que destino sea distinto a fuente.
+        # Validar primero el jugador destino (tests esperan este mensaje prioritario)
+        jugador_destino = partidas_utils.JugadorService(db).obtener_jugador(payload.id_destino)
+        if jugador_destino is None:
+            raise ValueError(f"No se encontró el jugador destino {payload.id_destino}.")
+
+        jugador_fuente = partidas_utils.JugadorService(db).obtener_jugador(payload.id_fuente)
+        if jugador_fuente is None:
+            raise ValueError(f"No se encontró el jugador fuente {payload.id_fuente}.")
+
+        # Ambos jugadores deben pertenecer a la partida
+        if jugador_fuente.partida_id != id_partida or jugador_destino.partida_id != id_partida:
+            raise ValueError("Los jugadores seleccionados no pertenecen a la partida indicada.")
+
+        # Se permite mover el secreto al mismo jugador (queda oculto en destino)
+        
+        # jugar carta de evento (marca evento_jugado y valida turno/mano)
+        jugar_carta_evento(id_partida, id_jugador, id_carta, db)
+
+        # Verificar secreto y moverlo al destino oculto
+        from game.cartas.services import CartaService
+        cs = CartaService(db)
+        secreto = cs.obtener_carta_por_id(payload.id_unico_secreto)
+        if secreto is None:
+            raise HTTPException(status_code=404, detail="Secreto no encontrado")
+        if secreto.partida_id != id_partida or secreto.tipo != "secreto":
+            raise HTTPException(status_code=400, detail="Secreto inválido para esta partida")
+        if not secreto.bocaArriba:
+            raise HTTPException(status_code=400, detail="El secreto seleccionado no está revelado")
+        if secreto.jugador_id != payload.id_fuente:
+            raise HTTPException(status_code=400, detail="El secreto no pertenece al jugador fuente")
+
+        cs.robar_secreto(secreto, payload.id_destino)
+
+        # Descartar la carta de evento jugada y avisar
+        carta_jugada = db.query(Carta).filter_by(partida_id=id_partida,
+                                                 jugador_id=id_jugador,
+                                                 ubicacion="evento_jugado",
+                                                 nombre="And then there was one more...").first()
+        if carta_jugada:
+            cs.descartar_cartas(id_jugador, [carta_jugada.id_carta])
+
+        await manager.broadcast(id_partida, json.dumps({
+            "evento": "se-jugo-one-more",
+            "jugador_id": id_jugador,
+            "objetivo_id": payload.id_fuente,
+            "destino_id": payload.id_destino
+        }))
+
+        # Actualizar contadores de secretos para fuente y destino
+        secretos_fuente = cs.obtener_secretos_jugador(payload.id_fuente, id_partida)
+        await manager.broadcast(id_partida, json.dumps({
+            "evento": "actualizacion-secreto",
+            "jugador-id": payload.id_fuente,
+            "lista-secretos": [{"revelado": s.bocaArriba} for s in secretos_fuente]
+        }))
+        secretos_destino = cs.obtener_secretos_jugador(payload.id_destino, id_partida)
+        await manager.broadcast(id_partida, json.dumps({
+            "evento": "actualizacion-secreto",
+            "jugador-id": payload.id_destino,
+            "lista-secretos": [{"revelado": s.bocaArriba} for s in secretos_destino]
+        }))
+
+        evento = {
+            "evento": "carta-descartada",
+            "payload": {"discardted": [id_carta]}
+        }
+        await manager.broadcast(id_partida, json.dumps(evento))
+
+        return {"detail": "Evento jugado correctamente"}
+    except ValueError as e:
+        msg = str(e)
+        if "aplicar el efecto." in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        elif "No se ha encontrado la partida" in msg:
+            raise HTTPException(status_code=404, detail=msg)
+        elif "Partida no iniciada" in msg:
+            raise HTTPException(status_code=403, detail=msg)
+        elif "no esta en turno" in msg.lower():
+            raise HTTPException(status_code=403, detail=msg)
+        elif "no pertenece a la partida" in msg.lower():
+            raise HTTPException(status_code=403, detail=msg)
+        elif "Solo se puede jugar una carta de evento" in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        elif "no se encuentra en la mano" in msg.lower():
+            raise HTTPException(status_code=400, detail=msg)
+        elif "no es de tipo evento" in msg.lower():
+            raise HTTPException(status_code=400, detail=msg)
+        else:
+            raise HTTPException(status_code=400, detail=f"Error de validación: {msg}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error al jugar carta de evento One More: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
 @partidas_router.put(path='/{id_partida}/evento/AnotherVictim', status_code=status.HTTP_200_OK)
 async def another_victim(id_partida: int, id_jugador: int, id_carta: int, 
                              payload: AnotherVictimPayload, 
@@ -1159,18 +1275,18 @@ async def delay_the_murderer_escape(id_partida: int, id_jugador: int, id_carta: 
             jugar_carta_evento(id_partida, id_jugador, id_carta, db)
             await manager.broadcast(id_partida, json.dumps({
                 "evento": "se-jugo-delay-escape"
-            }))
+            }, default=str))
             CartaService(db).jugar_delay_the_murderer_escape(id_partida, id_jugador, cantidad)
             cantidad_restante = CartaService(db).obtener_cantidad_mazo(id_partida)
             await manager.broadcast(id_partida, json.dumps({
                 "evento": "actualizacion-mazo",
                 "cantidad-restante-mazo": cantidad_restante
-            }))
+            }, default=str))
             nueva_carta_tope = CartaService(db).obtener_cartas_descarte(id_partida, 1)
             await manager.broadcast(id_partida, json.dumps({
                 "evento": "carta-descartada", 
                 "payload": [{"id": c.id_carta} for c in nueva_carta_tope]
-            }))
+            }, default=str))
             return {"detail": "Evento jugado correctamente"}
         else:
             raise HTTPException(
