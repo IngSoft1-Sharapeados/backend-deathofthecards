@@ -218,6 +218,7 @@ class CartaService:
             carta.jugador_id = id_jugador
             carta.ubicacion = "mano"
             carta.orden_mazo = None
+        self.descartar_eventos(id_partida, id_jugador)
 
         self._db.commit()
 
@@ -662,18 +663,6 @@ class CartaService:
             no_mas_eventos = True
             
         return no_mas_eventos
-    
-    
-    def evento_jugado_en_turno(self, id_jugador: int) -> bool:
-        no_mas_eventos = False
-        evento_ya_jugado = (self._db.query(Carta).
-                 filter(Carta.jugador_id == id_jugador, Carta.ubicacion == "evento_jugado").
-                 first())
-        if evento_ya_jugado is not None:
-            no_mas_eventos = True
-            
-        return no_mas_eventos
-
 
     def jugar_cards_off_the_table(self, id_partida: int, id_jugador: int, id_objetivo: int):
         cartas_jugador = self._db.query(Carta).filter_by(partida_id=id_partida,
@@ -697,7 +686,15 @@ class CartaService:
                                                     jugador_id=id_jugador, 
                                                     ubicacion="evento_jugado",
                                                     ).first()
-        if carta_jugada:
+    
+        if carta_jugada is None:
+            return
+        if carta_jugada.nombre == "Delay the murderer's escape!":
+            carta_jugada.partida_id = 0
+            carta_jugada.ubicacion = "eliminada"
+            carta_jugada.jugador_id = 0
+            self._db.commit()
+        else:
             self.descartar_cartas(id_jugador, [carta_jugada.id_carta])
 
     def jugar_delay_the_murderer_escape(self, id_partida: int, id_jugador: int,cantidad: int):
@@ -711,14 +708,6 @@ class CartaService:
             carta.ubicacion = "mazo_robo"
             carta.bocaArriba = False
             carta.orden_mazo = min_orden - i
-
-        carta_jugada = self._db.query(Carta).filter_by(partida_id=id_partida,
-                                                    jugador_id=id_jugador, 
-                                                    ubicacion="evento_jugado",
-                                                    ).first()
-        carta_jugada.partida_id = 0
-        carta_jugada.ubicacion = "eliminada"
-        carta_jugada.jugador_id = 0
 
         self._db.commit()
 
