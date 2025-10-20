@@ -1380,3 +1380,76 @@ async def abandonar_partida(id_partida: int, id_jugador: int, db=Depends(get_db)
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=str(e)
             )
+            
+@partidas_router.put(path='/{id_partida}/evento/EarlyTrain', status_code=status.HTTP_200_OK)
+async def early_train_to_paddington(id_partida: int, id_jugador: int, id_carta: int, db=Depends(get_db)):
+    """
+    Se juega o descarta el evento Early Train To Paddington.
+    Mueve 6 cartas del mazo de robo al descarte.
+    """
+    try:
+        if verif_evento("Early train to paddington", id_carta):
+            jugar_carta_evento(id_partida, id_jugador, id_carta, db)
+            CartaService(db).jugar_early_train_to_paddington(id_partida, id_jugador)
+
+            await manager.broadcast(id_partida, json.dumps({
+                "evento": "se-jugo-early-train"
+            }))
+
+            cantidad_mazo_robo = CartaService(db).obtener_cantidad_mazo(id_partida)
+            await manager.broadcast(id_partida, json.dumps({
+                "evento": "actualizacion-mazo",
+                "cantidad-restante-mazo": cantidad_mazo_robo
+            }))
+            cantidad_restante = CartaService(db).obtener_cantidad_mazo(id_partida)
+
+            if cantidad_restante == 0:
+                fin_payload = {
+                    "evento": "fin-partida",
+                    "payload": {"ganadores": [], "asesinoGano": True}
+                }
+                await manager.broadcast(id_partida, json.dumps(fin_payload))
+
+            nuevas_cartas_descarte = CartaService(db).obtener_cartas_descarte(id_partida, 5)
+            await manager.broadcast(id_partida, json.dumps({
+                "evento": "actualizacion-descarte",
+                "payload": [{"id": c.id_carta} for c in nuevas_cartas_descarte]
+            }))
+
+            return {"detail": "Evento jugado correctamente"}
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La carta no corresponde al evento Early Train To Paddington"
+            )
+    except ValueError as e:
+        msg = str(e)
+        if "1 y 5" in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        elif "mazo de descarte" in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        elif "No se ha encontrado la partida" in msg:
+            raise HTTPException(status_code=404, detail=msg)
+        elif "jugador" in msg and "no se encontro" in msg.lower():
+            raise HTTPException(status_code=404, detail=msg)
+        elif "Partida no iniciada" in msg:
+            raise HTTPException(status_code=403, detail=msg)
+        elif "no esta en turno" in msg.lower():
+            raise HTTPException(status_code=403, detail=msg)
+        elif "no pertenece a la partida" in msg.lower():
+            raise HTTPException(status_code=403, detail=msg)
+        elif "desgracia social" in msg:
+            raise HTTPException(status_code=403, detail=msg)
+        elif "Solo se puede jugar una carta de evento" in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        elif "no se encuentra en la mano" in msg.lower():
+            raise HTTPException(status_code=400, detail=msg)
+        elif "no es de tipo evento" in msg.lower():
+            raise HTTPException(status_code=400, detail=msg)
+        else:
+            raise HTTPException(status_code=400, detail=f"Error de validación: {msg}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error al jugar carta de evento Early Train: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
