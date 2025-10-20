@@ -1103,12 +1103,14 @@ async def abandonar_partida(id_partida: int, id_jugador: int, db=Depends(get_db)
                         "nombre-jugador": jugador_abandona["nombre_jugador"],
                         "jugadores-restantes": jugador_abandona["jugadoresRestantes"],
                     }))
+            return jugador_abandona
         
         else:
             await manager.broadcast(id_partida, json.dumps({
                         "evento": "partida-cancelada", 
                         "id-partida": id_partida,
                     }))
+            return jugador_abandona
 
     except ValueError as e:
         if "No se ha encontrado" in str(e):
