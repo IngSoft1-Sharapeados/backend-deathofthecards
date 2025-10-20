@@ -385,7 +385,7 @@ def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> C
     
     desgracia_social = PartidaService(db).desgracia_social(id_partida, id_jugador)
     if desgracia_social:
-        raise ValueError(f"El jugador {id_jugador} esta en desgracia desgracia_social")
+        raise ValueError(f"El jugador {id_jugador} esta en desgracia social")
 
     cartas_mano = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
     

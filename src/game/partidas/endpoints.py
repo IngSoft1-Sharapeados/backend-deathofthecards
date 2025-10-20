@@ -1080,11 +1080,11 @@ async def delay_the_murderer_escape(id_partida: int, id_jugador: int, id_carta: 
     Se juega el evento delay_the_murderer_escape(agrega hasta 5 cartas del mazo de descarte al de robo)
     """
     try:
-        if verif_evento("Delay the murderer's espace!", id_carta):
+        if verif_evento("Delay the murderer's escape!", id_carta):
             verif_cantidad(id_partida, cantidad, db)
             jugar_carta_evento(id_partida, id_jugador, id_carta, db)
             await manager.broadcast(id_partida, json.dumps({
-                "evento": "se-jugo-delay-espace"
+                "evento": "se-jugo-delay-escape"
             }))
             sleep(3)
             CartaService(db).jugar_delay_the_murderer_escape(id_partida, id_jugador, cantidad)
@@ -1092,7 +1092,7 @@ async def delay_the_murderer_escape(id_partida: int, id_jugador: int, id_carta: 
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="La carta no corresponde al evento Delay the murderer's espace!"
+                detail="La carta no corresponde al evento Delay the murderer's escape!"
                 )
     except ValueError as e:
         msg = str(e)
@@ -1110,6 +1110,8 @@ async def delay_the_murderer_escape(id_partida: int, id_jugador: int, id_carta: 
             raise HTTPException(status_code=403, detail=msg)
         elif "no pertenece a la partida" in msg.lower():
             raise HTTPException(status_code=403, detail=msg)
+        elif "desgracia social" in msg:
+            raise HTTPException(status_code=403, detail=msg)
         elif "Solo se puede jugar una carta de evento" in msg:
             raise HTTPException(status_code=400, detail=msg)
         elif "no se encuentra en la mano" in msg.lower():
@@ -1121,5 +1123,5 @@ async def delay_the_murderer_escape(id_partida: int, id_jugador: int, id_carta: 
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error al jugar carta de evento Delay the murderer's espace!: {e}")
+        print(f"Error al jugar carta de evento Delay the murderer's escape!: {e}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")    
