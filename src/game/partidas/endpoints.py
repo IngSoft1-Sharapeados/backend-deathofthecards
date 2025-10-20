@@ -1077,3 +1077,57 @@ async def solicitar_revelacion(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Endpoint abandonar partida
+@partidas_router.post(path="/{id_partida}/abandonar", status_code=status.HTTP_200_OK)
+async def abandonar_partida(id_partida: int, id_jugador: int, db=Depends(get_db), manager=Depends(get_manager)):
+
+    """
+    Elimina a un jugador de la partida dado su ID y el ID de la partida.
+     Si el jugador es el host, elimina la partida y todos los jugadores de la misma.
+    
+    Parameters
+    ----------
+    id_partida: int
+        ID de la partida que abandonará el jugador
+    
+    id_jugador: int
+        ID del jugador que abandonará la partida
+    
+    """
+    try:
+        jugador_abandona = abandonarPartida(id_partida, id_jugador, db)
+        if jugador_abandona["rol"] == "invitado":
+            await manager.broadcast(id_partida, json.dumps({
+                        "evento": "abandono-jugador", 
+                        "id-jugador": jugador_abandona["id_jugador"], 
+                        "nombre-jugador": jugador_abandona["nombre_jugador"],
+                        "jugadores-restantes": jugador_abandona["jugadoresRestantes"],
+                    }))
+        
+        else:
+            await manager.broadcast(id_partida, json.dumps({
+                        "evento": "partida-cancelada", 
+                        "id-partida": id_partida,
+                    }))
+
+    except ValueError as e:
+        if "No se ha encontrado" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(e)
+            )
+        elif "No se puede abandonar" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=str(e)
+            )
+        elif "no pertenece a" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
+        elif "Hubo un error" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=str(e)
+            )
