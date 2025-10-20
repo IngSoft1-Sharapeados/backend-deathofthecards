@@ -328,6 +328,7 @@ class PartidaService:
             "cantidad_final_mazo": cantidad_final_mazo,
         }
 
+
     def desgracia_social(self, id_partida: int, id_jugador: int):
         PartidaService(self._db).obtener_por_id(id_partida)
         jugador = JugadorService(self._db).obtener_jugador(id_jugador)
@@ -346,3 +347,49 @@ class PartidaService:
                 self._db.commit()
                 self._db.refresh(jugador)
         return jugador.desgracia_social
+
+
+    def eliminar_partida(self, partida: Partida):
+        """
+        Método para eliminar una partida de la base de datos.
+        
+        Parameters
+        ----------
+            partida: Partida
+                Objeto Partida a ser eliminada de la base de datos
+        """
+        try:
+            self._db.delete(partida)
+            self._db.commit()
+        except Exception as e:
+            self._db.rollback()
+            raise ValueError(f"Error al eliminar la partida: {str(e)}")
+
+
+    def actualizar_cant_jugadores(self, id_partida: int) -> int:
+        """
+        Método para actualizar la cantidad de jugadores una partida dado su ID.
+
+        Parameters
+        ----------
+            id_partida: int
+                ID de la partida a la cual se le actualizará la cantida de jugadores (después de la eliminación de un jugador)
+        
+        Returns
+        -------
+            cantidad: int
+                Entero que representa la cantidad actual de jugadores de la partida
+        """
+        try:
+            partida = self.obtener_por_id(id_partida)
+            if not partida:
+                raise ValueError("No se encontró la partida con ese ID")
+            
+            partida.cantJugadores = len(partida.jugadores)
+            self._db.commit()
+
+            return partida.cantJugadores
+        
+        except Exception as e:
+            raise ValueError("Hubo un error al actualizar la cantidad de jugadores de la partida")
+

@@ -711,3 +711,41 @@ class CartaService:
 
         self._db.commit()
 
+
+    def robar_set(self, id_partida: int, id_jugador: int, id_objetivo: int, id_representacion_carta: int, ids_cartas: list[int]):
+        # Convertimos la lista de cartas a CSV para comparar correctamente
+        cartas_csv = ",".join(map(str, ids_cartas))
+        
+        
+        set_a_robar = (
+        self._db.query(SetJugado)
+        .filter_by(
+            partida_id=id_partida,
+            jugador_id=id_objetivo,
+            representacion_id_carta=id_representacion_carta,
+            cartas_ids_csv=cartas_csv
+        )
+        .first()
+        )
+
+        if not set_a_robar:
+            raise ValueError("El set no existe o los parámetros son incorrectos.")
+
+        set_a_robar.jugador_id = id_jugador
+        self._db.commit()
+
+        carta_jugada = self._db.query(Carta).filter_by(partida_id=id_partida,
+                                                          jugador_id=id_jugador, 
+                                                          ubicacion="evento_jugado",
+                                                          nombre="Another Victim").first()
+
+        self.descartar_cartas(id_jugador, [carta_jugada.id_carta])
+ 
+
+    def eliminar_carta(self, carta: Carta):
+        try:
+            self._db.delete(carta)
+            self._db.commit()
+        except Exception as e:
+            self._db.rollback()
+            raise ValueError(f"Error al eliminar la carta: {str(e)}")

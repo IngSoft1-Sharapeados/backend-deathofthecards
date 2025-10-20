@@ -19,6 +19,7 @@ from fastapi import WebSocketDisconnect
 import json
 from starlette.websockets import WebSocket
 from sqlalchemy.pool import StaticPool
+from types import SimpleNamespace
 
 # Base de datos en memoria
 @pytest.fixture(name="session")
@@ -37,7 +38,7 @@ def dbTesting_fixture():
 
 #---------------------Test delay the murderer escape ok----------
 @patch("game.partidas.endpoints.CartaService")
-@patch("game.partidas.utils.CartaService")
+@patch("game.partidas.utils.CartaService") 
 @patch("game.partidas.utils.JugadorService")
 @patch("game.partidas.utils.PartidaService")
 def test_delay_murderer_scape_ok(mock_PartidaService, mock_JugadorService, mock_CartaService, session):
@@ -53,8 +54,8 @@ def test_delay_murderer_scape_ok(mock_PartidaService, mock_JugadorService, mock_
     mock_jugador.partida_id = 1
 
     mock_partida_service_instance = MagicMock()
-    mock_partida_service_instance.obtener_por_id.return_value = MagicMock(
-        id_partida=1, iniciada=True, turno_id=1, jugadores = [mock_jugador]
+    mock_partida_service_instance.obtener_por_id.return_value = SimpleNamespace(
+        id_partida=1, iniciada=True, turno_id=1, jugadores=[mock_jugador]
     )
     mock_partida_service_instance.desgracia_social.return_value = False
     mock_PartidaService.return_value = mock_partida_service_instance
@@ -64,21 +65,19 @@ def test_delay_murderer_scape_ok(mock_PartidaService, mock_JugadorService, mock_
     mock_JugadorService.return_value = mock_jugador_service_instance
 
     mock_carta_service_instance = MagicMock()
-    carta_descarte = MagicMock()
-    carta_descarte.id_carta = 1
-    carta_descarte.ubicacion = "descarte"
-
-    mock_carta_service_instance.obtener_cartas_descarte.return_value = [carta_descarte]
-    mock_carta_service_instance.jugar_delay_the_murderer_escape.side_effect = None
-    
-    carta_evento = MagicMock(
-        id_carta=23,
-        tipo="Event",
-        ubicacion="mano",
-        nombre="Delay the murderer's escape!"
+    mock_carta_service_instance.jugar_delay_the_murderer_escape.return_value = None
+    mock_carta_service_instance.obtener_cantidad_mazo.return_value = 10
+    mock_carta_service_instance.obtener_cartas_descarte.return_value = [
+        SimpleNamespace(id_carta=1, ubicacion="descarte")
+    ]
+    mock_carta_service_instance.obtener_mano_jugador.return_value = [
+        SimpleNamespace(
+            id_carta=23, tipo="Event", ubicacion="mano", nombre="Delay the murderer's escape!"
+        )
+    ]
+    mock_carta_service_instance.obtener_carta_de_mano.return_value = SimpleNamespace(
+        id_carta=23, tipo="Event", ubicacion="mano", nombre="Delay the murderer's escape!"
     )
-    mock_carta_service_instance.obtener_mano_jugador.return_value = [carta_evento]
-    mock_carta_service_instance.obtener_carta_de_mano.return_value = carta_evento
     mock_CartaService.return_value = mock_carta_service_instance
 
     response = client.put(
@@ -90,7 +89,6 @@ def test_delay_murderer_scape_ok(mock_PartidaService, mock_JugadorService, mock_
 
     assert response.status_code == 200
     assert response.json() == {"detail": "Evento jugado correctamente"}
-
 
 #---------------------Test delay the murderer escape desgracia social----------
 @patch("game.partidas.endpoints.CartaService")

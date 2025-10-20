@@ -1218,6 +1218,30 @@ def test_robar_cartas_fin_de_partida(mock_PartidaService, mock_CartaService, ses
     app.dependency_overrides[get_db] = get_db_override
     client = TestClient(app)
 
+# Crear una instancia de partida en la base de datos en memoria
+    partida = Partida(
+        id=1, 
+        nombre="Partida Test",  # Asegúrate de dar un nombre válido
+        anfitrionId=1,  # Otro campo requerido, el anfitrión
+        cantJugadores=3,  # Número de jugadores
+        turno_id=1,  # Jugador 1 como turno inicial
+        ordenTurnos=json.dumps([1, 2, 3])  # Orden de turnos
+    )
+    session.add(partida)
+    session.commit()
+
+    # Crear una instancia de jugador con un valor para 'fecha_nacimiento'
+    jugador = Jugador(
+        id=1, 
+        nombre="Jugador 1",
+        fecha_nacimiento=date(1990, 1, 1),  # Fecha de nacimiento válida
+        desgracia_social=False,
+        partida_id=1  # Relación con la partida
+    )
+    session.add(jugador)
+    session.commit()
+
+
     # Setup mocks
     mock_partida_service = MagicMock()
     mock_partida_service.obtener_turno_actual.return_value = 1
@@ -1227,7 +1251,8 @@ def test_robar_cartas_fin_de_partida(mock_PartidaService, mock_CartaService, ses
     mock_carta_service = MagicMock()
     mock_carta_service.obtener_mano_jugador.side_effect = [
         [{"id": 1}, {"id": 2}],  # mano inicial → faltan 4
-        [{"id": 1}, {"id": 2}, {"id": 3}, {"id": 4}, {"id": 5}, {"id": 6}]  # mano final
+        # [{"id": 1}, {"id": 2}, {"id": 3}, {"id": 4}, {"id": 5}, {"id": 6}]  # mano final
+        [{"id": 1}, {"id": 2}, {"id": 101}]  # mano final
     ]
     mock_carta_service.obtener_cantidad_mazo.side_effect = [1, 0]  # antes y después del robo
     mock_carta_service.robar_cartas.return_value = [{"id": 101, "nombre": "Poirot"}]
@@ -1238,6 +1263,7 @@ def test_robar_cartas_fin_de_partida(mock_PartidaService, mock_CartaService, ses
 
     app.dependency_overrides.clear()
 
+    print(f"DETALLE: {response.content}")
     # Assert
     assert response.status_code == 200
     assert response.json() == [{"id": 101, "nombre": "Poirot"}]
@@ -1245,12 +1271,6 @@ def test_robar_cartas_fin_de_partida(mock_PartidaService, mock_CartaService, ses
     mock_partida_service.avanzar_turno.assert_called_once_with(1)
 
     app.dependency_overrides.clear()
-
-    # Assert
-    assert response.status_code == 200
-    assert response.json() == [{"id": 101, "nombre": "Poirot"}]
-    mock_carta_service.robar_cartas.assert_called_once()
-    mock_partida_service.avanzar_turno.assert_called_once_with(1)
 
 
 @patch("game.partidas.endpoints.CartaService")
@@ -1400,11 +1420,11 @@ def test_revelar_secreto(session):
     carta = Carta(
         id=1,
         id_carta=3,
-        nombre="murderer",
+        nombre="accomplice",
         tipo="secreto",
         bocaArriba=False,
         ubicacion="mesa",
-        descripcion="Eres el asesino",
+        descripcion="Eres el cómplice",
         partida_id=partida.id,
         jugador_id=jugador2.id
     )

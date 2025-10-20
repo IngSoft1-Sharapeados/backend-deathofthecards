@@ -64,3 +64,8 @@ class PartidaListar(BaseModel):
 
 class RecogerCartasPayload(BaseModel):
     cartas_draft: List[int]
+
+class AnotherVictimPayload(BaseModel):
+    id_objetivo: int
+    id_representacion_carta: int
+    ids_cartas: list[int]
