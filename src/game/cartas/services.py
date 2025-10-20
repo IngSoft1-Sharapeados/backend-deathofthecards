@@ -179,12 +179,20 @@ class CartaService:
         if not tiene_cartas:
             raise Exception("Una o mas cartas no se encuentran en la mano del jugador")
         
+        # Mantener orden de descarte y dejar visibles las cartas descartadas
+        ultimo_orden = (
+            self._db.query(func.max(Carta.orden_descarte))
+            .filter(Carta.partida_id == jugador.partida_id)
+            .scalar() or 0
+        )
         
         for carta in cartas_descarte_id:
             carta_descarte = self._db.query(Carta).filter(Carta.id_carta == carta, Carta.jugador_id == id_jugador).first()
             carta_descarte.jugador_id = 0
             carta_descarte.ubicacion = "descarte"
-            carta_descarte.bocaArriba = False
+            carta_descarte.bocaArriba = True
+            ultimo_orden = ultimo_orden + 1
+            carta_descarte.orden_descarte = ultimo_orden
             self._db.commit()
             print(f'Se descarto la carta con id {carta_descarte.id} y nombre {carta_descarte.nombre}.')
 
