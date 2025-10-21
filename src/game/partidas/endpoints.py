@@ -1161,7 +1161,7 @@ async def another_victim(id_partida: int, id_jugador: int, id_carta: int,
     """
     try:
         if verif_evento("Another Victim", id_carta):
-            verif_jugador_objetivo(id_jugador, payload.id_objetivo, db)
+            verif_jugador_objetivo(id_partida, id_jugador, payload.id_objetivo, db)
             jugar_carta_evento(id_partida, id_jugador, id_carta, db)
             
             CartaService(db).robar_set(id_partida, id_jugador, payload.id_objetivo, payload.id_representacion_carta, payload.ids_cartas)
