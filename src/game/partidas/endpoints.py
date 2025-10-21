@@ -927,29 +927,14 @@ async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int
     Se juega el evento Cards off the table (descarta los 'Not so fast' de la mano de un jugador)
     """
     try:
-        if verif_evento("Cards off the table", id_carta):
-            verif_jugador_objetivo(id_partida, id_jugador, id_objetivo, db)
-            carta_evento = jugar_carta_evento(id_partida, id_jugador, id_carta, db)
-            await manager.broadcast(id_partida, json.dumps({
-                    "evento": "se-jugo-Cards-off-the-table",
-                    "carta": {
-                        "id": carta_evento.id_carta,
-                        "ubicacion": carta_evento.ubicacion,
-                        "jugador": carta_evento.jugador_id
-                    }
-                }))
-            sleep(3)
-            CartaService(db).jugar_cards_off_the_table(id_partida, id_jugador, id_objetivo)
-            return {"detail": "Evento jugado correctamente"}
-        else:
-            if not verif_evento("Cards off the table", id_carta):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="La carta no corresponde al evento Cards Off The Table"
-                )
+        if not verif_evento("Cards off the table", id_carta):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La carta no corresponde al evento Cards Off The Table"
+            )
 
         # Verificaciones básicas
-        verif_jugador_objetivo(id_jugador, id_objetivo, db)
+        verif_jugador_objetivo(id_partida, id_jugador, id_objetivo, db)
         jugar_carta_evento(id_partida, id_jugador, id_carta, db)
 
         # Aplicar el efecto en la base
@@ -992,7 +977,7 @@ async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int
 
         if "aplicar el efecto." in msg:
             raise HTTPException(status_code=400, detail=msg)
-        elif "No se ha encontro la partida" in msg:
+        elif "No se ha encontrado la partida" in msg:
             raise HTTPException(status_code=404, detail=msg)
         elif "objetivo" in msg.lower() and "no se encontro" in msg.lower():
             raise HTTPException(status_code=404, detail=msg)

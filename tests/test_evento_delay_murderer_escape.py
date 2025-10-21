@@ -72,11 +72,11 @@ def test_delay_murderer_scape_ok(mock_PartidaService, mock_JugadorService, mock_
     ]
     mock_carta_service_instance.obtener_mano_jugador.return_value = [
         SimpleNamespace(
-            id_carta=23, tipo="Event", ubicacion="mano", nombre="Delay the murderer's escape!"
+            id_carta=23, tipo="Event", ubicacion="mano", nombre="Delay the murderer's escape!", partida_id=1
         )
     ]
     mock_carta_service_instance.obtener_carta_de_mano.return_value = SimpleNamespace(
-        id_carta=23, tipo="Event", ubicacion="mano", nombre="Delay the murderer's escape!"
+        id_carta=23, tipo="Event", ubicacion="mano", nombre="Delay the murderer's escape!", partida_id=1
     )
     mock_CartaService.return_value = mock_carta_service_instance
 
