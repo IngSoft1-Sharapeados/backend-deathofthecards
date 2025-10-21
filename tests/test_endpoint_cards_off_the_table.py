@@ -49,11 +49,13 @@ def test_cards_off_the_table_completo(mock_JugadorService, mock_jugar_carta_even
     mock_jugador_service_instance = MagicMock()
     mock_jugador_objetivo = MagicMock()
     mock_jugador_objetivo.id = 2
+    mock_jugador_objetivo.partida_id = 1
     mock_jugador_service_instance.obtener_jugador.return_value = mock_jugador_objetivo
     mock_JugadorService.return_value = mock_jugador_service_instance
 
     carta_evento = MagicMock(id_carta=17, tipo="Event", ubicacion="mano", nombre="Cards off the table")
-    
+    carta_evento.jugador_id = 1  
+
     mock_carta_service_instance = MagicMock()
     mock_carta_service_instance.obtener_mano_jugador.return_value = [carta_evento]
     mock_carta_service_instance.obtener_carta_de_mano.return_value = carta_evento
@@ -88,9 +90,13 @@ def test_evento_partida_inexistente(mock_JugadorService, mock_PartidaService, mo
     mock_jugador_service_instance = MagicMock()
     mock_jugador_objetivo = MagicMock()
     mock_jugador_objetivo.id = 2
+    mock_jugador_objetivo.partida_id = 999
+    
     mock_jugador_service_instance.obtener_jugador.return_value = mock_jugador_objetivo
     mock_JugadorService.return_value = mock_jugador_service_instance
 
+    carta_evento = MagicMock(id_carta=17, tipo="Event", ubicacion="mano", nombre="Cards off the table")
+    carta_evento.jugador_id = 1  
 
     mock_partida_service_instance = MagicMock()
     mock_partida_service_instance.obtener_por_id.return_value = None
@@ -98,6 +104,9 @@ def test_evento_partida_inexistente(mock_JugadorService, mock_PartidaService, mo
 
     mock_carta_service_instance = MagicMock()
     mock_CartaService.return_value = mock_carta_service_instance
+    mock_carta_service_instance.obtener_mano_jugador.return_value = [carta_evento]
+    mock_carta_service_instance.obtener_carta_de_mano.return_value = carta_evento
+    
 
     response = client.put(
         "/partidas/999/evento/CardsTable?id_jugador=1&id_objetivo=2&id_carta=17"

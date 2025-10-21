@@ -992,7 +992,7 @@ async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int
 
         if "aplicar el efecto." in msg:
             raise HTTPException(status_code=400, detail=msg)
-        elif "No se ha encontro la partida" in msg:
+        elif "No se ha encontrado la partida" in msg:
             raise HTTPException(status_code=404, detail=msg)
         elif "objetivo" in msg.lower() and "no se encontro" in msg.lower():
             raise HTTPException(status_code=404, detail=msg)
