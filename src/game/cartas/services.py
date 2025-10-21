@@ -154,10 +154,8 @@ class CartaService:
     def ultimo_orden_descarte(self, id_partida: int) -> int:
         
         from sqlalchemy import func
-        
-        partida = PartidaService(self._db).obtener_por_id(id_partida)
         ultimo_orden_descarte = (self._db.query(func.max(Carta.orden_descarte)).
-                                 filter(Carta.partida_id == partida.id).
+                                 filter(Carta.partida_id == id_partida).
                                  scalar() or 0)
         
         return ultimo_orden_descarte
@@ -684,13 +682,39 @@ class CartaService:
         if cartas_jugador:
             id_cartas_jugador = [carta.id_carta for carta in cartas_jugador]
             self.descartar_cartas(id_objetivo, id_cartas_jugador)
+            
+    
+    def obtener_cartas_jugadas(self, id_partida: int, id_jugador: int, nombre: str, ubicacion: str):
+        carta_evento = self._db.query(Carta).filter_by(partida_id=id_partida,
+                                                        jugador_id=id_jugador, 
+                                                        ubicacion=ubicacion,
+                                                        nombre=nombre).all()
+        return carta_evento
+    
+    
+    def tomar_into_the_ashes(self, id_partida: int, id_jugador: int, id_carta_objetivo: int):
         
-        carta_jugada = self._db.query(Carta).filter_by(partida_id=id_partida,
-                                                          jugador_id=id_jugador, 
-                                                          ubicacion="evento_jugado",
-                                                          nombre="Cards off the table").first()
+        carta_objetivo = self._db.query(Carta).filter_by(partida_id=id_partida,
+                                                    jugador_id=0,
+                                                    id_carta=id_carta_objetivo,
+                                                    ubicacion="descarte"
+                                                    ).first()
         
-        self.descartar_cartas(id_jugador, [carta_jugada.id_carta])
+        carta_objetivo.jugador_id = id_jugador
+        carta_objetivo.ubicacion = "mano"
+        carta_objetivo.bocaArriba = False
+        self._db.commit()
+        self._db.refresh(carta_objetivo)
+        
+        
+    def anular_look_into(self, id_jugador: int, carta_evento_jugada_id: int):
+        carta_evento_jugada =  self._db.get(Carta, carta_evento_jugada_id)
+                                                                
+        carta_evento_jugada.jugador_id = id_jugador
+        carta_evento_jugada.ubicacion = "mano"
+        carta_evento_jugada.bocaArriba = False
+        self._db.commit()
+        self.descartar_cartas(id_jugador, [carta_evento_jugada.id_carta])
 
     
     def descartar_eventos(self, id_partida: int, id_jugador: int):

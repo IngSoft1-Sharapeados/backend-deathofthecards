@@ -391,6 +391,9 @@ def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> C
     
     no_mas_eventos = CartaService(db).evento_jugado_en_turno(id_jugador)
     
+    if no_mas_eventos == True:
+        raise ValueError(f"Solo se puede jugar una carta de evento por turno.")
+    
     print("Se verifica que no haya otro evento jugado en turno")
     if no_mas_eventos == True:
         raise ValueError(f"Solo se puede jugar una carta de evento por turno.")
@@ -405,14 +408,19 @@ def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> C
     
     carta_evento = CartaService(db).obtener_carta_de_mano(id_carta, id_jugador)
     
+    if carta_evento.partida_id != id_partida:
+        raise ValueError(f"La carta seleccionada no pertence a la partida")
+    
     if carta_evento.tipo != "Event":
         raise ValueError(f"La carta no es de tipo evento y no puede ser jugada como tal.")
     else:
         carta_evento.ubicacion = "evento_jugado"
+        carta_evento.bocaArriba = True
         db.commit()
     db.refresh(carta_evento)
     
     return carta_evento
+
 
 def verif_evento(evento: str, id_carta: int) -> bool:
     carta = next((v for v in cartasDict.values() if v["id"] == id_carta), None)
@@ -420,12 +428,43 @@ def verif_evento(evento: str, id_carta: int) -> bool:
         return False
     return (evento == carta["carta"])
 
-
-def verif_jugador_objetivo(id_jugador: int, id_objetivo: int, db):
+def verif_jugador_objetivo(id_partida: int, id_jugador: int, id_objetivo: int, db):
     jugador_objetivo = JugadorService(db).obtener_jugador(id_objetivo)
     if jugador_objetivo is None:
         raise ValueError(f"No se encontro el objetivo {id_objetivo}.")
     if id_objetivo == id_jugador:
+        raise ValueError(f"El efecto de evento no puede aplicar sobre el jugador que tiro la carta.")
+    if id_partida != jugador_objetivo.partida_id:
+        raise ValueError(f"El jugador al que se quiere aplicar el evento no pertence a la partida.")
+    
+
+def jugar_look_into_ashes(id_partida: int, id_jugador: int, id_carta_objetivo: int, db):
+
+    carta_evento_jugada = CartaService(db).obtener_cartas_jugadas(id_partida,
+                                                        id_jugador,
+                                                        "Look into the ashes",
+                                                        "evento_jugado"
+                                                        )
+    
+    if not carta_evento_jugada:
+        raise ValueError(f"No se jugo el evento Look Into The Ashes.")
+    
+    carta_evento_jugada = carta_evento_jugada[0]
+    if id_carta_objetivo == 20:
+        CartaService(db).anular_look_into(id_jugador, carta_evento_jugada.id)
+        return True  
+            
+    ultimas_5 = CartaService(db).obtener_cartas_descarte(id_partida, 5)
+    entre_top5 = False
+    for c in ultimas_5:
+        if id_carta_objetivo == c.id_carta:
+            entre_top5 = True
+    if entre_top5 == False:
+        raise ValueError(f"La carta a robar no esta entre las top 5 cartas del mazo descarte")
+    else:
+        CartaService(db).tomar_into_the_ashes(id_partida, id_jugador, id_carta_objetivo)
+         # descartar la carta evento después de tomar la carta
+        CartaService(db).descartar_cartas(id_jugador, [20])
         raise ValueError(f"No se puede aplicar el efecto.")
 
 

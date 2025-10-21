@@ -452,7 +452,7 @@ async def robar_cartas(id_partida: int, id_jugador: int, cantidad: int = 1, db=D
             "ROBAR OK: partida=%s jugador=%s robadas=%s detalle=%s",
             id_partida, id_jugador, len(cartas), cartas,
         )
-
+        
         # Notificar actualización del mazo
         cantidad_restante = CartaService(db).obtener_cantidad_mazo(id_partida)
         await manager.broadcast(id_partida, json.dumps({
@@ -698,7 +698,7 @@ async def accion_recoger_cartas(
         }))
         if cantidad_final_mazo == 0:
             await manager.broadcast(id_partida, json.dumps({
-                "evento": "fin-partida", "ganadores": [], "asesino_gano": True
+                "evento": "fin-partida", "ganadores": [], "asesinoGano": True
             }))
             eliminarPartida(id_partida, db)
         return nuevas_cartas_para_jugador
@@ -892,17 +892,61 @@ async def obtener_secretos_otro_jugador(id_partida: int, id_jugador: int, db=Dep
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
+
+@partidas_router.patch(path="/{id_partida}/ocultamiento", status_code=status.HTTP_200_OK)
+async def ocultar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: int,db=Depends(get_db)):
+    """
+    Oculta el secreto de un jugador dado su ID, el ID de la carta y el de la partida.
+    """
+    try:
+        secreto_ocultado = CartaService(db).ocultar_secreto(id_partida, id_jugador, id_unico_secreto)
+        
+        if not secreto_ocultado:
+            return None
+        
+        secretos_actuales = CartaService(db).obtener_secretos_jugador(id_jugador, id_partida)
+        print(f'secretos del jugador: {[{"id_carta": s.id, "bocaArriba": s.bocaArriba} for s in secretos_actuales]}')
+        await manager.broadcast(id_partida, json.dumps({
+            "evento": "actualizacion-secreto",
+            "jugador-id": id_jugador,
+            "lista-secretos": [{"revelado": s.bocaArriba} for s in secretos_actuales]
+        }))
+
+        return secreto_ocultado
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Hubo un error al ocultar la carta secreto u obtener al jugador."
+        )
+
+
 @partidas_router.put(path='/{id_partida}/evento/CardsTable', status_code=status.HTTP_200_OK)
 async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int, id_carta: int, db=Depends(get_db)):
     """
     Se juega el evento Cards off the table (descarta los 'Not so fast' de la mano de un jugador)
     """
     try:
-        if not verif_evento("Cards off the table", id_carta):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="La carta no corresponde al evento Cards Off The Table"
-            )
+        if verif_evento("Cards off the table", id_carta):
+            verif_jugador_objetivo(id_partida, id_jugador, id_objetivo, db)
+            carta_evento = jugar_carta_evento(id_partida, id_jugador, id_carta, db)
+            await manager.broadcast(id_partida, json.dumps({
+                    "evento": "se-jugo-Cards-off-the-table",
+                    "carta": {
+                        "id": carta_evento.id_carta,
+                        "ubicacion": carta_evento.ubicacion,
+                        "jugador": carta_evento.jugador_id
+                    }
+                }))
+            sleep(3)
+            CartaService(db).jugar_cards_off_the_table(id_partida, id_jugador, id_objetivo)
+            return {"detail": "Evento jugado correctamente"}
+        else:
+            if not verif_evento("Cards off the table", id_carta):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="La carta no corresponde al evento Cards Off The Table"
+                )
 
         # Verificaciones básicas
         verif_jugador_objetivo(id_jugador, id_objetivo, db)
@@ -948,7 +992,7 @@ async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int
 
         if "aplicar el efecto." in msg:
             raise HTTPException(status_code=400, detail=msg)
-        elif "No se ha encontrado la partida" in msg:
+        elif "No se ha encontro la partida" in msg:
             raise HTTPException(status_code=404, detail=msg)
         elif "objetivo" in msg.lower() and "no se encontro" in msg.lower():
             raise HTTPException(status_code=404, detail=msg)
@@ -1085,6 +1129,10 @@ async def one_more(id_partida: int, id_jugador: int, id_carta: int,
             raise HTTPException(status_code=400, detail=msg)
         elif "no es de tipo evento" in msg.lower():
             raise HTTPException(status_code=400, detail=msg)
+        elif "sobre el jugador que tiro la carta" in msg:
+            raise HTTPException(status_code=409, detail=msg)
+        elif "jugador" in msg and "no pertence a la partida" in msg:
+            raise HTTPException(status_code=403, detail=msg)
         else:
             raise HTTPException(status_code=400, detail=f"Error de validación: {msg}")
     except HTTPException:
@@ -1113,7 +1161,7 @@ async def another_victim(id_partida: int, id_jugador: int, id_carta: int,
     """
     try:
         if verif_evento("Another Victim", id_carta):
-            verif_jugador_objetivo(id_jugador, payload.id_objetivo, db)
+            verif_jugador_objetivo(id_partida, id_jugador, payload.id_objetivo, db)
             jugar_carta_evento(id_partida, id_jugador, id_carta, db)
             
             CartaService(db).robar_set(id_partida, id_jugador, payload.id_objetivo, payload.id_representacion_carta, payload.ids_cartas)
@@ -1324,6 +1372,74 @@ async def delay_the_murderer_escape(id_partida: int, id_jugador: int, id_carta: 
     except Exception as e:
         print(f"Error al jugar carta de evento Delay the murderer's escape!: {e}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")    
+
+
+@partidas_router.put(path='/{id_partida}/evento/LookIntoTheAshes', status_code=status.HTTP_200_OK)
+async def look_into_the_ashes(id_partida: int, id_jugador: int, db=Depends(get_db), id_carta: int = None, id_carta_objetivo: int = None):
+    """
+    Se juega el evento Look Into The Ashes.
+    """
+    if id_carta != None and id_carta_objetivo == None:
+        try:
+            if verif_evento("Look into the ashes", id_carta):
+                carta_evento = jugar_carta_evento(id_partida, id_jugador, id_carta, db)
+                await manager.broadcast(id_partida, json.dumps({
+                    "evento": "se-jugo-look-into-the-ashes",
+                    "jugador_id": id_jugador
+                }))
+                await asyncio.sleep(3)
+        
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="La carta no corresponde al evento Look Into The Ashes."
+            )
+        except ValueError as e:
+            msg = str(e)
+            
+            if "no se encontro" in msg:
+                raise HTTPException(status_code=404, detail=msg)
+            elif "Partida no iniciada" in msg:
+                raise HTTPException(status_code=403, detail=msg)
+            elif "no pertenece a la partida" in msg:
+                raise HTTPException(status_code=403, detail=msg)
+            elif "no esta en turno" in msg:
+                raise HTTPException(status_code=403, detail=msg)
+            elif "una carta de evento por turno" in msg:
+                raise HTTPException(status_code=400, detail=msg)
+            elif "La carta no se encuentra en la mano del jugador" in msg:
+                raise HTTPException(status_code=400, detail=msg)
+            elif "no es de tipo evento" in msg:
+                raise HTTPException(status_code=400, detail=msg)
+            else:
+                raise HTTPException(status_code=500, detail="Error inesperado.")
+            
+    elif id_carta == None and id_carta_objetivo != None:
+        try:
+            jugar_look_into_ashes(id_partida, id_jugador, id_carta_objetivo, db)
+            evento2= {
+            "evento": "carta-descartada", 
+            "payload": {
+                        "discardted":
+                        [20]
+                    } 
+                }
+            await manager.broadcast(id_partida, json.dumps(evento2))
+        except Exception as e:
+            msg = str(e)
+        
+            if "No se jugo el evento Look Into The Ashes" in msg:
+                raise HTTPException(status_code=400, detail=msg)
+            elif "La carta a robar no esta entre las top 5 cartas del mazo descarte" in msg:
+                raise HTTPException(status_code=403, detail=msg)
+                 
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Error de validacion"
+        )
+    
+    
 # Endpoint abandonar partida
 @partidas_router.post(path="/{id_partida}/abandonar", status_code=status.HTTP_200_OK)
 async def abandonar_partida(id_partida: int, id_jugador: int, db=Depends(get_db), manager=Depends(get_manager)):
