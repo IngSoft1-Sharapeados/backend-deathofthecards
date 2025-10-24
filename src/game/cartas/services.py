@@ -732,6 +732,7 @@ class CartaService:
             self._db.commit()
         else:
             self.descartar_cartas(id_jugador, [carta_jugada.id_carta])
+            self._db.commit()
 
     def jugar_delay_the_murderer_escape(self, id_partida: int, id_jugador: int,cantidad: int):
     
