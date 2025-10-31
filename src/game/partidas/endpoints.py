@@ -921,67 +921,149 @@ async def ocultar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: in
         )
 
 
+# @partidas_router.put(path='/{id_partida}/evento/CardsTable', status_code=status.HTTP_200_OK)
+# async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int, id_carta: int, db=Depends(get_db)):
+#     """
+#     Se juega el evento Cards off the table (descarta los 'Not so fast' de la mano de un jugador)
+#     """
+#     try:
+#         if not verif_evento("Cards off the table", id_carta):
+#             raise HTTPException(
+#                 status_code=status.HTTP_400_BAD_REQUEST,
+#                 detail="La carta no corresponde al evento Cards Off The Table"
+#             )
+
+#         # Verificaciones básicas
+#         verif_jugador_objetivo(id_partida, id_jugador, id_objetivo, db)
+#         jugar_carta_evento(id_partida, id_jugador, id_carta, db)
+
+#         # Aplicar el efecto en la base
+#         CartaService(db).jugar_cards_off_the_table(id_partida, id_jugador, id_objetivo)
+
+#         # Avisar a todos que se jugó el evento
+#         await manager.broadcast(id_partida, json.dumps({
+#             "evento": "se-jugo-cards-off-the-table",
+#             "jugador_id": id_jugador,
+#             "objetivo_id": id_objetivo
+#         }))
+        
+        
+#         evento= {
+#         "evento": "carta-descartada", 
+#         "payload": {
+#                     "discardted":
+#                     [id_carta]
+#                 } 
+#         }
+#         await manager.broadcast(id_partida, json.dumps(evento))
+
+#         for jugador in [id_jugador, id_objetivo]:
+#             mano_jugador = CartaService(db).obtener_mano_jugador(jugador, id_partida)
+#             cartas_a_enviar = [{"id": carta.id_carta, "nombre": carta.nombre} for carta in mano_jugador]
+            
+#             await manager.send_personal_message(
+#                 jugador,
+#                 json.dumps({
+#                     "evento": "actualizacion-mano",
+#                     "data": cartas_a_enviar
+#                 })
+#             )
+
+#         return {"detail": "Evento jugado correctamente"}
+
+#     except ValueError as e:
+#         msg = str(e)
+#         print(f"Error de validación: {msg}")
+
+#         if "aplicar el efecto." in msg:
+#             raise HTTPException(status_code=400, detail=msg)
+#         elif "No se ha encontrado la partida" in msg:
+#             raise HTTPException(status_code=404, detail=msg)
+#         elif "objetivo" in msg.lower() and "no se encontro" in msg.lower():
+#             raise HTTPException(status_code=404, detail=msg)
+#         elif "jugador" in msg.lower() and "no se encontro" in msg.lower():
+#             raise HTTPException(status_code=404, detail=msg)
+#         elif "Partida no iniciada" in msg:
+#             raise HTTPException(status_code=403, detail=msg)
+#         elif "no esta en turno" in msg.lower():
+#             raise HTTPException(status_code=403, detail=msg)
+#         elif "no pertenece a la partida" in msg.lower():
+#             raise HTTPException(status_code=403, detail=msg)
+#         elif "desgracia social" in msg:
+#             raise HTTPException(status_code=403, detail=msg)
+#         elif "Solo se puede jugar una carta de evento" in msg:
+#             raise HTTPException(status_code=400, detail=msg)
+#         elif "no se encuentra en la mano" in msg.lower():
+#             raise HTTPException(status_code=400, detail=msg)
+#         elif "no es de tipo evento" in msg.lower():
+#             raise HTTPException(status_code=400, detail=msg)
+#         else:
+#             raise HTTPException(status_code=400, detail=f"Error de validación: {msg}")
+
+#     except HTTPException:
+#         raise
+
+#     except Exception as e:
+#         print(f"Error inesperado al jugar carta de evento Cards off the table: {e}")
+#         raise HTTPException(status_code=500, detail="Error interno del servidor")    
+
 @partidas_router.put(path='/{id_partida}/evento/CardsTable', status_code=status.HTTP_200_OK)
 async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int, id_carta: int, db=Depends(get_db)):
     """
-    Se juega el evento Cards off the table (descarta los 'Not so fast' de la mano de un jugador)
+    Se juega el evento Cards off the table(descarta los Not so fast de la mano de un jugador)
     """
     try:
-        if not verif_evento("Cards off the table", id_carta):
+        if verif_evento("Cards off the table", id_carta):
+            verif_jugador_objetivo(id_partida, id_jugador, id_objetivo, db)
+            jugar_carta_evento(id_partida, id_jugador, id_carta, db)
+            await manager.broadcast(id_partida, json.dumps({
+                "evento": "se-jugo-cards-off-the-table",
+                "jugador_id": id_jugador,
+                "objetivo_id": id_objetivo
+            }))
+            sleep(3)
+            
+            CartaService(db).jugar_cards_off_the_table(id_partida, id_jugador, id_objetivo)
+            
+            evento= {
+                "evento": "carta-descartada", 
+                "payload": {
+                            "discardted":
+                            [id_carta]
+                        } 
+                }
+            
+            await manager.broadcast(id_partida, json.dumps(evento))
+
+            for jugador in [id_jugador, id_objetivo]:
+                mano_jugador = CartaService(db).obtener_mano_jugador(jugador, id_partida)
+                cartas_a_enviar = [{"id": carta.id_carta, "nombre": carta.nombre} for carta in mano_jugador]
+                
+                await manager.send_personal_message(
+                    jugador,
+                    json.dumps({
+                        "evento": "actualizacion-mano",
+                        "data": cartas_a_enviar
+                    })
+                )
+        
+            return {"detail": "Evento jugado correctamente"}
+        
+        else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="La carta no corresponde al evento Cards Off The Table"
-            )
-
-        # Verificaciones básicas
-        verif_jugador_objetivo(id_partida, id_jugador, id_objetivo, db)
-        jugar_carta_evento(id_partida, id_jugador, id_carta, db)
-
-        # Aplicar el efecto en la base
-        CartaService(db).jugar_cards_off_the_table(id_partida, id_jugador, id_objetivo)
-
-        # Avisar a todos que se jugó el evento
-        await manager.broadcast(id_partida, json.dumps({
-            "evento": "se-jugo-cards-off-the-table",
-            "jugador_id": id_jugador,
-            "objetivo_id": id_objetivo
-        }))
-        
-        
-        evento= {
-        "evento": "carta-descartada", 
-        "payload": {
-                    "discardted":
-                    [id_carta]
-                } 
-        }
-        await manager.broadcast(id_partida, json.dumps(evento))
-
-        for jugador in [id_jugador, id_objetivo]:
-            mano_jugador = CartaService(db).obtener_mano_jugador(jugador, id_partida)
-            cartas_a_enviar = [{"id": carta.id_carta, "nombre": carta.nombre} for carta in mano_jugador]
-            
-            await manager.send_personal_message(
-                jugador,
-                json.dumps({
-                    "evento": "actualizacion-mano",
-                    "data": cartas_a_enviar
-                })
-            )
-
-        return {"detail": "Evento jugado correctamente"}
-
+                detail="La carta no corresponde al evento Cards Off The table"
+                )
     except ValueError as e:
         msg = str(e)
-        print(f"Error de validación: {msg}")
 
         if "aplicar el efecto." in msg:
             raise HTTPException(status_code=400, detail=msg)
         elif "No se ha encontrado la partida" in msg:
             raise HTTPException(status_code=404, detail=msg)
-        elif "objetivo" in msg.lower() and "no se encontro" in msg.lower():
+        elif "objetivo" in msg and "no se encontro" in msg.lower():
             raise HTTPException(status_code=404, detail=msg)
-        elif "jugador" in msg.lower() and "no se encontro" in msg.lower():
+        elif "jugador" in msg and "no se encontro" in msg.lower():
             raise HTTPException(status_code=404, detail=msg)
         elif "Partida no iniciada" in msg:
             raise HTTPException(status_code=403, detail=msg)
@@ -999,13 +1081,11 @@ async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int
             raise HTTPException(status_code=400, detail=msg)
         else:
             raise HTTPException(status_code=400, detail=f"Error de validación: {msg}")
-
     except HTTPException:
         raise
-
     except Exception as e:
-        print(f"Error inesperado al jugar carta de evento Cards off the table: {e}")
-        raise HTTPException(status_code=500, detail="Error interno del servidor")    
+        print(f"Error al jugar carta de evento Cards off the table: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 @partidas_router.put(path='/{id_partida}/evento/OneMore', status_code=status.HTTP_200_OK)
