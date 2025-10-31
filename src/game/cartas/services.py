@@ -839,4 +839,36 @@ class CartaService:
             if carta_evento_jugada:
                 carta_evento_jugada.ubicacion = "removida"
             
-            self._db.commit()          
+            self._db.commit()
+
+    
+    def jugar_ariadne_oliver(self, id_partida:int, set_destino_id: int):
+        """
+        Mueve la carta jugada de ariadne oliver a un set existente de otro jugador
+        para que muestre un secreto de su eleccion.
+        """
+        
+        set_destino = (
+            self._db.query(SetJugado)
+            .filter(
+                SetJugado.partida_id == id_partida,
+                SetJugado.representacion_id_carta == set_destino_id
+            )
+            .first()
+        )
+
+        ids_actuales = set_destino.cartas_ids_csv.split(",") if set_destino.cartas_ids_csv else []
+        ids_actuales.append(str(15))
+        set_destino.cartas_ids_csv = ",".join(ids_actuales)
+
+        self._db.add(set_destino)
+        self._db.commit()
+
+        return {
+            "mensaje": "Ariadne Oliver jugada correctamente",
+            "set_actualizado": {
+                "id_jugador_dueño": set_destino.jugador_id,
+                "cartas_ids": ids_actuales,
+            },
+            "jugador_revela_secreto": set_destino.jugador_id,
+        }          
