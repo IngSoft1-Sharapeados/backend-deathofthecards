@@ -688,33 +688,55 @@ class CartaService:
         carta_evento = self._db.query(Carta).filter_by(partida_id=id_partida,
                                                         jugador_id=id_jugador, 
                                                         ubicacion=ubicacion,
-                                                        nombre=nombre).all()
+                                                        nombre=nombre).first()
         return carta_evento
     
     
     def tomar_into_the_ashes(self, id_partida: int, id_jugador: int, id_carta_objetivo: int):
         
-        carta_objetivo = self._db.query(Carta).filter_by(partida_id=id_partida,
-                                                    jugador_id=0,
+        if id_carta_objetivo == 20:
+            carta_objetivo = self._db.query(Carta).filter_by(partida_id=id_partida,
                                                     id_carta=id_carta_objetivo,
                                                     ubicacion="descarte"
+                                                    ).order_by(Carta.orden_descarte.desc()).first()
+            carta_objetivo.orden_descarte = self.ultimo_orden_descarte(id_partida) + 1
+            self._db.commit()
+            self._db.refresh(carta_objetivo)
+        
+            carta_evento_vuelve = self._db.query(Carta).filter_by(partida_id=id_partida,
+                                                    id_carta=id_carta_objetivo,
+                                                    ubicacion="evento_jugado"
                                                     ).first()
+
+            carta_evento_vuelve.jugador_id = id_jugador
+            carta_evento_vuelve.ubicacion = "mano"
+            carta_evento_vuelve.bocaArriba = False
+            carta_evento_vuelve.orden_descarte = None
+            self._db.commit()
+            self._db.refresh(carta_evento_vuelve)
         
-        carta_objetivo.jugador_id = id_jugador
-        carta_objetivo.ubicacion = "mano"
-        carta_objetivo.bocaArriba = False
-        self._db.commit()
-        self._db.refresh(carta_objetivo)
+        else:
+            carta_objetivo = self._db.query(Carta).filter_by(partida_id=id_partida,
+                                                        id_carta=id_carta_objetivo,
+                                                        ubicacion="descarte"
+                                                        ).order_by(Carta.orden_descarte.desc()).first()
+            
+            carta_objetivo.jugador_id = id_jugador
+            carta_objetivo.ubicacion = "mano"
+            carta_objetivo.bocaArriba = False
+            carta_objetivo.orden_descarte = None
+            self._db.commit()
+            self._db.refresh(carta_objetivo)
         
         
-    def anular_look_into(self, id_jugador: int, carta_evento_jugada_id: int):
-        carta_evento_jugada =  self._db.get(Carta, carta_evento_jugada_id)
+    # def anular_look_into(self, id_jugador: int, carta_evento_jugada_id: int):
+    #     carta_evento_jugada =  self._db.get(Carta, carta_evento_jugada_id)
                                                                 
-        carta_evento_jugada.jugador_id = id_jugador
-        carta_evento_jugada.ubicacion = "mano"
-        carta_evento_jugada.bocaArriba = False
-        self._db.commit()
-        self.descartar_cartas(id_jugador, [carta_evento_jugada.id_carta])
+    #     carta_evento_jugada.jugador_id = id_jugador
+    #     carta_evento_jugada.ubicacion = "mano"
+    #     carta_evento_jugada.orden_descarte = None
+    #     carta_evento_jugada.bocaArriba = False
+    #     self._db.commit()
 
     
     def descartar_eventos(self, id_partida: int, id_jugador: int):
@@ -817,4 +839,4 @@ class CartaService:
             if carta_evento_jugada:
                 carta_evento_jugada.ubicacion = "removida"
             
-            self._db.commit()
+            self._db.commit()          
