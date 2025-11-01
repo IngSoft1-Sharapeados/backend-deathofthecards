@@ -396,3 +396,54 @@ class PartidaService:
         except Exception as e:
             raise ValueError("Hubo un error al actualizar la cantidad de jugadores de la partida")
 
+
+    def obtener_partida_con_bloqueo(self, id_partida: int) -> Partida:
+        """
+        Obtiene una partida y la bloquea a nivel de BBDD (SELECT ... FOR UPDATE)
+        hasta que la transacción termine. Previene 'race conditions'.
+        """
+        partida = (
+            self._db.query(Partida)
+            .filter(Partida.id == id_partida)
+            .with_for_update()  # <-- Bloquea la fila
+            .first()
+        )
+        if not partida:
+            raise ValueError(f"No se encontró la partida con el ID:{id_partida}")
+        return partida
+
+
+    def iniciar_accion(self, id_partida: int, accion_context: dict):
+        partida = self.obtener_partida_con_bloqueo(id_partida) 
+        if partida.accion_en_progreso:
+            raise ValueError("Ya hay una acción en progreso.")
+        partida.accion_en_progreso = accion_context
+        self._db.commit()
+
+
+    def obtener_accion_en_progreso(self, id_partida: int) -> dict:
+        partida = self.obtener_partida_con_bloqueo(id_partida)
+        if not partida.accion_en_progreso:
+            raise ValueError("No hay ninguna acción en progreso.")
+        return partida.accion_en_progreso
+
+
+    def actualizar_pila_de_respuesta(self, id_partida: int, carta_respuesta: dict):
+        partida = self.obtener_partida_con_bloqueo(id_partida)
+        if not partida.accion_en_progreso:
+             raise ValueError("No hay ninguna acción a la cual responder.")
+        
+        accion_context = dict(partida.accion_en_progreso) 
+        
+        if "pila_respuestas" not in accion_context:
+             accion_context["pila_respuestas"] = []
+             
+        accion_context["pila_respuestas"].append(carta_respuesta)
+        partida.accion_en_progreso = accion_context
+        self._db.commit()
+        
+        
+    def limpiar_accion_en_progreso(self, id_partida: int):
+        partida = self.obtener_partida_con_bloqueo(id_partida)
+        partida.accion_en_progreso = None
+        self._db.commit()

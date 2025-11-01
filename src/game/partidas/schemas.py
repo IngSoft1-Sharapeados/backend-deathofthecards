@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from game.partidas.dtos import PartidaDTO
 from datetime import date
 from game.jugadores.schemas import JugadorOut
+from typing import Any
 
 class PartidaData(BaseModel):
     """
@@ -79,3 +80,36 @@ class OneMorePayload(BaseModel):
     id_fuente: int
     id_destino: int
     id_unico_secreto: int
+    
+class AccionGenericaPayload(BaseModel):
+    """
+    Un payload genérico que el frontend construye para CUALQUIER acción
+    que pueda ser cancelada (Eventos, Sets, etc.).
+    """
+    
+    tipo_accion: str
+    """
+    Un string único para que el frontend sepa qué endpoint original llamar.
+    Ej: "evento_another_victim", "jugar_set_detective"
+    """
+    
+    cartas_db_ids: List[int]
+    """
+    ¡LA CLAVE! El frontend DEBE enviar la lista de IDs de BBDD
+    (los 'Carta.id' únicos) de las cartas que se están jugando.
+    - Para AnotherVictim (ID BBDD 245): [245]
+    - Para un Set (IDs BBDD 101, 102, 110): [101, 102, 110]
+    """
+    
+    nombre_accion: str
+    """
+    El nombre bonito de la acción para el broadcast.
+    Ej: "Another Victim", "Set de Detectives"
+    """
+    
+    payload_original: Any = None
+    """
+    El payload que el endpoint original necesitará si la acción se ejecuta.
+    - Para AnotherVictim: { "id_objetivo": 2, ... }
+    - Para JugarSet: { "set_cartas": [7, 7, 14] } (IDs de *tipo* de carta)
+    """

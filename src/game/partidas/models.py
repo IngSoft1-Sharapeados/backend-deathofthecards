@@ -1,5 +1,5 @@
 """Modelo Partida"""
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Column, Integer, String, Boolean, JSON
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from typing import List
 from game.modelos.db import Base
@@ -18,7 +18,7 @@ class Partida(Base):
     
     ordenTurnos: Mapped[str] = mapped_column(String, nullable=True)  # Almacena el orden de turnos como una cadena separada por comas
     turno_id: Mapped[int] = mapped_column(Integer, nullable=True)  # ID del jugador cuyo turno es actualmente
-    
+    accion_en_progreso: Mapped[str] = mapped_column(JSON, nullable=True)
 
     # Relación de 1 a muchos con Jugador
     jugadores: Mapped[List["Jugador"]] = relationship("Jugador", back_populates="partida")
