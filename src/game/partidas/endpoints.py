@@ -839,7 +839,7 @@ async def robar_secreto_otro_jugador(id_partida: int, id_jugador_turno: int, id_
 
 #Endpoint Jugar set 
 @partidas_router.post(path='/{id_partida}/Jugar-set', status_code=status.HTTP_200_OK)
-async def jugar_set(id_partida: int, id_jugador: int, set_cartas: list[int], db=Depends(get_db), manager=Depends(get_manager)):
+async def jugar_set(id_partida: int, id_jugador: int,set_destino_id: int, set_cartas: list[int], db=Depends(get_db), manager=Depends(get_manager)):
     """ Juega un set de cartas si es el turno del jugador y las cartas son las correctas.
     Parameters ----------
         id_partida: int ID de la partida en la que se intenta jugar el set 
@@ -848,11 +848,13 @@ async def jugar_set(id_partida: int, id_jugador: int, set_cartas: list[int], db=
     Returns -------
         Status 200 OK si el set se puede jugar correctamente, de lo contrario lanza una excepción HTTP. 
     """ 
-     
-    cartas_jugadas = jugar_set_detective(id_partida, id_jugador, set_cartas, db)
+    from game.cartas.services import CartaService
+    cartas_jugadas = jugar_set_detective(id_partida, id_jugador, set_destino_id, set_cartas, db)
+    if set_cartas[0] == 15:
+        carta = CartaService(db).jugar_ariadne_oliver(id_partida, set_destino_id)
+        return carta
     # Persist and broadcast the played set
     try:
-        from game.cartas.services import CartaService
         cs = CartaService(db)
         registro = cs.registrar_set_jugado(id_partida, id_jugador, cartas_jugadas)
         payload = {
