@@ -78,7 +78,7 @@ def test_jugar_set_ok(mock_jugar_set_detective, mock_CartaService, client, sessi
     mock_service.registrar_set_jugado.return_value = MagicMock()
     mock_CartaService.return_value = mock_service
 
-    response = client.post("/partidas/1/Jugar-set?id_jugador=1", json=[7, 7])
+    response = client.post("/partidas/1/Jugar-set?id_jugador=1&set_destino_id=0", json=[7, 7])
 
     app.dependency_overrides.pop(get_manager, None)
 
