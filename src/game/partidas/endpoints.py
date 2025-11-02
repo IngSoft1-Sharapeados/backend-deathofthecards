@@ -1515,11 +1515,15 @@ async def early_train_to_paddington(id_partida: int, id_jugador: int, id_carta: 
                 }
                 await manager.broadcast(id_partida, json.dumps(fin_payload))
 
-            nuevas_cartas_descarte = CartaService(db).obtener_cartas_descarte(id_partida, 5)
+            nueva_carta_tope = CartaService(db).obtener_cartas_descarte(id_partida, 1)
+            id_carta: int = nueva_carta_tope[0].id_carta if nueva_carta_tope else None
             await manager.broadcast(id_partida, json.dumps({
-                "evento": "actualizacion-descarte",
-                "payload": [{"id": c.id_carta} for c in nuevas_cartas_descarte]
-            }))
+                "evento": "carta-descartada", 
+                            "payload": {
+                        "discardted":
+                        [id_carta]
+                    } 
+            }, default=str))
 
             return {"detail": "Evento jugado correctamente"}
         else:
@@ -1745,6 +1749,16 @@ async def resolver_accion(id_partida: int, db=Depends(get_db)):
             # 4. Llama al servicio de descarte con los IDs de TIPO
             if lista_de_tipo_ids:
                 cs.descartar_cartas(jugador_id_original, lista_de_tipo_ids)
+                
+            nueva_carta_tope = CartaService(db).obtener_cartas_descarte(id_partida, 1)
+            id_carta: int = nueva_carta_tope[0].id_carta if nueva_carta_tope else None
+            await manager.broadcast(id_partida, json.dumps({
+                "evento": "carta-descartada", 
+                            "payload": {
+                        "discardted":
+                        [id_carta]
+                    } 
+            }, default=str))
             
             # 5. Avisa al frontend que NO ejecute nada
             nombre_accion = accion_context.get("nombre_accion", "Acción")

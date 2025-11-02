@@ -805,7 +805,7 @@ class CartaService:
                 for i, carta in enumerate(cartas_a_mover, start=1):
                     carta.ubicacion = "descarte"
                     carta.bocaArriba = True
-                    carta.orden_mazo = max_orden_descarte + i
+                    carta.orden_descarte = max_orden_descarte + i
 
             carta_evento_jugada = self._db.query(Carta).filter_by(
                 partida_id=id_partida,
