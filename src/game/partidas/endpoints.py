@@ -317,7 +317,7 @@ async def obtener_mano(id_partida: int, id_jugador: int, db=Depends(get_db)):
             return []
 
         cartas_a_enviar = [
-            {"id": carta.id_carta, "nombre": carta.nombre}
+            {"id": carta.id_carta, "nombre": carta.nombre, "id_instancia": carta.id}
             for carta in mano_jugador
         ]
         
@@ -962,7 +962,7 @@ async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int
 
         for jugador in [id_jugador, id_objetivo]:
             mano_jugador = CartaService(db).obtener_mano_jugador(jugador, id_partida)
-            cartas_a_enviar = [{"id": carta.id_carta, "nombre": carta.nombre} for carta in mano_jugador]
+            cartas_a_enviar = [{"id": carta.id_carta, "nombre": carta.nombre, "id_instancia": carta.id} for carta in mano_jugador]
             
             await manager.send_personal_message(
                 jugador,
@@ -1154,11 +1154,12 @@ async def another_victim(id_partida: int, id_jugador: int, id_carta: int,
             
             CartaService(db).robar_set(id_partida, id_jugador, payload.id_objetivo, payload.id_representacion_carta, payload.ids_cartas)
             
-            # await manager.broadcast(id_partida, json.dumps({
-            #     "evento": "se-jugo-another-victim",
-            #     "jugador_id": id_jugador,
-            #     "objetivo_id": payload.id_objetivo
-            # }))
+            await manager.broadcast(id_partida, json.dumps({
+                "evento": "se-jugo-another-victim",
+                "jugador_id": id_jugador,
+                "objetivo_id": payload.id_objetivo,
+                "representacion_id": payload.id_representacion_carta
+            }))
             evento= {
             "evento": "carta-descartada", 
             "payload": {
@@ -1558,6 +1559,7 @@ async def early_train_to_paddington(id_partida: int, id_jugador: int, id_carta: 
         print(f"Error al jugar carta de evento Early Train: {e}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
+
 @partidas_router.post(path='/{id_partida}/iniciar-accion', status_code=status.HTTP_200_OK)
 async def iniciar_accion_generica(id_partida: int, id_jugador: int, 
                                   accion: AccionGenericaPayload, 
@@ -1601,7 +1603,8 @@ async def iniciar_accion_generica(id_partida: int, id_jugador: int,
             "id_jugador_original": id_jugador,
             "nombre_accion": accion.nombre_accion,
             "payload_original": accion.payload_original,
-            "pila_respuestas": []      
+            "pila_respuestas": [],    
+            "id_carta_tipo_original": accion.id_carta_tipo_original
         }
         
         # 2. Iniciar la "pausa" en la BBDD
@@ -1681,9 +1684,13 @@ async def resolver_accion(id_partida: int, db=Depends(get_db)):
     Responde si la acción se ejecuta o se cancela, y limpia la pila.
     """
     try:
+        print("\n" + "="*50)
+        print(f"--- 3. RESOLVER ACCION (Partida {id_partida}) ---")
         # 1. Obtiene la acción pendiente (con bloqueo)
         accion_context = PartidaService(db).obtener_accion_en_progreso(id_partida)
         cs = CartaService(db)
+        
+        print(f"CONTEXTO LEÍDO DE BBDD: {accion_context}")
         
         # 2. Recolecta IDs de BBDD de las cartas NSF
         cartas_nsf_db_ids = [nsf["id_carta_db"] for nsf in accion_context["pila_respuestas"]]
@@ -1694,8 +1701,14 @@ async def resolver_accion(id_partida: int, db=Depends(get_db)):
         # 4. Decide el resultado
         cantidad_nsf = len(cartas_nsf_db_ids)
         
+        print(f"Total de 'Not So Fast' contados: {cantidad_nsf}")
+        
         if cantidad_nsf % 2 == 0:
             # --- PAR: La acción original SE EJECUTA ---
+            
+            print("Decisión: PAR. La acción SE EJECUTA.")
+            print(f"Descartando {len(cartas_nsf_db_ids)} cartas NSF de la pila.")
+            print("="*50 + "\n")
             
             # Descarta solo las cartas NSF (de "en_la_pila" a "descarte")
             cs.descartar_cartas_de_pila(cartas_nsf_db_ids, id_partida)
@@ -1710,16 +1723,32 @@ async def resolver_accion(id_partida: int, db=Depends(get_db)):
             
         else:
             # --- IMPAR: La acción original SE CANCELA ---
+            print("Decisión: IMPAR. La acción SE CANCELA.")
+            print(f"Descartando {len(cartas_nsf_db_ids)} cartas NSF de la pila.")
             
-            # Descarta las cartas NSF
+            # 1. Descarta las cartas NSF 
             cs.descartar_cartas_de_pila(cartas_nsf_db_ids, id_partida)
             
-            # Descarta la CARTA ORIGINAL (que sigue en la mano del jugador)
-            carta_original = accion_context["carta_original"]
-            cs.descartar_cartas(carta_original["id_jugador"], [carta_original["id_carta_tipo"]])
+            print("="*50 + "\n")
             
-            # Avisa al frontend que NO ejecute nada
-            mensaje = f"La acción '{carta_original['nombre']}' fue cancelada."
+            # 2. Obtiene los datos de la acción original
+            jugador_id_original = accion_context["id_jugador_original"]
+            cartas_db_ids_originales = accion_context["cartas_originales_db_ids"]
+            
+            # Busca los TIPO_ID (`id_carta`) correspondientes a los DB_ID (`id`)
+            cartas_a_descartar_query = (
+                cs._db.query(Carta.id_carta)
+                .filter(Carta.id.in_(cartas_db_ids_originales))
+            )
+            lista_de_tipo_ids = [c[0] for c in cartas_a_descartar_query.all()]
+
+            # 4. Llama al servicio de descarte con los IDs de TIPO
+            if lista_de_tipo_ids:
+                cs.descartar_cartas(jugador_id_original, lista_de_tipo_ids)
+            
+            # 5. Avisa al frontend que NO ejecute nada
+            nombre_accion = accion_context.get("nombre_accion", "Acción")
+            mensaje = f"La acción '{nombre_accion}' fue cancelada."
             await manager.broadcast(id_partida, json.dumps({
                 "evento": "accion-resuelta-cancelada", 
                 "detail": mensaje

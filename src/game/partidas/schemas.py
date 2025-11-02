@@ -113,3 +113,4 @@ class AccionGenericaPayload(BaseModel):
     - Para AnotherVictim: { "id_objetivo": 2, ... }
     - Para JugarSet: { "set_cartas": [7, 7, 14] } (IDs de *tipo* de carta)
     """
+    id_carta_tipo_original: int = 0
