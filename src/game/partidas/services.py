@@ -348,7 +348,23 @@ class PartidaService:
                 self._db.refresh(jugador)
         return jugador.desgracia_social
 
+    def ganar_desgracia_social(self, id_partida: int) -> bool:
+        partida = PartidaService(self._db).obtener_por_id(id_partida)
+        jugadores_en_desgracia = [jugador for jugador in partida.jugadores if jugador.desgracia_social]
+        if len(jugadores_en_desgracia) == len(partida.jugadores) - 1:
+            jugadores_no_desgracia = [jugador for jugador in partida.jugadores if not jugador.desgracia_social]
 
+            if len(jugadores_no_desgracia) == 1:
+                jugador_exento = jugadores_no_desgracia[0]
+                
+                secretos = CartaService(self._db).obtener_secretos_jugador(jugador_exento.id, id_partida)
+                for secreto in secretos:
+                    revelado = secreto.bocaArriba
+                    if (revelado is False) and (CartaService(self._db).es_asesino(secreto.id) or CartaService(self._db).es_complice(secreto.id)):
+                        return True
+
+        return False
+    
     def eliminar_partida(self, partida: Partida):
         """
         Método para eliminar una partida de la base de datos.
