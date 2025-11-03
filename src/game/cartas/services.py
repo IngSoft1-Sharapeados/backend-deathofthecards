@@ -546,28 +546,6 @@ class CartaService:
         self._db.commit()
         return registro
 
-
-    def obtener_sets_jugados(self, id_partida: int):
-        """Devuelve [{ jugador_id, representacion_id_carta, cartas_ids: [int,int...] }]"""
-        registros = self._db.query(SetJugado).filter(SetJugado.partida_id == id_partida).all()
-        WILDCARD_ID = 14
-        salida = []
-        for r in registros:
-            ids = [int(x) for x in r.cartas_ids_csv.split(",") if x]
-            rep = r.representacion_id_carta
-            # Corrección retroactiva: si por error quedó comodín como representación, usar primer no comodín
-            if rep == WILDCARD_ID:
-                rep_candidates = [i for i in ids if i != WILDCARD_ID]
-                if rep_candidates:
-                    rep = rep_candidates[0]
-            salida.append({
-                "jugador_id": r.jugador_id,
-                "representacion_id_carta": rep,
-                "cartas_ids": ids,
-            })
-        return salida
-
-
     def obtener_asesino_complice(self, id_partida):
         carta_asesino = self._db.query(Carta).filter_by(partida_id=id_partida, tipo="secreto", nombre="murderer").first()
         asesino_id = carta_asesino.jugador_id if carta_asesino else None
@@ -646,7 +624,6 @@ class CartaService:
         """Obtiene una carta dado su ID único"""
         carta = self._db.get(Carta, id_unico_secreto)
         return carta
-
 
     def robar_secreto(self, secreto_a_robar: Carta, id_jugador_destino: int):
         secreto_a_robar.bocaArriba = False
