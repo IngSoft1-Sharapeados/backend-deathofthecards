@@ -593,6 +593,57 @@ def verif_cantidad(id_partida: int, cantidad: int, db):
         raise ValueError("No hay suficientes cartas en el mazo de descarte.")
 
 
+def validar_accion_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> Carta:
+    """
+    Copia de 'jugar_carta_evento' que SÓLO VALIDA y no modifica la BBDD.
+    Retorna el objeto Carta si es válido, o lanza ValueError si no.
+    """
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    if partida is None:
+        raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
+    
+    jugador = JugadorService(db).obtener_jugador(id_jugador)
+    if jugador is None:
+        raise ValueError(f"No se encontro el jugador {id_jugador}.")
+    
+    if partida.iniciada == False:
+        raise ValueError(f"Partida no iniciada")
+    
+    if partida.turno_id != id_jugador:
+        raise ValueError(f"El jugador no esta en turno.")
+    
+    if jugador.partida_id != id_partida:
+        raise ValueError(f"El jugador con ID {id_jugador} no pertenece a la partida {id_partida}.")
+    
+    desgracia_social = PartidaService(db).desgracia_social(id_partida, id_jugador)
+    if desgracia_social:
+        raise ValueError(f"El jugador {id_jugador} esta en desgracia social")
+
+    cartas_mano = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
+    
+    no_mas_eventos = CartaService(db).evento_jugado_en_turno(id_jugador)
+    
+    if no_mas_eventos == True:
+        raise ValueError(f"Solo se puede jugar una carta de evento por turno.")
+           
+    en_mano = False
+    for c in cartas_mano:
+        if c.id_carta == id_carta:
+            en_mano = True
+    if en_mano == False:
+        raise ValueError(f"La carta no se encuentra en la mano del jugador.")
+    
+    carta_evento = CartaService(db).obtener_carta_de_mano(id_carta, id_jugador)
+    
+    if carta_evento.partida_id != id_partida:
+        raise ValueError(f"La carta seleccionada no pertence a la partida")
+    
+    if carta_evento.tipo != "Event":
+        raise ValueError(f"La carta no es de tipo evento y no puede ser jugada como tal.")
+    
+    # Si todo es válido, retorna la carta (sin moverla)
+    return carta_evento
+
 def jugar_point_your_suspicions(id_partida: int, id_jugador: int, id_votante: int, id_votado: int, db):
 
     carta_evento_jugada = CartaService(db).obtener_cartas_jugadas(id_partida,
