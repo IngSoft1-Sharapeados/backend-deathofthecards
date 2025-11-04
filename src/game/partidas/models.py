@@ -1,5 +1,5 @@
 """Modelo Partida"""
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, PrimaryKeyConstraint
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from typing import List
 from game.modelos.db import Base
@@ -24,3 +24,23 @@ class Partida(Base):
     jugadores: Mapped[List["Jugador"]] = relationship("Jugador", back_populates="partida")
 
     cartas: Mapped[List["Carta"]] = relationship("Carta", back_populates="partida")
+        
+    # Relación de 1 a muchos con VotacionEvento
+    votaciones_evento: Mapped[List["VotacionEvento"]] = relationship(
+                                                        "VotacionEvento",
+                                                        back_populates="partida",
+                                                        cascade="all, delete-orphan"
+                                                                    )
+    
+class VotacionEvento(Base):
+    __tablename__ = "votaciones_evento"
+
+    partida_id: Mapped[int] = mapped_column(ForeignKey("partidas.id"), nullable=False)
+    id_jugador: Mapped[int] = mapped_column(ForeignKey("jugadores.id"), nullable=False)
+    id_votado: Mapped[int] = mapped_column(ForeignKey("jugadores.id"), nullable=False)
+
+    partida: Mapped["Partida"] = relationship("Partida", back_populates="votaciones_evento")
+
+    __table_args__ = (
+        PrimaryKeyConstraint('partida_id', 'id_jugador', name='pk_votacion_evento'),
+    )

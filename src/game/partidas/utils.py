@@ -591,3 +591,17 @@ def verif_cantidad(id_partida: int, cantidad: int, db):
     cantidad_cartas_descarte = CartaService(db).obtener_cartas_descarte(id_partida, cantidad)
     if len(cantidad_cartas_descarte) < cantidad:
         raise ValueError("No hay suficientes cartas en el mazo de descarte.")
+
+
+def jugar_point_your_suspicions(id_partida: int, id_jugador: int, id_votante: int, id_votado: int, db):
+
+    carta_evento_jugada = CartaService(db).obtener_cartas_jugadas(id_partida,
+                                                        id_jugador,
+                                                        "Point your suspicions",
+                                                        "evento_jugado"
+                                                        )
+    
+    if not carta_evento_jugada:
+        raise ValueError(f"No se jugo el evento Point Your Suspicions.")
+    
+    

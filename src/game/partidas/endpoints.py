@@ -1634,3 +1634,50 @@ async def early_train_to_paddington(id_partida: int, id_jugador: int, id_carta: 
     except Exception as e:
         print(f"Error al jugar carta de evento Early Train: {e}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+
+@partidas_router.put(path='/{id_partida}/evento/PointYourSuspicions', status_code=status.HTTP_200_OK)
+async def point_your_suspicions(id_partida: int, id_jugador: int, id_carta: int, db=Depends(get_db)):
+    
+    try:
+        if verif_evento("Point your suspicions", id_carta):
+            carta_evento = jugar_carta_evento(id_partida, id_jugador, id_carta, db)
+            await manager.broadcast(id_partida, json.dumps({
+                "evento": "se-jugo-point-your-suspicions",
+                "jugador_id": id_jugador
+            }))
+            
+            #votacion = true
+    
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La carta no corresponde al evento Point Your Suspicions."
+        
+        )
+    except ValueError as e:
+        msg = str(e)
+        
+        if "no se encontro" in msg:
+            raise HTTPException(status_code=404, detail=msg)
+        elif "Partida no iniciada" in msg:
+            raise HTTPException(status_code=403, detail=msg)
+        elif "no pertenece a la partida" in msg:
+            raise HTTPException(status_code=403, detail=msg)
+        elif "no esta en turno" in msg:
+            raise HTTPException(status_code=403, detail=msg)
+        elif "una carta de evento por turno" in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        elif "La carta no se encuentra en la mano del jugador" in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        elif "no es de tipo evento" in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        else:
+            raise HTTPException(status_code=500, detail="Error inesperado.")
+        
+        
+
+@partidas_router.put(path='/{id_partida}/evento/PointYourSuspicions', status_code=status.HTTP_200_OK)
+async def point_your_suspicions(id_partida: int, id_jugador: int, id_votante: int, id_votado: int, db=Depends(get_db)):
+    
+    
