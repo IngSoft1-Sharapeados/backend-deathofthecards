@@ -816,8 +816,8 @@ class CartaService:
             if carta_evento_jugada:
                 carta_evento_jugada.ubicacion = "removida"
             
-            self._db.commit()
-            
+            self._db.commit() 
+                     
     def jugar_carta_instantanea(self, id_partida: int, id_jugador: int, id_carta_tipo: int) -> Carta:
         """
         Mueve una carta de la mano del jugador a "en_la_pila".
@@ -854,8 +854,7 @@ class CartaService:
             carta.partida_id = id_partida
 
         self._db.commit()
-
-    
+        
     def jugar_ariadne_oliver(self, id_partida:int, set_destino_id: int):
         """
         Mueve la carta jugada de ariadne oliver a un set existente de otro jugador
