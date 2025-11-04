@@ -7,7 +7,7 @@ from game.partidas.services import PartidaService
 
 from fastapi import HTTPException, status
 
-def jugar_set_detective(id_partida: int, id_jugador: int, set_cartas: list[int], db) -> list[Carta]:
+def jugar_set_detective(id_partida: int, id_jugador: int,set_destino_id: int, set_cartas: list[int], db) -> list[Carta]:
     """
     Valida y mueve a set_jugado exactamente las cartas seleccionadas por el jugador.
     Importante: cuando hay múltiples copias del mismo id_carta en la mano, se consumen
@@ -114,6 +114,16 @@ def jugar_set_detective(id_partida: int, id_jugador: int, set_cartas: list[int],
     if id_adriane_oliver in tipos:
         if cantidad != 1:
             raise HTTPException(status_code=400, detail="Adriane Oliver solo puede jugarse sola")
+        sets_existentes = CartaService(db).obtener_sets_jugados(id_partida)
+        if not sets_existentes:
+            raise HTTPException(
+                status_code=404,
+                detail="No hay sets existentes en la mesa para agregar Ariadne Oliver")
+        if not any(set_destino_id in s["cartas_ids"] for s in sets_existentes):
+            raise HTTPException(
+                status_code=404,
+                detail="No se encuentra el set en la mesa para agregar Ariadne Oliver"
+            )
         cartas_jugadas = CartaService(db).mover_set(set_id)
     
     
