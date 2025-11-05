@@ -20,6 +20,8 @@ class Partida(Base):
     turno_id: Mapped[int] = mapped_column(Integer, nullable=True)  # ID del jugador cuyo turno es actualmente
     
     accion_en_progreso: Mapped[str] = mapped_column(JSON, nullable=True)
+    
+    votacion_activa: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Relación de 1 a muchos con Jugador
     jugadores: Mapped[List["Jugador"]] = relationship("Jugador", back_populates="partida")
@@ -37,11 +39,11 @@ class VotacionEvento(Base):
     __tablename__ = "votaciones_evento"
 
     partida_id: Mapped[int] = mapped_column(ForeignKey("partidas.id"), nullable=False)
-    id_jugador: Mapped[int] = mapped_column(ForeignKey("jugadores.id"), nullable=False)
-    id_votado: Mapped[int] = mapped_column(ForeignKey("jugadores.id"), nullable=False)
+    votante_id: Mapped[int] = mapped_column(ForeignKey("jugadores.id"), nullable=False)
+    votado_id: Mapped[int] = mapped_column(ForeignKey("jugadores.id"), nullable=False)
 
     partida: Mapped["Partida"] = relationship("Partida", back_populates="votaciones_evento")
 
     __table_args__ = (
-        PrimaryKeyConstraint('partida_id', 'id_jugador', name='pk_votacion_evento'),
+        PrimaryKeyConstraint('partida_id', 'votante_id', name='pk_votacion_evento'),
     )

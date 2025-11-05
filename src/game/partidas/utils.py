@@ -1,4 +1,4 @@
-from game.partidas.models import Partida
+from game.partidas.models import Partida, VotacionEvento
 from game.jugadores.models import Jugador
 from game.cartas.models import Carta
 from game.cartas.constants import *
@@ -644,15 +644,53 @@ def validar_accion_evento(id_partida: int, id_jugador: int, id_carta: int, db) -
     # Si todo es válido, retorna la carta (sin moverla)
     return carta_evento
 
-def jugar_point_your_suspicions(id_partida: int, id_jugador: int, id_votante: int, id_votado: int, db):
-
-    carta_evento_jugada = CartaService(db).obtener_cartas_jugadas(id_partida,
-                                                        id_jugador,
-                                                        "Point your suspicions",
-                                                        "evento_jugado"
-                                                        )
     
+def votacion_activada(id_partida: int, db):
+    PartidaService(db).inicia_votacion(id_partida)
+
+    
+def jugar_point_your_suspicions(id_partida: int, id_jugador: int, id_votante: int, id_votado: int, db): 
+    ps = PartidaService(db)
+    js = JugadorService(db)
+    cs = CartaService(db)
+    
+    # Verifico que el evento Point Your Suspicions este efectivamente jugado.
+    carta_evento_jugada = cs.obtener_cartas_jugadas(id_partida,
+                                                    id_jugador,
+                                                    "Point your suspicions",
+                                                    "evento_jugado"
+                                                    )
     if not carta_evento_jugada:
         raise ValueError(f"No se jugo el evento Point Your Suspicions.")
     
+    partida = ps.obtener_por_id(id_partida)
+    if partida.votacion_activa == False:
+        raise ValueError(f"No hay votacion en proceso actualmente.")
     
+    votante = js.obtener_jugador(id_votante)
+    votado = js.obtener_jugador(id_votado)
+    
+    # Chequeo que el jugador votante exista y este dentro de la partida.
+    if not votante:
+        raise ValueError(f"No se encontro el votante.")
+    
+    if votante.partida_id != id_partida:
+        raise ValueError(f"El jugador votante no pertenece a la partida.")
+    
+    # Chequeo que el jugador votado exista y este dentro de la partida.
+    if not votado:
+        raise ValueError(f"No se encontro el votado.")
+    
+    if votado.partida_id != id_partida:
+        raise ValueError(f"El jugador votado no pertenece a la partida.")
+    
+    ps.registrar_voto(id_partida, id_votante, id_votado)
+    total_votos = ps.numero_de_votos(id_partida)
+    
+    total_jugadores = len(partida.jugadores)
+    
+    if total_votos == total_jugadores:
+        sospechoso = ps.resolver_votacion(id_partida)
+        ps.fin_votacion(id_partida) #idealmente para la seguridad esto se hace justo ntes de pasar el turno.
+        ps.borrar_votacion(id_partida) #idealmente para la seguridad esto se hace justo ntes de pasar el turno.
+        return sospechoso

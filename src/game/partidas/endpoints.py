@@ -1657,7 +1657,7 @@ async def point_your_suspicions(id_partida: int, id_jugador: int, id_carta: int,
                 "jugador_id": id_jugador
             }))
             
-            #votacion = true
+            votacion_activada(id_partida, db)
     
         else:
             raise HTTPException(
@@ -1688,7 +1688,15 @@ async def point_your_suspicions(id_partida: int, id_jugador: int, id_carta: int,
         
 
 @partidas_router.put(path='/{id_partida}/evento/PointYourSuspicions', status_code=status.HTTP_200_OK)
-async def point_your_suspicions(id_partida: int, id_jugador: int, id_votante: int, id_votado: int, db=Depends(get_db)):
+async def resolver_point_your_suspicions(id_partida: int, id_jugador: int, id_votante: int, id_votado: int, db=Depends(get_db)):
+    try:
+        sospechoso = jugar_point_your_suspicions(id_partida, id_jugador, id_votante, id_votado, db)
+        if sospechoso:
+            #websocket con el dato del id del sospechoso como lo necesite el front.
+    except ValueError as e:
+        msg = str(e)
+        # cacheo las exepciones posibles de los servicios y de utils.
+        
     
     
     
