@@ -909,8 +909,8 @@ def test_obtener_mano_ok(mock_CartaService, session):
 
     assert response.status_code == 200
     assert response.json() == [
-        {"id": 16, "nombre": "Not so fast"},
-        {"id": 9, "nombre": "Mr Satterthwaite"},
+        {"id": 16, "nombre": "Not so fast", "id_instancia": {}},
+        {"id": 9, "nombre": "Mr Satterthwaite", "id_instancia": {}},
     ]
 
     # Verificamos que el método se llamó correctamente

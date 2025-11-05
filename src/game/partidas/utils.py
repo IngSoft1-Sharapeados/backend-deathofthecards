@@ -1,6 +1,6 @@
 from game.partidas.models import Partida
 from game.jugadores.models import Jugador
-from game.cartas.models import Carta
+from game.cartas.models import Carta, SetJugado
 from game.cartas.constants import *
 from game.jugadores.schemas import JugadorOut
 from game.partidas.schemas import PartidaData, PartidaResponse, IniciarPartidaData
@@ -449,10 +449,10 @@ def jugar_look_into_ashes(id_partida: int, id_jugador: int, id_carta_objetivo: i
     if not carta_evento_jugada:
         raise ValueError(f"No se jugo el evento Look Into The Ashes.")
     
-    carta_evento_jugada = carta_evento_jugada[0]
-    if id_carta_objetivo == 20:
-        CartaService(db).anular_look_into(id_jugador, carta_evento_jugada.id)
-        return True  
+    # carta_evento_jugada = carta_evento_jugada[0]
+    # if id_carta_objetivo == 20:
+    #     CartaService(db).anular_look_into(id_jugador, carta_evento_jugada.id)
+    #     return True
             
     ultimas_5 = CartaService(db).obtener_cartas_descarte(id_partida, 5)
     entre_top5 = False
@@ -463,9 +463,6 @@ def jugar_look_into_ashes(id_partida: int, id_jugador: int, id_carta_objetivo: i
         raise ValueError(f"La carta a robar no esta entre las top 5 cartas del mazo descarte")
     else:
         CartaService(db).tomar_into_the_ashes(id_partida, id_jugador, id_carta_objetivo)
-         # descartar la carta evento después de tomar la carta
-        CartaService(db).descartar_cartas(id_jugador, [20])
-        raise ValueError(f"No se puede aplicar el efecto.")
 
 
 def revelarSecretoPropio(id_partida: int, id_jugador: int, id_unico_secreto: int, db) -> Carta:
@@ -582,6 +579,7 @@ def abandonarPartida(id_partida: int, id_jugador: int, db) -> dict:
 
 def eliminarPartida(id_partida: int, db):
     partida = PartidaService(db).obtener_por_id(id_partida)
+    db.query(SetJugado).filter(SetJugado.partida_id == id_partida).delete()
     for jugador in partida.jugadores:
         JugadorService(db).eliminar_jugador(jugador)
     for carta in partida.cartas:
