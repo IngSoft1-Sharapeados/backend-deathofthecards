@@ -1470,6 +1470,8 @@ async def look_into_the_ashes(id_partida: int, id_jugador: int, db=Depends(get_d
             
             if "no se encontro" in msg:
                 raise HTTPException(status_code=404, detail=msg)
+            elif "No se ha encontrado la partida" in msg:
+                raise HTTPException(status_code=404, detail=msg)
             elif "Partida no iniciada" in msg:
                 raise HTTPException(status_code=403, detail=msg)
             elif "no pertenece a la partida" in msg:
@@ -1668,7 +1670,9 @@ async def point_your_suspicions(id_partida: int, id_jugador: int, id_carta: int,
     except ValueError as e:
         msg = str(e)
         
-        if "no se encontro" in msg:
+        if "No se encontro" in msg:
+            raise HTTPException(status_code=404, detail=msg)
+        elif "No se ha encontrado la partida" in msg:
             raise HTTPException(status_code=404, detail=msg)
         elif "Partida no iniciada" in msg:
             raise HTTPException(status_code=403, detail=msg)
@@ -1687,19 +1691,39 @@ async def point_your_suspicions(id_partida: int, id_jugador: int, id_carta: int,
         
         
 
-@partidas_router.put(path='/{id_partida}/evento/PointYourSuspicions', status_code=status.HTTP_200_OK)
+@partidas_router.put(path='/{id_partida}/evento/PointYourSuspicions/votacion', status_code=status.HTTP_200_OK)
 async def resolver_point_your_suspicions(id_partida: int, id_jugador: int, id_votante: int, id_votado: int, db=Depends(get_db)):
+    
     try:
         sospechoso = jugar_point_your_suspicions(id_partida, id_jugador, id_votante, id_votado, db)
+        await manager.broadcast(id_partida, json.dumps({
+            "evento": "voto-registrado",
+            "votante_id": id_votante,
+            "votado_id": id_votado
+        }))
+        
         if sospechoso:
-            #websocket con el dato del id del sospechoso como lo necesite el front.
+            await manager.broadcast(id_partida, json.dumps({
+                "evento": "votacion-finalizada",
+                "sospechoso_id": sospechoso
+            }))
+            return sospechoso
+            
     except ValueError as e:
         msg = str(e)
-        # cacheo las exepciones posibles de los servicios y de utils.
+        if "No se jugo el evento Point Your Suspicions." in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        elif "No hay votacion en proceso actualmente" in msg:
+            raise HTTPException(status_code=403, detail=msg)
+        elif "No se encontro" in msg:
+            raise HTTPException(status_code=404, detail=msg)
+        elif "no pertenece" in msg:
+            raise HTTPException(status_code=403, detail=msg)
+        elif "ya voto" in msg:
+            raise HTTPException(status_code=400, detail=msg)
+            
         
-    
-    
-    
+            
 @partidas_router.post(path='/{id_partida}/iniciar-accion', status_code=status.HTTP_200_OK)
 async def iniciar_accion_generica(id_partida: int, id_jugador: int, 
                                   accion: AccionGenericaPayload, 

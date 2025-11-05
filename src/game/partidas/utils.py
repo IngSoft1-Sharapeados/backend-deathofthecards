@@ -691,6 +691,6 @@ def jugar_point_your_suspicions(id_partida: int, id_jugador: int, id_votante: in
     
     if total_votos == total_jugadores:
         sospechoso = ps.resolver_votacion(id_partida)
-        ps.fin_votacion(id_partida) #idealmente para la seguridad esto se hace justo ntes de pasar el turno.
-        ps.borrar_votacion(id_partida) #idealmente para la seguridad esto se hace justo ntes de pasar el turno.
+        ps.fin_votacion(id_partida)
+        ps.borrar_votacion(id_partida)
         return sospechoso

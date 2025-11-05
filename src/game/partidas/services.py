@@ -484,12 +484,12 @@ class PartidaService:
     
     def resolver_votacion(self, id_partida: int):
         resultado = self._db.query(
-                        VotacionEvento.id_votado,
-                        func.count(VotacionEvento.id_votado).label("cantidad")
-                        ).filter_by(partida_id=id_partida).group_by(VotacionEvento.id_votado).all()
+                        VotacionEvento.votado_id,
+                        func.count(VotacionEvento.votado_id).label("cantidad")
+                        ).filter_by(partida_id=id_partida).group_by(VotacionEvento.votado_id).all()
             
         max_cantidad = max(r.cantidad for r in resultado)
-        candidatos = [r.id_votado for r in resultado if r.cantidad == max_cantidad]
+        candidatos = [r.votado_id for r in resultado if r.cantidad == max_cantidad]
         sospechoso = random.choice(candidatos)  # desempate aleatorio si hay empate.
         
         return sospechoso
