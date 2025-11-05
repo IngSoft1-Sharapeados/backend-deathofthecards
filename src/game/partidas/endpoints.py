@@ -387,7 +387,7 @@ async def obtener_mano(id_partida: int, id_jugador: int, db=Depends(get_db)):
             return []
 
         cartas_a_enviar = [
-            {"id": carta.id_carta, "nombre": carta.nombre}
+            {"id": carta.id_carta, "nombre": carta.nombre, "id_instancia": carta.id}
             for carta in mano_jugador
         ]
         
@@ -1683,14 +1683,16 @@ async def early_train_to_paddington(id_partida: int, id_jugador: int, id_carta: 
                     "payload": {"ganadores": [], "asesinoGano": True}
                 }
                 await manager.broadcast(id_partida, json.dumps(fin_payload))
+                await manager.clean_connections(id_partida)
+                eliminarPartida(id_partida, db)
+            else:
+                nuevas_cartas_descarte = CartaService(db).obtener_cartas_descarte(id_partida, 5)
+                await manager.broadcast(id_partida, json.dumps({
+                    "evento": "actualizacion-descarte",
+                    "payload": [{"id": c.id_carta} for c in nuevas_cartas_descarte]
+                }))
 
-            nuevas_cartas_descarte = CartaService(db).obtener_cartas_descarte(id_partida, 5)
-            await manager.broadcast(id_partida, json.dumps({
-                "evento": "actualizacion-descarte",
-                "payload": [{"id": c.id_carta} for c in nuevas_cartas_descarte]
-            }))
-
-            return {"detail": "Evento jugado correctamente"}
+                return {"detail": "Evento jugado correctamente"}
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
