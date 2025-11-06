@@ -470,19 +470,6 @@ async def descarte_cartas(id_partida: int, id_jugador: int, cartas_descarte: lis
 @partidas_router.get(path='/{id_partida}/mazo')
 async def obtener_cartas_restantes(id_partida, db=Depends(get_db), manager=Depends(get_manager)):
     cantidad_restante = CartaService(db).obtener_cantidad_mazo(id_partida)
-    # evento = {
-    #     "evento":"actualizacion-mazo",
-    #     "cantidad-restante-mazo": cantidad_restante,
-    # }
-    # # Enviar como texto JSON por WebSocket
-    # await manager.broadcast(id_partida, json.dumps(evento))
-    # if cantidad_restante == 0:
-    #     # Broadcast fin de partida (payload mínimo)
-    #     fin_payload = {
-    #         "evento": "fin-partida",
-    #         "payload": {"ganadores": [], "asesinoGano": False}
-    #     }
-    #     await manager.broadcast(id_partida, json.dumps(fin_payload))
     return cantidad_restante
 
 
@@ -539,7 +526,6 @@ async def robar_cartas(id_partida: int, id_jugador: int, cantidad: int = 1, db=D
                 "payload": {"ganadores": [], "asesinoGano": True}
             }
             await manager.broadcast(id_partida, json.dumps(fin_payload))
-            await asyncio.sleep(0.2)
             await manager.clean_connections(id_partida)
             eliminarPartida(id_partida, db)
 
@@ -699,13 +685,8 @@ async def revelar_secreto(id_partida: int, id_jugador_turno: int, id_unico_secre
             "jugador-perdedor-id": secreto_revelado.jugador_id,
             "payload": {"ganadores": [], "asesinoGano": False}
             }))
-            logger.info("BROADCAST MANDADO. POR ENTRAR A SLEEP")
-            await asyncio.sleep(0.9)
-            logger.info("DESPUES DEL SLEEP, POR HACER CLEANCONNECTIONS")
             await manager.clean_connections(id_partida)
-            logger.info("CLEANCONNECTIONS EJECUTADO, POR ELIMINAR PARTIDA")
             eliminarPartida(id_partida, db)
-            logger.info("PARTIDA ELIMINADA")
         else:
             desgracia_social = PartidaService(db).desgracia_social(id_partida, id_jugador_turno)
             if (not desgraciaSocial_aux) and (desgracia_social):
@@ -782,7 +763,6 @@ async def accion_recoger_cartas(
             await manager.broadcast(id_partida, json.dumps({
                 "evento": "fin-partida", "ganadores": [], "asesinoGano": True
             }))
-            await asyncio.sleep(0.2)
             await manager.clean_connections(id_partida)
             eliminarPartida(id_partida, db)
         return nuevas_cartas_para_jugador
@@ -1397,14 +1377,8 @@ async def revelar_secreto_propio(id_partida: int, id_jugador: int, id_unico_secr
             "jugador-perdedor-id": secreto_revelado.jugador_id,
             "payload": {"ganadores": [], "asesinoGano": False}
             }))
-            logger.info("BROADCAST MANDADO. POR ENTRAR A SLEEP")
-            await asyncio.sleep(0.9)
-            logger.info("DESPUES DEL SLEEP, POR HACER CLEANCONNECTIONS")
             await manager.clean_connections(id_partida)
-            logger.info("CLEANCONNECTIONS EJECUTADO, POR ELIMINAR PARTIDA")
             eliminarPartida(id_partida, db)
-            logger.info("PARTIDA ELIMINADA")
-            #eliminarPartida(id_partida, db)
 
         return {"id-secreto": secretoID}
         
