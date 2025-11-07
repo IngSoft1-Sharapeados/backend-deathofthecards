@@ -592,3 +592,62 @@ def verif_cantidad(id_partida: int, cantidad: int, db):
     cantidad_cartas_descarte = CartaService(db).obtener_cartas_descarte(id_partida, cantidad)
     if len(cantidad_cartas_descarte) < cantidad:
         raise ValueError("No hay suficientes cartas en el mazo de descarte.")
+
+def enviar_carta(id_partida: int, id_carta: int, id_objetivo: int, db):
+
+    partida = PartidaService(db).obtener_por_id(id_partida)
+
+    carta_a_enviar = CartaService(db).obtener_carta(id_carta)
+
+    CartaService(db).mover_carta_a_objetivo(partida, carta_a_enviar, id_objetivo)
+
+
+
+
+
+def verif_send_card(id_partida: int, id_carta: int, id_jugador: int, id_objetivo: int, db) -> bool:
+
+    se_puede_enviar = False
+    
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    if partida is None:
+        raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
+    
+    jugador = JugadorService(db).obtener_jugador(id_jugador)
+    if jugador is None:
+        raise ValueError(f"No se encontro el jugador {id_jugador}.")
+    
+    jugador_objetivo = JugadorService(db).obtener_jugador(id_objetivo)
+    if jugador_objetivo is None:
+        raise ValueError(f"No se encontro el jugador objetivo {id_objetivo}.")
+    
+    if partida.iniciada == False:
+        raise ValueError(f"Partida no iniciada")
+    
+    if jugador.partida_id != id_partida:
+        raise ValueError(f"El jugador con ID {id_jugador} no pertenece a la partida {id_partida}.")
+    
+    if jugador_objetivo.partida_id != id_partida:
+        raise ValueError(f"El jugador con ID {id_objetivo} no pertenece a la partida {id_partida}.")
+    
+    desgracia_social = PartidaService(db).desgracia_social(id_partida, id_jugador)
+    if desgracia_social:
+        raise ValueError(f"El jugador {id_jugador} esta en desgracia social")
+    
+    desgracia_social = PartidaService(db).desgracia_social(id_partida, id_objetivo)
+    if desgracia_social:
+        raise ValueError(f"El jugador objetivo {id_objetivo} esta en desgracia social")
+
+    cartas_mano = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
+    en_mano = False
+    
+    for c in cartas_mano:
+        if c.id_carta == id_carta:
+            en_mano = True
+    if en_mano == False:
+        raise ValueError(f"La carta no se encuentra en la mano del jugador.")
+    
+    else:
+        se_puede_enviar = True
+
+    return se_puede_enviar

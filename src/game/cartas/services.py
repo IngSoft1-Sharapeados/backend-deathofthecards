@@ -848,4 +848,12 @@ class CartaService:
                 "cartas_ids": ids_actuales,
             },
             "jugador_revela_secreto": set_destino.jugador_id,
-        }          
+        }
+
+    def mover_carta_a_objetivo(self, carta: Carta, id_objetivo: int):
+        carta.jugador_id = id_objetivo
+        self._db.commit()
+        return {
+            "mensaje": "carta enviada correctamente",
+            "carta-actualizada": {carta.jugador_id}
+            }  
