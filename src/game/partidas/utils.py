@@ -1,6 +1,6 @@
 from game.partidas.models import Partida
 from game.jugadores.models import Jugador
-from game.cartas.models import Carta
+from game.cartas.models import Carta, SetJugado
 from game.cartas.constants import *
 from game.jugadores.schemas import JugadorOut
 from game.partidas.schemas import PartidaData, PartidaResponse, IniciarPartidaData
@@ -579,6 +579,7 @@ def abandonarPartida(id_partida: int, id_jugador: int, db) -> dict:
 
 def eliminarPartida(id_partida: int, db):
     partida = PartidaService(db).obtener_por_id(id_partida)
+    db.query(SetJugado).filter(SetJugado.partida_id == id_partida).delete()
     for jugador in partida.jugadores:
         JugadorService(db).eliminar_jugador(jugador)
     for carta in partida.cartas:
