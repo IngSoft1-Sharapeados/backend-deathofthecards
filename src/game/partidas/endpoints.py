@@ -1724,7 +1724,7 @@ async def iniciar_accion_generica(id_partida: int, id_jugador: int,
     Solo guarda el estado y abre la ventana de respuesta.
     """
     try:
-                # --- LOG: What was sent ---
+        # --- LOG: What was sent ---------------------------------------------------------------
         raw_body = await request.body()
         print("\n--- DEBUG /iniciar-accion ---")
         print(f"Query param id_partida={id_partida}, id_jugador={id_jugador}")
@@ -1735,48 +1735,50 @@ async def iniciar_accion_generica(id_partida: int, id_jugador: int,
         print("  nombre_accion:", accion.nombre_accion)
         print("  payload_original:", accion.payload_original)
         print("------------------------------\n")
-        # -----------------------------
+        # ---------------------------------------------------------------------------------------
 
-        ps = PartidaService(db)
-        js = JugadorService(db)
+        #ps = PartidaService(db)
+        #js = JugadorService(db)
 
-        partida = ps.obtener_por_id(id_partida)
-        if partida.accion_en_progreso:
-            raise HTTPException(status_code=409, detail="Ya hay una acción en progreso.")
 
-        # --- ¡SIN VALIDACIÓN! ---
-        # Confiamos en que el frontend envió los datos correctos.
-        # El frontend es responsable de enviar los IDs de BBDD
-        # de las cartas que se están jugando.
-        
-        # 1. Empaquetar la acción (confiando en los datos del frontend)
-        accion_context = {
-            "tipo_accion": accion.tipo_accion,
-            "cartas_originales_db_ids": accion.cartas_db_ids, # Confiamos en esta lista
-            "id_jugador_original": id_jugador,
-            "nombre_accion": accion.nombre_accion,
-            "payload_original": accion.payload_original,
-            "pila_respuestas": [],    
-            "id_carta_tipo_original": accion.id_carta_tipo_original
-        }
-        
-        # 2. Iniciar la "pausa" en la BBDD
-        ps.iniciar_accion(id_partida, accion_context)
+        accion_context, mensaje = iniciar_accion_cancelable(id_partida, id_jugador, accion, db)
+        # partida = PartidaService.obtener_por_id(id_partida)
+        # if partida.accion_en_progreso:
+        #     raise HTTPException(status_code=409, detail="Ya hay una acción en progreso.")
 
-        # 3. Construir y enviar el Broadcast (con nombres)
-        actor = js.obtener_jugador(id_jugador)
-        actor_nombre = actor.nombre if actor else f"Jugador {id_jugador}"
+        # # --- ¡SIN VALIDACIÓN! ---
+        # # Confiamos en que el frontend envió los datos correctos.
+        # # El frontend es responsable de enviar los IDs de BBDD
+        # # de las cartas que se están jugando.
         
-        mensaje = f"{actor_nombre} jugó '{accion.nombre_accion}'"
+        # # 1. Empaquetar la acción (confiando en los datos del frontend)
+        # accion_context = {
+        #     "tipo_accion": accion.tipo_accion,
+        #     "cartas_originales_db_ids": accion.cartas_db_ids, # Confiamos en esta lista
+        #     "id_jugador_original": id_jugador,
+        #     "nombre_accion": accion.nombre_accion,
+        #     "payload_original": accion.payload_original,
+        #     "pila_respuestas": [],    
+        #     "id_carta_tipo_original": accion.id_carta_tipo_original
+        # }
         
-        id_objetivo = None
-        if isinstance(accion.payload_original, dict):
-            id_objetivo = accion.payload_original.get('id_objetivo')
+        # # 2. Iniciar la "pausa" en la BBDD
+        # PartidaService.iniciar_accion(id_partida, accion_context)
+
+        # # 3. Construir y enviar el Broadcast (con nombres)
+        # actor = JugadorService.obtener_jugador(id_jugador)
+        # actor_nombre = actor.nombre if actor else f"Jugador {id_jugador}"
         
-        if id_objetivo:
-            objetivo = js.obtener_jugador(id_objetivo)
-            objetivo_nombre = objetivo.nombre if objetivo else f"Jugador {id_objetivo}"
-            mensaje += f" sobre {objetivo_nombre}"
+        # mensaje = f"{actor_nombre} jugó '{accion.nombre_accion}'"
+        
+        # id_objetivo = None
+        # if isinstance(accion.payload_original, dict):
+        #     id_objetivo = accion.payload_original.get('id_objetivo')
+        
+        # if id_objetivo:
+        #     objetivo = JugadorService.obtener_jugador(id_objetivo)
+        #     objetivo_nombre = objetivo.nombre if objetivo else f"Jugador {id_objetivo}"
+        #     mensaje += f" sobre {objetivo_nombre}"
 
         await manager.broadcast(id_partida, json.dumps({
             "evento": "accion-en-progreso",
@@ -1788,7 +1790,10 @@ async def iniciar_accion_generica(id_partida: int, id_jugador: int,
 
     except ValueError as e: # Solo atrapa el "accion_en_progreso"
         msg = str(e)
-        raise HTTPException(status_code=400, detail=f"Error de validación: {msg}")
+        if "Ya hay una acción en progreso" in msg:
+            raise HTTPException(status_code=409, detail=msg)
+        else:
+            raise HTTPException(status_code=400, detail=f"Error de validación: {msg}")
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail="Error interno al iniciar acción.")
@@ -1803,21 +1808,23 @@ async def not_so_fast(id_partida: int, id_jugador: int, id_carta: int, db=Depend
         if not verif_evento("Not so fast", id_carta):
              raise HTTPException(status_code=400, detail="La carta no es Not So Fast.")
              
-        # 1. Jugar la carta (valida que está en mano, la quita y la pone "en_la_pila")
-        carta_nsf = CartaService(db).jugar_carta_instantanea(id_partida, id_jugador, id_carta)
+        accion_context = jugar_not_so_fast(id_partida, id_jugador, id_carta, db)
         
-        # 2. Prepara el objeto de respuesta
-        carta_respuesta = {
-            "id_jugador": id_jugador,
-            "id_carta_db": carta_nsf.id,
-            "id_carta_tipo": carta_nsf.id_carta,
-            "nombre": carta_nsf.nombre
-        }
+        # # 1. Jugar la carta (valida que está en mano, la quita y la pone "en_la_pila")
+        # carta_nsf = CartaService(db).jugar_carta_instantanea(id_partida, id_jugador, id_carta)
         
-        # 3. Añade la respuesta a la pila (bloquea y guarda)
-        PartidaService(db).actualizar_pila_de_respuesta(id_partida, carta_respuesta)
+        # # 2. Prepara el objeto de respuesta
+        # carta_respuesta = {
+        #     "id_jugador": id_jugador,
+        #     "id_carta_db": carta_nsf.id,
+        #     "id_carta_tipo": carta_nsf.id_carta,
+        #     "nombre": carta_nsf.nombre
+        # }
         
-        accion_context = PartidaService(db).obtener_accion_en_progreso(id_partida)
+        # # 3. Añade la respuesta a la pila (bloquea y guarda)
+        # PartidaService(db).actualizar_pila_de_respuesta(id_partida, carta_respuesta)
+        
+        # accion_context = PartidaService(db).obtener_accion_en_progreso(id_partida)
 
         # 4. Notifica al frontend que REINICIE el timer
         await manager.broadcast(id_partida, json.dumps({
@@ -1829,7 +1836,8 @@ async def not_so_fast(id_partida: int, id_jugador: int, id_carta: int, db=Depend
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    
+
+
 @partidas_router.post(path='/{id_partida}/resolver-accion', status_code=status.HTTP_200_OK)
 async def resolver_accion(id_partida: int, db=Depends(get_db)):
     """
@@ -1839,33 +1847,9 @@ async def resolver_accion(id_partida: int, db=Depends(get_db)):
     try:
         print("\n" + "="*50)
         print(f"--- 3. RESOLVER ACCION (Partida {id_partida}) ---")
-        # 1. Obtiene la acción pendiente (con bloqueo)
-        accion_context = PartidaService(db).obtener_accion_en_progreso(id_partida)
-        cs = CartaService(db)
-        
-        print(f"CONTEXTO LEÍDO DE BBDD: {accion_context}")
-        
-        # 2. Recolecta IDs de BBDD de las cartas NSF
-        cartas_nsf_db_ids = [nsf["id_carta_db"] for nsf in accion_context["pila_respuestas"]]
-        
-        # 3. Limpia la pila ANTES de decidir
-        PartidaService(db).limpiar_accion_en_progreso(id_partida)
 
-        # 4. Decide el resultado
-        cantidad_nsf = len(cartas_nsf_db_ids)
-        
-        print(f"Total de 'Not So Fast' contados: {cantidad_nsf}")
-        
-        if cantidad_nsf % 2 == 0:
-            # --- PAR: La acción original SE EJECUTA ---
-            
-            print("Decisión: PAR. La acción SE EJECUTA.")
-            print(f"Descartando {len(cartas_nsf_db_ids)} cartas NSF de la pila.")
-            print("="*50 + "\n")
-            
-            # Descarta solo las cartas NSF (de "en_la_pila" a "descarte")
-            cs.descartar_cartas_de_pila(cartas_nsf_db_ids, id_partida)
-            
+        resolucion = resolver_accion_turno(id_partida, db)
+        if resolucion == "Acción ejecutada":
             # Avisa al frontend que EJECUTE el endpoint original
             mensaje = "Acción aprobada. Ejecutando..."
             await manager.broadcast(id_partida, json.dumps({
@@ -1873,40 +1857,16 @@ async def resolver_accion(id_partida: int, db=Depends(get_db)):
                 "detail": mensaje
             }))
             return {"decision": "ejecutar"}
-            
+        
         else:
-            # --- IMPAR: La acción original SE CANCELA ---
-            print("Decisión: IMPAR. La acción SE CANCELA.")
-            print(f"Descartando {len(cartas_nsf_db_ids)} cartas NSF de la pila.")
-            
-            # 1. Descarta las cartas NSF 
-            cs.descartar_cartas_de_pila(cartas_nsf_db_ids, id_partida)
-            
-            print("="*50 + "\n")
-            
-            # 2. Obtiene los datos de la acción original
-            jugador_id_original = accion_context["id_jugador_original"]
-            cartas_db_ids_originales = accion_context["cartas_originales_db_ids"]
-            
-            # Busca los TIPO_ID (`id_carta`) correspondientes a los DB_ID (`id`)
-            cartas_a_descartar_query = (
-                cs._db.query(Carta.id_carta)
-                .filter(Carta.id.in_(cartas_db_ids_originales))
-            )
-            lista_de_tipo_ids = [c[0] for c in cartas_a_descartar_query.all()]
-
-            # 4. Llama al servicio de descarte con los IDs de TIPO
-            if lista_de_tipo_ids:
-                cs.descartar_cartas(jugador_id_original, lista_de_tipo_ids)
-                
-            nueva_carta_tope = CartaService(db).obtener_cartas_descarte(id_partida, 1)
-            id_carta: int = nueva_carta_tope[0].id_carta if nueva_carta_tope else None
+            id_carta_tope_descarte = resolucion["tope_descarte"]
+            accion_context = resolucion["accion_context"]
             await manager.broadcast(id_partida, json.dumps({
-                "evento": "carta-descartada", 
-                            "payload": {
-                        "discardted":
-                        [id_carta]
-                    } 
+            "evento": "carta-descartada", 
+                        "payload": {
+                    "discardted":
+                    [id_carta_tope_descarte]
+                } 
             }, default=str))
             
             # 5. Avisa al frontend que NO ejecute nada
@@ -1917,6 +1877,84 @@ async def resolver_accion(id_partida: int, db=Depends(get_db)):
                 "detail": mensaje
             }))
             return {"decision": "cancelar"}
+        # # 1. Obtiene la acción pendiente (con bloqueo)
+        # accion_context = PartidaService(db).obtener_accion_en_progreso(id_partida)
+        # #cs = CartaService(db)
+        
+        # print(f"CONTEXTO LEÍDO DE BBDD: {accion_context}")
+        
+        # # 2. Recolecta IDs de BBDD de las cartas NSF
+        # cartas_nsf_db_ids = [nsf["id_carta_db"] for nsf in accion_context["pila_respuestas"]]
+        
+        # # 3. Limpia la pila ANTES de decidir
+        # PartidaService(db).limpiar_accion_en_progreso(id_partida)
+
+        # # 4. Decide el resultado
+        # cantidad_nsf = len(cartas_nsf_db_ids)
+        
+        # print(f"Total de 'Not So Fast' contados: {cantidad_nsf}")
+        
+        # if cantidad_nsf % 2 == 0:
+        #     # --- PAR: La acción original SE EJECUTA ---
+            
+        #     print("Decisión: PAR. La acción SE EJECUTA.")
+        #     print(f"Descartando {len(cartas_nsf_db_ids)} cartas NSF de la pila.")
+        #     print("="*50 + "\n")
+            
+        #     # Descarta solo las cartas NSF (de "en_la_pila" a "descarte")
+        #     CartaService(db).descartar_cartas_de_pila(cartas_nsf_db_ids, id_partida)
+            
+        #     # Avisa al frontend que EJECUTE el endpoint original
+        #     mensaje = "Acción aprobada. Ejecutando..."
+        #     await manager.broadcast(id_partida, json.dumps({
+        #         "evento": "accion-resuelta-exitosa", 
+        #         "detail": mensaje
+        #     }))
+        #     return {"decision": "ejecutar"}
+            
+        # else:
+        #     # --- IMPAR: La acción original SE CANCELA ---
+        #     print("Decisión: IMPAR. La acción SE CANCELA.")
+        #     print(f"Descartando {len(cartas_nsf_db_ids)} cartas NSF de la pila.")
+            
+        #     # 1. Descarta las cartas NSF 
+        #     CartaService(db).descartar_cartas_de_pila(cartas_nsf_db_ids, id_partida)
+            
+        #     print("="*50 + "\n")
+            
+        #     # 2. Obtiene los datos de la acción original
+        #     jugador_id_original = accion_context["id_jugador_original"]
+        #     cartas_db_ids_originales = accion_context["cartas_originales_db_ids"]
+            
+        #     # Busca los TIPO_ID (`id_carta`) correspondientes a los DB_ID (`id`)
+        #     cartas_a_descartar_query = (
+        #         CartaService(db)._db.query(Carta.id_carta)
+        #         .filter(Carta.id.in_(cartas_db_ids_originales))
+        #     )
+        #     lista_de_tipo_ids = [c[0] for c in cartas_a_descartar_query.all()]
+
+        #     # 4. Llama al servicio de descarte con los IDs de TIPO
+        #     if lista_de_tipo_ids:
+        #         CartaService(db).descartar_cartas(jugador_id_original, lista_de_tipo_ids)
+                
+        #     nueva_carta_tope = CartaService(db).obtener_cartas_descarte(id_partida, 1)
+        #     id_carta_tope_descarte: int = nueva_carta_tope[0].id_carta if nueva_carta_tope else None
+        #     await manager.broadcast(id_partida, json.dumps({
+        #         "evento": "carta-descartada", 
+        #                     "payload": {
+        #                 "discardted":
+        #                 [id_carta_tope_descarte]
+        #             } 
+        #     }, default=str))
+            
+        #     # 5. Avisa al frontend que NO ejecute nada
+        #     nombre_accion = accion_context.get("nombre_accion", "Acción")
+        #     mensaje = f"La acción '{nombre_accion}' fue cancelada."
+        #     await manager.broadcast(id_partida, json.dumps({
+        #         "evento": "accion-resuelta-cancelada", 
+        #         "detail": mensaje
+        #     }))
+        #     return {"decision": "cancelar"}
 
     except ValueError as e:
         # (Si no hay acción, puede que otro ya la haya resuelto. No es un error fatal)
