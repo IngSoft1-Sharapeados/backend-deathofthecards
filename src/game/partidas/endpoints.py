@@ -890,6 +890,13 @@ async def robar_secreto_otro_jugador(id_partida: int, id_jugador_turno: int, id_
                 "desgracia_social": DESGRACIA_SOCIAL_1,
                 "Jugador": id_jugador_destino
             }))
+        ganador = ganar_por_desgracia_social(id_partida, db)
+        if ganador:
+            await manager.broadcast(id_partida, json.dumps({
+            "evento": "fin-partida", "ganadores": [], "asesinoGano": True
+            }))
+            await manager.clean_connections(id_partida)
+            eliminarPartida(id_partida, db)
         return secreto_robado
         
     except ValueError as e:
