@@ -6,6 +6,7 @@ from game.jugadores.models import Jugador
 from game.jugadores.schemas import JugadorDTO
 import random
 from game.cartas.services import CartaService
+from game.cartas.models import Carta
 from game.cartas.services import JugadorService
 from typing import List, Dict, Any
 import logging
@@ -329,27 +330,18 @@ class PartidaService:
         }
 
 
-    def desgracia_social(self, id_partida: int, id_jugador: int):
-        PartidaService(self._db).obtener_por_id(id_partida)
-        jugador = JugadorService(self._db).obtener_jugador(id_jugador)
-        if jugador is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No se encontró al jugador con el ID proporcionado."
-                )
-        secretos = CartaService(self._db).obtener_secretos_jugador(id_jugador, id_partida)
+    def desgracia_social(self, id_jugador: int, secretos: list[Carta]) -> bool:
         if all(secreto.bocaArriba for secreto in secretos):
-                jugador.desgracia_social = True
+                id_jugador.desgracia_social = True
                 self._db.commit()
-                self._db.refresh(jugador)
+                self._db.refresh(id_jugador)
         if any((secreto.bocaArriba == False) for secreto in secretos):
-                jugador.desgracia_social = False
+                id_jugador.desgracia_social = False
                 self._db.commit()
-                self._db.refresh(jugador)
-        return jugador.desgracia_social
+                self._db.refresh(id_jugador)
+        return id_jugador.desgracia_social
 
-    def ganar_desgracia_social(self, id_partida: int) -> bool:
-        partida = PartidaService(self._db).obtener_por_id(id_partida)
+    def ganar_desgracia_social(self, partida: Partida) -> bool:
         jugadores_en_desgracia = [jugador for jugador in partida.jugadores if jugador.desgracia_social]
         if len(jugadores_en_desgracia) == len(partida.jugadores) - 1:
             jugadores_no_desgracia = [jugador for jugador in partida.jugadores if not jugador.desgracia_social]
@@ -357,7 +349,7 @@ class PartidaService:
             if len(jugadores_no_desgracia) == 1:
                 jugador_exento = jugadores_no_desgracia[0]
                 
-                secretos = CartaService(self._db).obtener_secretos_jugador(jugador_exento.id, id_partida)
+                secretos = CartaService(self._db).obtener_secretos_jugador(jugador_exento.id, partida.id)
                 for secreto in secretos:
                     revelado = secreto.bocaArriba
                     if (revelado is False) and (CartaService(self._db).es_asesino(secreto.id) or CartaService(self._db).es_complice(secreto.id)):

@@ -592,3 +592,77 @@ def verif_cantidad(id_partida: int, cantidad: int, db):
     cantidad_cartas_descarte = CartaService(db).obtener_cartas_descarte(id_partida, cantidad)
     if len(cantidad_cartas_descarte) < cantidad:
         raise ValueError("No hay suficientes cartas en el mazo de descarte.")
+
+def determinar_desgracia_social(id_partida: int, id_jugador: int, db) -> bool:
+    """
+    Recorre los secretos de un jugador y lo saca de estado de desgracia social o lo 
+    agrega al mismo.
+    
+    Parameters
+    ----------
+    id_jugado: int
+        ID del jugador al cual se pondra o sacara del estado desgracia social.
+
+    id_partida: int
+        ID de la partida para la cual se obtiene los secretos.
+    
+    Returns
+    -------
+    bool
+        devuelve True en caso de que este en desgracia social o False en caso contrario.
+    """
+    PartidaService(db).obtener_por_id(id_partida)
+    jugador = JugadorService(db).obtener_jugador(id_jugador)
+    if jugador is None:
+        raise ValueError(f"No se ha encontrado al jugador con id:{id_jugador}")
+    secretos = CartaService(db).obtener_secretos_jugador(id_jugador, id_partida)
+    if secretos is None:
+        raise ValueError(f"No se ha encontrado los secretos del jugador{id_jugador} y la partida:{id_partida}")
+    desgracia_social = PartidaService(db).desgracia_social(jugador, secretos)
+    return desgracia_social
+
+def ganar_por_desgracia_social(id_partida: int, db) -> bool:
+    """
+    Recorre todos los secretos de todos los jugadores vindo el estado de bocaArriba para
+    determinar el resultado.
+    
+    Parameters
+
+    id_partida: int
+        ID de la partida para la cual se obtiene los secretos.
+    
+    Returns
+    -------
+    bool
+        devuelve True en caso de que el asesino haya ganado y False en caso contrario.
+    """
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    resultado = PartidaService(db).ganar_desgracia_social(partida) 
+    return resultado
+
+def obtener_jugador_por_id_carta(id_partida: int, id_carta: int, db) -> int:
+    """
+    Determina el id de un jugador mediante una carta dada.
+    
+    Parameters
+
+    id_partida: int
+        ID de la partida para buscar al jugador.
+    
+    id_carta: int
+        Id de la carta para buscar al jugador.
+    
+    Returns
+    -------
+    bool
+        devuelve True en caso de que el asesino haya ganado y False en caso contrario.
+    """
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    if not partida:
+        raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
+    carta = CartaService(db).obtener_carta_por_id(id_carta)
+    if not carta:
+        raise ValueError(f"No se ha encontrado la carta con el ID:{id_carta}")
+    jugador = JugadorService(db).obtener_jugador_id_carta(partida, carta)
+    return jugador
+
