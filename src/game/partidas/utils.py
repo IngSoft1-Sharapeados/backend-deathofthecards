@@ -651,14 +651,26 @@ def iniciar_accion_cancelable(id_partida: int, id_jugador: int, accion: AccionGe
         Método encargado de 
     """
     partida = PartidaService(db).obtener_por_id(id_partida)
-    if partida.accion_en_progreso:
-        raise ValueError("Ya hay una acción en progreso.")
-
-    # --- ¡SIN VALIDACIÓN! ---
-    # Confiamos en que el frontend envió los datos correctos.
-    # El frontend es responsable de enviar los IDs de BBDD
-    # de las cartas que se están jugando.
     
+    if partida is None:
+        raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}") 
+    
+    if partida.iniciada == False:
+        raise ValueError(f"Partida no iniciada") 
+    
+    if partida.accion_en_progreso:
+        raise ValueError("Ya hay una acción en progreso.") 
+    
+    jugador = JugadorService(db).obtener_jugador(id_jugador)
+    if jugador is None:
+        raise ValueError(f"No se ha encontrado el jugador {id_jugador}.") 
+
+    if jugador.partida_id != id_partida:
+        raise ValueError(f"El jugador con ID {id_jugador} no pertenece a la partida {id_partida}.") 
+    
+    if partida.turno_id != id_jugador:
+        raise ValueError(f"El jugador no esta en turno.") 
+
     # 1. Empaquetar la acción (confiando en los datos del frontend)
     accion_context = {
         "tipo_accion": accion.tipo_accion,
@@ -674,17 +686,24 @@ def iniciar_accion_cancelable(id_partida: int, id_jugador: int, accion: AccionGe
     PartidaService(db).iniciar_accion(id_partida, accion_context)
 
     # 3. Construir y enviar el Broadcast (con nombres)
-    actor = JugadorService(db).obtener_jugador(id_jugador)
-    actor_nombre = actor.nombre if actor else f"Jugador {id_jugador}"
+    jugador_nombre = jugador.nombre if jugador else f"Jugador {id_jugador}"
     
-    mensaje = f"{actor_nombre} jugó '{accion.nombre_accion}'"
+    mensaje = f"{jugador_nombre} jugó '{accion.nombre_accion}'"
     
+    # Chequeamos si la acción que se quiere realizar involucra un jugador objetivo (por ej. al robar un secreto, jugar another victim)
     id_objetivo = None
     if isinstance(accion.payload_original, dict):
         id_objetivo = accion.payload_original.get('id_objetivo')
     
     if id_objetivo:
         objetivo = JugadorService(db).obtener_jugador(id_objetivo)
+        
+        if objetivo is None:
+            raise ValueError(f"No se ha encontrado el jugador {id_objetivo}.") 
+        
+        if objetivo.partida_id != id_partida:
+            raise ValueError(f"El jugador con ID {id_objetivo} no pertenece a la partida {id_partida}.") 
+        
         objetivo_nombre = objetivo.nombre if objetivo else f"Jugador {id_objetivo}"
         mensaje += f" sobre {objetivo_nombre}"
     
@@ -693,6 +712,30 @@ def iniciar_accion_cancelable(id_partida: int, id_jugador: int, accion: AccionGe
 
 def jugar_not_so_fast(id_partida: int, id_jugador: int, id_carta: int, db) -> dict:
 # 1. Jugar la carta (valida que está en mano, la quita y la pone "en_la_pila")
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    
+    if partida is None:
+        raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
+    
+    if partida.iniciada == False:
+        raise ValueError(f"Partida no iniciada")
+    
+    jugador = JugadorService(db).obtener_jugador(id_jugador)
+    if jugador is None:
+        raise ValueError(f"No se ha encontrado el jugador {id_jugador}.")
+
+    if jugador.partida_id != id_partida:
+        raise ValueError(f"El jugador con ID {id_jugador} no pertenece a la partida {id_partida}.")
+    
+    cartas_mano = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
+    
+    en_mano = False
+    for c in cartas_mano:
+        if c.id_carta == id_carta:
+            en_mano = True
+    if en_mano == False:
+        raise ValueError(f"La carta no pertenece al jugador.")
+
     carta_nsf = CartaService(db).jugar_carta_instantanea(id_partida, id_jugador, id_carta)
     
     # 2. Prepara el objeto de respuesta
@@ -712,6 +755,13 @@ def jugar_not_so_fast(id_partida: int, id_jugador: int, id_carta: int, db) -> di
 
 def resolver_accion_turno(id_partida: int, db):
     # 1. Obtiene la acción pendiente (con bloqueo)
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    if partida is None:
+        raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
+    
+    if partida.iniciada == False:
+        raise ValueError(f"Partida no iniciada")
+        
     accion_context = PartidaService(db).obtener_accion_en_progreso(id_partida)
     #cs = CartaService(db)
     

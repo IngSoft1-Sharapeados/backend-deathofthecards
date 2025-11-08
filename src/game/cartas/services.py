@@ -821,7 +821,6 @@ class CartaService:
     def jugar_carta_instantanea(self, id_partida: int, id_jugador: int, id_carta_tipo: int) -> Carta:
         """
         Mueve una carta de la mano del jugador a "en_la_pila".
-        ¡IMPORTANTE: Esta función NO verifica el turno del jugador!
         """
         carta = self.obtener_carta_de_mano(id_carta_tipo, id_jugador) 
         if not carta:

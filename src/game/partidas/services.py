@@ -411,7 +411,8 @@ class PartidaService:
 
 
     def iniciar_accion(self, id_partida: int, accion_context: dict):
-        partida = self.obtener_partida_con_bloqueo(id_partida) 
+        # Bloqueamos la BD para que no se hagan otras transacciones
+        partida = self.obtener_partida_con_bloqueo(id_partida)
         if partida.accion_en_progreso:
             raise ValueError("Ya hay una acción en progreso.")
         partida.accion_en_progreso = accion_context
