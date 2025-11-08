@@ -37,6 +37,7 @@ class ConnectionManager:
     def __init__(self):
         self.active_connections: dict[int, list[WebSocket]] = defaultdict(list)
         self.active_connections_personal: dict[int, list[WebSocket]] = defaultdict(list)
+        self.lock = asyncio.Lock()
 
     async def connect(self, websocket: WebSocket, id_partida: int, id_jugador: int):
         await websocket.accept()
@@ -48,16 +49,17 @@ class ConnectionManager:
         if websocket not in self.active_connections_personal[id_jugador]:
             self.active_connections_personal[id_jugador].append(websocket)
     
-    def disconnect(self, websocket: WebSocket, id_partida: int, id_jugador: int):
-        logger.info("WS disconnect: jugador=%s partida=%s", id_jugador, id_partida)
-        if id_partida in self.active_connections and websocket in self.active_connections[id_partida]:
-            self.active_connections[id_partida].remove(websocket)
-        if id_jugador in self.active_connections_personal:
-            if websocket in self.active_connections_personal[id_jugador]:
-                self.active_connections_personal[id_jugador].remove(websocket)
-                
-        if not self.active_connections_personal[id_jugador]:
-            del self.active_connections_personal[id_jugador]
+    async def disconnect(self, websocket: WebSocket, id_partida: int, id_jugador: int):
+        async with self.lock:
+            logger.info("WS disconnect: jugador=%s partida=%s", id_jugador, id_partida)
+            if id_partida in self.active_connections and websocket in self.active_connections[id_partida]:
+                self.active_connections[id_partida].remove(websocket)
+            if id_jugador in self.active_connections_personal:
+                if websocket in self.active_connections_personal[id_jugador]:
+                    self.active_connections_personal[id_jugador].remove(websocket)
+                    
+            if not self.active_connections_personal[id_jugador]:
+                del self.active_connections_personal[id_jugador]
 
     async def broadcast(self, id_partida: int, message: str):
         logger.debug("WS broadcast partida=%s payload=%s", id_partida, message)
@@ -78,7 +80,68 @@ class ConnectionManager:
                 await websocket.send_text(message)
             except Exception as e:
                 logger.warning("Error enviando WS a jugador %s: %s", id_jugador, e)
-            
+
+    
+    async def clean_connections(self, id_partida: int):
+            sockets = self.active_connections.get(id_partida, [])
+            for ws in list(sockets):
+                async with self.lock:
+                    try:
+                        await ws.close(code=1000)
+                        print(f"[manager] websocket cerrado correctamente: {ws}")
+                    except Exception as e:
+                        print(f"[manager] websocket ya cerrado o error: {ws}, {e}")
+            conexiones = self.active_connections.pop(id_partida, [])
+
+            jugadores_a_borrar = []
+            for id_jugador, websockets in list(self.active_connections_personal.items()):
+                if any(ws in conexiones for ws in websockets):
+                    jugadores_a_borrar.append(id_jugador)
+
+            for id_jugador in jugadores_a_borrar:
+                del self.active_connections_personal[id_jugador]
+
+            logger.info(f"Limpieza WS completa de partida {id_partida} ({len(conexiones)} sockets cerrados)")
+    
+    async def clean_connectionss(self, id_partida: int):
+        # if id_partida in self.active_connections:
+        #     del self.active_connections[id_partida]
+
+        # jugadores_a_borrar = [
+        #     jid for jid, websockets in self.active_connections_personal.items()
+        #     if any(ws in self.active_connections.get(id_partida, []) for ws in websockets)
+        # ]
+        # for jid in jugadores_a_borrar:
+        #     del self.active_connections_personal[jid]
+        sockets = self.active_connections.get(id_partida, [])
+        for ws in list(sockets):
+            try:
+                await ws.close(code=1000)
+                print(f"[manager] websocket cerrado correctamente: {ws}")
+            except Exception as e:
+                print(f"[manager] websocket ya cerrado o error : {ws}, {e}")
+        conexiones = self.active_connections.pop(id_partida, [])
+
+        # # Cerrar websockets de la partida
+        # for ws in conexiones:
+        #     try:
+        #         await ws.close(code=1000)
+        #     except Exception as e:
+        #         logger.warning(f"Error al cerrar WS de partida {id_partida}: {e}")
+
+        # Borrar referencias personales de jugadores
+        jugadores_a_borrar = []
+        for id_jugador, websockets in list(self.active_connections_personal.items()):
+            # Eliminar si alguno de sus websockets pertenecía a esta partida
+            if any(ws in conexiones for ws in websockets):
+                jugadores_a_borrar.append(id_jugador)
+
+        for id_jugador in jugadores_a_borrar:
+            del self.active_connections_personal[id_jugador]
+
+        logger.info(f"Limpieza WS completa de partida {id_partida} ({len(conexiones)} sockets cerrados)")
+
+
 manager = ConnectionManager()
     
 def get_manager():
@@ -284,25 +347,35 @@ async def websocket_endpoint(websocket: WebSocket, id_partida: int, id_jugador: 
             print(f"Mensaje recibido del jugador {id_jugador} en la partida {id_partida}: {data}")
             pass
 
-    except WebSocketDisconnect:
-        partida_service = PartidaService(db)
-        jugador_service = JugadorService(db)
-        
-        jugador = jugador_service.obtener_jugador(id_jugador) 
-        partida = partida_service.obtener_por_id(id_partida)
-
-        if partida and jugador and not partida.iniciada:
-            partida.cantJugadores -= 1
-            db.delete(jugador)
-            db.commit()
+    except WebSocketDisconnect as e:
+        logger.info(f"Jugador {id_jugador} desconectado de partida {id_partida} (code={e.code})")
+        #manager.disconnect(websocket, id_partida, id_jugador)
+        try:
+            partida_service = PartidaService(db)
+            jugador_service = JugadorService(db)
             
-            await manager.broadcast(id_partida, json.dumps({
-                "evento": "desconexion-jugador",
-                "id_jugador": id_jugador,
-                "nombre_jugador": jugador.nombre
-            }))
+            jugador = jugador_service.obtener_jugador(id_jugador) 
+            partida = partida_service.obtener_por_id(id_partida)
 
-        manager.disconnect(websocket, id_partida, id_jugador)
+            if partida and jugador and not partida.iniciada:
+                partida.cantJugadores -= 1
+                db.delete(jugador)
+                db.commit()
+                
+                await manager.broadcast(id_partida, json.dumps({
+                    "evento": "desconexion-jugador",
+                    "id_jugador": id_jugador,
+                    "nombre_jugador": jugador.nombre
+                }))
+
+            await manager.disconnect(websocket, id_partida, id_jugador)
+        except HTTPException as e:
+            if e.status_code == 404:
+                logger.debug(f"Partida {id_partida} ya no existe (WS cleanup normal)")
+            else:
+                logger.warning(f"Error manejando desconexión de jugador {id_jugador}: {e}")
+        except Exception as e:
+            logger.warning(f"Error inesperado en desconexión WS: {e}")
 
 
 @partidas_router.get(path="/{id_partida}/mano", status_code=status.HTTP_200_OK)
@@ -400,19 +473,6 @@ async def descarte_cartas(id_partida: int, id_jugador: int, cartas_descarte: lis
 @partidas_router.get(path='/{id_partida}/mazo')
 async def obtener_cartas_restantes(id_partida, db=Depends(get_db), manager=Depends(get_manager)):
     cantidad_restante = CartaService(db).obtener_cantidad_mazo(id_partida)
-    # evento = {
-    #     "evento":"actualizacion-mazo",
-    #     "cantidad-restante-mazo": cantidad_restante,
-    # }
-    # # Enviar como texto JSON por WebSocket
-    # await manager.broadcast(id_partida, json.dumps(evento))
-    # if cantidad_restante == 0:
-    #     # Broadcast fin de partida (payload mínimo)
-    #     fin_payload = {
-    #         "evento": "fin-partida",
-    #         "payload": {"ganadores": [], "asesinoGano": False}
-    #     }
-    #     await manager.broadcast(id_partida, json.dumps(fin_payload))
     return cantidad_restante
 
 
@@ -469,6 +529,7 @@ async def robar_cartas(id_partida: int, id_jugador: int, cantidad: int = 1, db=D
                 "payload": {"ganadores": [], "asesinoGano": True}
             }
             await manager.broadcast(id_partida, json.dumps(fin_payload))
+            await manager.clean_connections(id_partida)
             eliminarPartida(id_partida, db)
 
         # Si la mano quedó en 6 tras robar, avanzar turno
@@ -621,11 +682,13 @@ async def revelar_secreto(id_partida: int, id_jugador_turno: int, id_unico_secre
 
         esAsesino = CartaService(db).es_asesino(id_unico_secreto)
         if esAsesino:
+            logger.info("ES EL ASESINO, POR HACER EL BROADCAST")
             await manager.broadcast(id_partida, json.dumps({
             "evento": "fin-partida",
             "jugador-perdedor-id": secreto_revelado.jugador_id,
             "payload": {"ganadores": [], "asesinoGano": False}
             }))
+            await manager.clean_connections(id_partida)
             eliminarPartida(id_partida, db)
         else:
             desgracia_social = PartidaService(db).desgracia_social(id_partida, id_jugador_turno)
@@ -703,6 +766,7 @@ async def accion_recoger_cartas(
             await manager.broadcast(id_partida, json.dumps({
                 "evento": "fin-partida", "ganadores": [], "asesinoGano": True
             }))
+            await manager.clean_connections(id_partida)
             eliminarPartida(id_partida, db)
         return nuevas_cartas_para_jugador
         
@@ -1317,6 +1381,7 @@ async def revelar_secreto_propio(id_partida: int, id_jugador: int, id_unico_secr
             "jugador-perdedor-id": secreto_revelado.jugador_id,
             "payload": {"ganadores": [], "asesinoGano": False}
             }))
+            await manager.clean_connections(id_partida)
             eliminarPartida(id_partida, db)
 
         return {"id-secreto": secretoID}
@@ -1598,18 +1663,16 @@ async def early_train_to_paddington(id_partida: int, id_jugador: int, id_carta: 
                     "payload": {"ganadores": [], "asesinoGano": True}
                 }
                 await manager.broadcast(id_partida, json.dumps(fin_payload))
+                await manager.clean_connections(id_partida)
+                eliminarPartida(id_partida, db)
+            else:
+                nuevas_cartas_descarte = CartaService(db).obtener_cartas_descarte(id_partida, 5)
+                await manager.broadcast(id_partida, json.dumps({
+                    "evento": "actualizacion-descarte",
+                    "payload": [{"id": c.id_carta} for c in nuevas_cartas_descarte]
+                }))
 
-            nueva_carta_tope = CartaService(db).obtener_cartas_descarte(id_partida, 1)
-            id_carta: int = nueva_carta_tope[0].id_carta if nueva_carta_tope else None
-            await manager.broadcast(id_partida, json.dumps({
-                "evento": "carta-descartada", 
-                            "payload": {
-                        "discardted":
-                        [id_carta]
-                    } 
-            }, default=str))
-
-            return {"detail": "Evento jugado correctamente"}
+                return {"detail": "Evento jugado correctamente"}
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

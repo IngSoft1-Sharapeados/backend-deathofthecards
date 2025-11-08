@@ -893,10 +893,12 @@ def test_obtener_mano_ok(mock_CartaService, session):
     mock_carta1 = MagicMock()
     mock_carta1.id_carta = 16
     mock_carta1.nombre = "Not so fast"
+    mock_carta1.id = 1
 
     mock_carta2 = MagicMock()
     mock_carta2.id_carta = 9
     mock_carta2.nombre = "Mr Satterthwaite"
+    mock_carta2.id = 2
 
     #Configurar instancia mock de CartaService
     mock_carta_service_instance = MagicMock()
@@ -909,8 +911,8 @@ def test_obtener_mano_ok(mock_CartaService, session):
 
     assert response.status_code == 200
     assert response.json() == [
-        {"id": 16, "nombre": "Not so fast"},
-        {"id": 9, "nombre": "Mr Satterthwaite"},
+        {"id": 16, "nombre": "Not so fast", "id_instancia": 1},
+        {"id": 9, "nombre": "Mr Satterthwaite", "id_instancia": 2},
     ]
 
     # Verificamos que el método se llamó correctamente
