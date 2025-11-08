@@ -1686,6 +1686,8 @@ async def point_your_suspicions(id_partida: int, id_jugador: int, id_carta: int,
             raise HTTPException(status_code=400, detail=msg)
         elif "no es de tipo evento" in msg:
             raise HTTPException(status_code=400, detail=msg)
+        elif "desgracia social" in msg:
+            raise HTTPException(status_code=403, detail=msg)
         else:
             raise HTTPException(status_code=500, detail="Error inesperado.")
         
