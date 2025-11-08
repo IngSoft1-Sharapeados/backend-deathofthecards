@@ -1748,12 +1748,12 @@ async def not_so_fast(id_partida: int, id_jugador: int, id_carta: int, db=Depend
             )
         else:
             raise HTTPException(status_code=400, detail=f"Error de validación: {msg}")
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error interno al jugar Not So Fast."
-            )
+    # except Exception as e:
+    #     traceback.print_exc()
+    #     raise HTTPException(
+    #         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    #         detail="Error interno al jugar Not So Fast."
+    #         )
 
 
 @partidas_router.post(path='/{id_partida}/resolver-accion', status_code=status.HTTP_200_OK)
@@ -1817,6 +1817,6 @@ async def resolver_accion(id_partida: int, db=Depends(get_db)):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=str(e)
             )
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail="Error interno al resolver la acción.")
+    # except Exception as e:
+    #     traceback.print_exc()
+    #     raise HTTPException(status_code=500, detail="Error interno al resolver la acción.")
