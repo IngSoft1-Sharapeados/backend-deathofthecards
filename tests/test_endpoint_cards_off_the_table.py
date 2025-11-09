@@ -53,7 +53,7 @@ def test_cards_off_the_table_completo(mock_JugadorService, mock_jugar_carta_even
     mock_jugador_service_instance.obtener_jugador.return_value = mock_jugador_objetivo
     mock_JugadorService.return_value = mock_jugador_service_instance
 
-    carta_evento = MagicMock(id_carta=17, tipo="Event", ubicacion="mano", nombre="Cards off the table")
+    carta_evento = MagicMock(id=101, id_carta=17, tipo="Event", ubicacion="mano", nombre="Cards off the table")
     carta_evento.jugador_id = 1  
 
     mock_carta_service_instance = MagicMock()

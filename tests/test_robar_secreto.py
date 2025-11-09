@@ -1,5 +1,6 @@
 import pytest
 import os
+import json
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 from main import app
 from fastapi.testclient import TestClient
@@ -21,19 +22,23 @@ def dbTesting_fixture():
         yield session
 
 
-@patch('game.partidas.endpoints.CartaService')
-@patch('game.partidas.utils.CartaService')
+@patch('game.partidas.endpoints.manager') # 1. Mock para el manager de WebSocket (evita error de serialización)
+@patch('game.partidas.endpoints.robar_secreto') # 2. Mock para la función robar_secreto (evita el error 401)
+@patch('game.partidas.endpoints.CartaService') # 3. Mock Clase CartaService en endpoints (CLAVE para el AttributeError)
+@patch('game.partidas.utils.CartaService')      # 4. Mock Clase CartaService en utils
 @patch('game.partidas.utils.JugadorService')
 @patch('game.partidas.utils.PartidaService')
 def test_robar_secreto_otro_jugador_ok(
     mock_PartidaService,
     mock_JugadorService,
     mock_CartaService_utils,
-    #mock_CartaService_endpoint,
+    mock_CartaService_endpoints, # Argumento para el mock de la Clase CartaService en el endpoint
+    mock_robar_secreto, 
+    mock_manager, 
     session
 ):
     """
-    Test robar secreto en caso de éxito
+    Test robar secreto en caso de éxito.
     """
     def get_db_override():
         yield session
@@ -41,42 +46,88 @@ def test_robar_secreto_otro_jugador_ok(
 
     client = TestClient(app)
     
+    # --- 1. Definición de Mocks ---
+    
     partida_mock = MagicMock(id=1, turno_id=1)
-
     jugador_turno = MagicMock(id=1)
     jugador_destino = MagicMock(id=2)
+    id_jugador_victima = 3 # El dueño original del secreto
 
-    carta_mock = MagicMock(id=1, bocaArriba=True, jugador_id=2, partida_id=1, tipo="secreto")
+    # Carta robada antes de la acción
+    carta_a_robar_mock = MagicMock(id=1, bocaArriba=True, jugador_id=id_jugador_victima, partida_id=1, tipo="secreto")
 
-    # Retorno de CartaService (endpoint y utils apuntan al mismo, así que se mockean ambos)
+    # Mocks de cartas para la lista de secretos (deben tener .bocaArriba)
+    secreto_mock_oculto = MagicMock(bocaArriba=False)
+    secreto_mock_robado = MagicMock(bocaArriba=False)
+
+    # Listas de secretos después del robo (side_effect)
+    secretos_destino_post_robo = [secreto_mock_robado, secreto_mock_oculto]
+    secretos_victima_post_robo = []
+
+    # --- 2. Configuración de Retornos ---
+    
+    # Función robar_secreto
+    mock_robar_secreto.return_value = {"id-secreto": carta_a_robar_mock.id}
+    
+    # Instancia de CartaService
     carta_service_instance = MagicMock()
-    carta_service_instance.obtener_carta_por_id.return_value = carta_mock
-    carta_service_instance.robar_secreto.return_value = {"id-secreto": carta_mock.id}
-    mock_CartaService_utils.return_value = carta_service_instance
-    #mock_CartaService_endpoint.return_value = carta_service_instance
+    carta_service_instance.obtener_carta_por_id.return_value = carta_a_robar_mock
+    
+    # Uso de side_effect para la doble llamada (destino y víctima)
+    carta_service_instance.obtener_secretos_jugador.side_effect = [
+        secretos_destino_post_robo, # Primera llamada: Jugador Destino
+        secretos_victima_post_robo   # Segunda llamada: Jugador Víctima
+    ]
+    
+    # CLAVE: Configurar ambos mocks de CLASE para devolver la misma INSTANCIA
+    mock_CartaService_utils.return_value = carta_service_instance 
+    mock_CartaService_endpoints.return_value = carta_service_instance 
 
+    # JugadorService
     jugador_service_instance = MagicMock()
-    jugador_service_instance.obtener_jugador.side_effect = lambda id: jugador_turno if id == 1 else jugador_destino
+    jugador_service_instance.obtener_jugador.side_effect = lambda id: \
+        jugador_turno if id == 1 else jugador_destino if id == 2 else MagicMock(id=3)
     mock_JugadorService.return_value = jugador_service_instance
 
+    # PartidaService
     partida_service_instance = MagicMock()
     partida_service_instance.obtener_por_id.return_value = partida_mock
     mock_PartidaService.return_value = partida_service_instance
 
+    # Manager
+    mock_manager.broadcast = AsyncMock()
+    
+    # --- 3. EJECUCIÓN ---
     response = client.patch(
-        "partidas/1/robo-secreto",
-        params={
-            "id_jugador_turno": 1,
-            "id_jugador_destino": 2,
-            "id_unico_secreto": 1
-        }
+        f"/partidas/{partida_mock.id}/robo-secreto?id_jugador_turno={jugador_turno.id}&id_jugador_destino={jugador_destino.id}&id_unico_secreto={carta_a_robar_mock.id}"
     )
 
+    # --- 4. ASSERTIONS ---
+    
+    # Éxito
     assert response.status_code == 200
-    assert response.json() == {"id-secreto": 1}
-    carta_service_instance.obtener_carta_por_id.assert_called_once_with(1)
-    carta_service_instance.robar_secreto.assert_called_once_with(carta_mock, 2)
-
+    assert response.json() == {"id-secreto": carta_a_robar_mock.id}
+    
+    # Llamada a robar_secreto
+    mock_robar_secreto.assert_called_once_with(
+        partida_mock.id,
+        jugador_turno.id,
+        jugador_destino.id,
+        carta_a_robar_mock.id,
+        session
+    )
+    
+    # Broadcasts
+    assert mock_manager.broadcast.call_count == 2
+    
+    # Primer broadcast (Jugador Destino)
+    broadcast_destino_data = json.loads(mock_manager.broadcast.call_args_list[0].args[1])
+    assert broadcast_destino_data["jugador-id"] == jugador_destino.id
+    
+    # Segundo broadcast (Jugador Víctima)
+    broadcast_victima_data = json.loads(mock_manager.broadcast.call_args_list[1].args[1])
+    assert broadcast_victima_data["jugador-id"] == id_jugador_victima
+    
     app.dependency_overrides.clear()
 
 

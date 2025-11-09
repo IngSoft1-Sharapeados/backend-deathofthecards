@@ -804,7 +804,7 @@ class CartaService:
                 for i, carta in enumerate(cartas_a_mover, start=1):
                     carta.ubicacion = "descarte"
                     carta.bocaArriba = True
-                    carta.orden_mazo = max_orden_descarte + i
+                    carta.orden_descarte = max_orden_descarte + i
 
             carta_evento_jugada = self._db.query(Carta).filter_by(
                 partida_id=id_partida,
@@ -817,6 +817,42 @@ class CartaService:
                 carta_evento_jugada.ubicacion = "removida"
             
             self._db.commit()
+            
+    def jugar_carta_instantanea(self, id_partida: int, id_jugador: int, id_carta_tipo: int) -> Carta:
+        """
+        Mueve una carta de la mano del jugador a "en_la_pila".
+        """
+        carta = self.obtener_carta_de_mano(id_carta_tipo, id_jugador) 
+        if not carta:
+             raise ValueError("La carta no se encuentra en la mano del jugador.")
+        if carta.partida_id != id_partida:
+             raise ValueError("La carta no pertenece a esta partida.")
+             
+        carta.ubicacion = "en_la_pila"
+        carta.bocaArriba = True
+        self._db.commit()
+        self._db.refresh(carta)
+        return carta
+
+    def descartar_cartas_de_pila(self, ids_cartas_db: list[int], id_partida: int):
+        """
+        Toma una lista de IDs de BBDD (Carta.id) y las mueve a "descarte".
+        """
+        if not ids_cartas_db:
+            return
+
+        ultimo_orden = self.ultimo_orden_descarte(id_partida) 
+        cartas = self._db.query(Carta).filter(Carta.id.in_(ids_cartas_db)).all()
+        
+        for i, carta in enumerate(cartas):
+            carta.ubicacion = "descarte" 
+            carta.jugador_id = 0
+            carta.orden_mazo = None
+            carta.bocaArriba = False
+            carta.orden_descarte = ultimo_orden + 1 + i
+            carta.partida_id = id_partida
+
+        self._db.commit()
 
     
     def jugar_ariadne_oliver(self, id_partida:int, set_destino_id: int):
