@@ -103,44 +103,6 @@ class ConnectionManager:
 
             logger.info(f"Limpieza WS completa de partida {id_partida} ({len(conexiones)} sockets cerrados)")
     
-    async def clean_connectionss(self, id_partida: int):
-        # if id_partida in self.active_connections:
-        #     del self.active_connections[id_partida]
-
-        # jugadores_a_borrar = [
-        #     jid for jid, websockets in self.active_connections_personal.items()
-        #     if any(ws in self.active_connections.get(id_partida, []) for ws in websockets)
-        # ]
-        # for jid in jugadores_a_borrar:
-        #     del self.active_connections_personal[jid]
-        sockets = self.active_connections.get(id_partida, [])
-        for ws in list(sockets):
-            try:
-                await ws.close(code=1000)
-                print(f"[manager] websocket cerrado correctamente: {ws}")
-            except Exception as e:
-                print(f"[manager] websocket ya cerrado o error : {ws}, {e}")
-        conexiones = self.active_connections.pop(id_partida, [])
-
-        # # Cerrar websockets de la partida
-        # for ws in conexiones:
-        #     try:
-        #         await ws.close(code=1000)
-        #     except Exception as e:
-        #         logger.warning(f"Error al cerrar WS de partida {id_partida}: {e}")
-
-        # Borrar referencias personales de jugadores
-        jugadores_a_borrar = []
-        for id_jugador, websockets in list(self.active_connections_personal.items()):
-            # Eliminar si alguno de sus websockets pertenecía a esta partida
-            if any(ws in conexiones for ws in websockets):
-                jugadores_a_borrar.append(id_jugador)
-
-        for id_jugador in jugadores_a_borrar:
-            del self.active_connections_personal[id_jugador]
-
-        logger.info(f"Limpieza WS completa de partida {id_partida} ({len(conexiones)} sockets cerrados)")
-
 
 manager = ConnectionManager()
     
@@ -861,11 +823,16 @@ async def robar_secreto_otro_jugador(id_partida: int, id_jugador_turno: int, id_
     Roba el secreto de un jugador dado su ID, el ID del jugador del turno, el ID de la carta y el de la partida.
     """
     try:
+        # Obtener el jugador víctima antes de robar
+        secreto_antes = CartaService(db).obtener_carta_por_id(id_unico_secreto)
+        id_jugador_victima = secreto_antes.jugador_id if secreto_antes else None
+
         secreto_robado = robar_secreto(id_partida, id_jugador_turno, id_jugador_destino, id_unico_secreto, db)
 
         if not secreto_robado:
             return None
         
+        # Actualizar secretos del jugador que recibe el secreto robado
         secretos_actuales = CartaService(db).obtener_secretos_jugador(id_jugador_destino, id_partida)
         print(f'secretos del jugador: {[{"id_carta": s.id, "bocaArriba": s.bocaArriba} for s in secretos_actuales]}')
         await manager.broadcast(id_partida, json.dumps({
@@ -873,6 +840,15 @@ async def robar_secreto_otro_jugador(id_partida: int, id_jugador_turno: int, id_
             "jugador-id": id_jugador_destino,
             "lista-secretos": [{"revelado": s.bocaArriba} for s in secretos_actuales]
         }))
+
+        # Actualizar secretos del jugador victima (al que le robaron el secreto)
+        if id_jugador_victima and id_jugador_victima != id_jugador_destino:
+            secretos_victima = CartaService(db).obtener_secretos_jugador(id_jugador_victima, id_partida)
+            await manager.broadcast(id_partida, json.dumps({
+                "evento": "actualizacion-secreto",
+                "jugador-id": id_jugador_victima,
+                "lista-secretos": [{"revelado": s.bocaArriba} for s in secretos_victima]
+            }))
 
         return secreto_robado
         
@@ -990,92 +966,6 @@ async def ocultar_secreto(id_partida: int, id_jugador: int, id_unico_secreto: in
         )
 
 
-# @partidas_router.put(path='/{id_partida}/evento/CardsTable', status_code=status.HTTP_200_OK)
-# async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int, id_carta: int, db=Depends(get_db)):
-#     """
-#     Se juega el evento Cards off the table (descarta los 'Not so fast' de la mano de un jugador)
-#     """
-#     try:
-#         if not verif_evento("Cards off the table", id_carta):
-#             raise HTTPException(
-#                 status_code=status.HTTP_400_BAD_REQUEST,
-#                 detail="La carta no corresponde al evento Cards Off The Table"
-#             )
-
-#         # Verificaciones básicas
-#         verif_jugador_objetivo(id_partida, id_jugador, id_objetivo, db)
-#         jugar_carta_evento(id_partida, id_jugador, id_carta, db)
-
-#         # Aplicar el efecto en la base
-#         CartaService(db).jugar_cards_off_the_table(id_partida, id_jugador, id_objetivo)
-
-#         # Avisar a todos que se jugó el evento
-#         await manager.broadcast(id_partida, json.dumps({
-#             "evento": "se-jugo-cards-off-the-table",
-#             "jugador_id": id_jugador,
-#             "objetivo_id": id_objetivo
-#         }))
-        
-        
-#         evento= {
-#         "evento": "carta-descartada", 
-#         "payload": {
-#                     "discardted":
-#                     [id_carta]
-#                 } 
-#         }
-#         await manager.broadcast(id_partida, json.dumps(evento))
-
-#         for jugador in [id_jugador, id_objetivo]:
-#             mano_jugador = CartaService(db).obtener_mano_jugador(jugador, id_partida)
-#             cartas_a_enviar = [{"id": carta.id_carta, "nombre": carta.nombre} for carta in mano_jugador]
-            
-#             await manager.send_personal_message(
-#                 jugador,
-#                 json.dumps({
-#                     "evento": "actualizacion-mano",
-#                     "data": cartas_a_enviar
-#                 })
-#             )
-
-#         return {"detail": "Evento jugado correctamente"}
-
-#     except ValueError as e:
-#         msg = str(e)
-#         print(f"Error de validación: {msg}")
-
-#         if "aplicar el efecto." in msg:
-#             raise HTTPException(status_code=400, detail=msg)
-#         elif "No se ha encontrado la partida" in msg:
-#             raise HTTPException(status_code=404, detail=msg)
-#         elif "objetivo" in msg.lower() and "no se encontro" in msg.lower():
-#             raise HTTPException(status_code=404, detail=msg)
-#         elif "jugador" in msg.lower() and "no se encontro" in msg.lower():
-#             raise HTTPException(status_code=404, detail=msg)
-#         elif "Partida no iniciada" in msg:
-#             raise HTTPException(status_code=403, detail=msg)
-#         elif "no esta en turno" in msg.lower():
-#             raise HTTPException(status_code=403, detail=msg)
-#         elif "no pertenece a la partida" in msg.lower():
-#             raise HTTPException(status_code=403, detail=msg)
-#         elif "desgracia social" in msg:
-#             raise HTTPException(status_code=403, detail=msg)
-#         elif "Solo se puede jugar una carta de evento" in msg:
-#             raise HTTPException(status_code=400, detail=msg)
-#         elif "no se encuentra en la mano" in msg.lower():
-#             raise HTTPException(status_code=400, detail=msg)
-#         elif "no es de tipo evento" in msg.lower():
-#             raise HTTPException(status_code=400, detail=msg)
-#         else:
-#             raise HTTPException(status_code=400, detail=f"Error de validación: {msg}")
-
-#     except HTTPException:
-#         raise
-
-#     except Exception as e:
-#         print(f"Error inesperado al jugar carta de evento Cards off the table: {e}")
-#         raise HTTPException(status_code=500, detail="Error interno del servidor")    
-
 @partidas_router.put(path='/{id_partida}/evento/CardsTable', status_code=status.HTTP_200_OK)
 async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int, id_carta: int, db=Depends(get_db)):
     """
@@ -1106,8 +996,8 @@ async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int
 
             for jugador in [id_jugador, id_objetivo]:
                 mano_jugador = CartaService(db).obtener_mano_jugador(jugador, id_partida)
-                cartas_a_enviar = [{"id": carta.id_carta, "nombre": carta.nombre} for carta in mano_jugador]
-                
+                cartas_a_enviar = [{"id": carta.id_carta, "nombre": carta.nombre, "id_instancia": carta.id} for carta in mano_jugador]
+
                 await manager.send_personal_message(
                     jugador,
                     json.dumps({
@@ -1666,11 +1556,15 @@ async def early_train_to_paddington(id_partida: int, id_jugador: int, id_carta: 
                 await manager.clean_connections(id_partida)
                 eliminarPartida(id_partida, db)
             else:
-                nuevas_cartas_descarte = CartaService(db).obtener_cartas_descarte(id_partida, 5)
+                nueva_carta_tope = CartaService(db).obtener_cartas_descarte(id_partida, 1)
+                id_carta: int = nueva_carta_tope[0].id_carta if nueva_carta_tope else None
                 await manager.broadcast(id_partida, json.dumps({
-                    "evento": "actualizacion-descarte",
-                    "payload": [{"id": c.id_carta} for c in nuevas_cartas_descarte]
-                }))
+                    "evento": "carta-descartada", 
+                                "payload": {
+                            "discardted":
+                            [id_carta]
+                        } 
+                }, default=str))
 
                 return {"detail": "Evento jugado correctamente"}
         else:
@@ -1790,69 +1684,33 @@ async def resolver_point_your_suspicions(id_partida: int, id_jugador: int, id_vo
         
             
 @partidas_router.post(path='/{id_partida}/iniciar-accion', status_code=status.HTTP_200_OK)
-async def iniciar_accion_generica(id_partida: int, id_jugador: int, 
-                                  accion: AccionGenericaPayload, 
-                                  request: Request,
-                                  db=Depends(get_db)):
+async def iniciar_accion_generica(id_partida: int, id_jugador: int,
+                                  accion: AccionGenericaPayload,
+                                  db=Depends(get_db)) -> dict:
     """
-    (Fase 1) GENÉRICO: Propone una acción cancelable (Evento O Set).
-    ¡¡CONFÍA 100% EN EL FRONTEND!! No valida NADA.
-    Solo guarda el estado y abre la ventana de respuesta.
+    (Fase 1 NSF) Inicia una acción cancelable (Evento o Set).
+    Solo guarda el estado del contexto y abre la ventana de respuesta.
+    
+    Parameters
+    ----------
+    id_partida: int
+        ID de la partida donde se jugará el set o evento
+    
+    id_jugador: int
+        ID del jugador que jugará el set o evento
+
+    accion: AccionGenericaPayload
+        Un payload genérico que el frontend construye para cualquier acción
+        que pueda ser cancelada (Eventos, Sets, etc.).
+    
+    Returns:
+    ----------
+    diccionario: dict
+        Diccionario que comunica al frontend que se puede llamar al endpoint
+        correspondiente a la acción ejecutada y abrir la ventana para jugar una NSF
     """
     try:
-                # --- LOG: What was sent ---
-        raw_body = await request.body()
-        print("\n--- DEBUG /iniciar-accion ---")
-        print(f"Query param id_partida={id_partida}, id_jugador={id_jugador}")
-        print("Raw body (as received):", raw_body.decode("utf-8"))
-        print("Parsed AccionGenericaPayload:")
-        print("  tipo_accion:", accion.tipo_accion)
-        print("  cartas_db_ids:", accion.cartas_db_ids)
-        print("  nombre_accion:", accion.nombre_accion)
-        print("  payload_original:", accion.payload_original)
-        print("------------------------------\n")
-        # -----------------------------
-
-        ps = PartidaService(db)
-        js = JugadorService(db)
-
-        partida = ps.obtener_por_id(id_partida)
-        if partida.accion_en_progreso:
-            raise HTTPException(status_code=409, detail="Ya hay una acción en progreso.")
-
-        # --- ¡SIN VALIDACIÓN! ---
-        # Confiamos en que el frontend envió los datos correctos.
-        # El frontend es responsable de enviar los IDs de BBDD
-        # de las cartas que se están jugando.
-        
-        # 1. Empaquetar la acción (confiando en los datos del frontend)
-        accion_context = {
-            "tipo_accion": accion.tipo_accion,
-            "cartas_originales_db_ids": accion.cartas_db_ids, # Confiamos en esta lista
-            "id_jugador_original": id_jugador,
-            "nombre_accion": accion.nombre_accion,
-            "payload_original": accion.payload_original,
-            "pila_respuestas": [],    
-            "id_carta_tipo_original": accion.id_carta_tipo_original
-        }
-        
-        # 2. Iniciar la "pausa" en la BBDD
-        ps.iniciar_accion(id_partida, accion_context)
-
-        # 3. Construir y enviar el Broadcast (con nombres)
-        actor = js.obtener_jugador(id_jugador)
-        actor_nombre = actor.nombre if actor else f"Jugador {id_jugador}"
-        
-        mensaje = f"{actor_nombre} jugó '{accion.nombre_accion}'"
-        
-        id_objetivo = None
-        if isinstance(accion.payload_original, dict):
-            id_objetivo = accion.payload_original.get('id_objetivo')
-        
-        if id_objetivo:
-            objetivo = js.obtener_jugador(id_objetivo)
-            objetivo_nombre = objetivo.nombre if objetivo else f"Jugador {id_objetivo}"
-            mensaje += f" sobre {objetivo_nombre}"
+        accion_context, mensaje = iniciar_accion_cancelable(id_partida, id_jugador, accion, db)
 
         await manager.broadcast(id_partida, json.dumps({
             "evento": "accion-en-progreso",
@@ -1864,128 +1722,131 @@ async def iniciar_accion_generica(id_partida: int, id_jugador: int,
 
     except ValueError as e: # Solo atrapa el "accion_en_progreso"
         msg = str(e)
-        raise HTTPException(status_code=400, detail=f"Error de validación: {msg}")
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail="Error interno al iniciar acción.")
+        if "Ya hay una acción en progreso" in msg:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=msg
+            )
+        elif ("No se ha encontrado" in msg):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=msg
+            )
+        elif ("El jugador no esta en turno" in msg):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=msg
+            )
+        elif(("no pertenece a" in msg) or ("Partida no iniciada" in msg)):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=msg
+            )
+        else:
+            raise HTTPException(status_code=400, detail=f"Error de validación: {msg}")
     
 
 @partidas_router.put(path='/{id_partida}/respuesta/not_so_fast', status_code=status.HTTP_200_OK)
 async def not_so_fast(id_partida: int, id_jugador: int, id_carta: int, db=Depends(get_db)):
     """
-    (Fase 2) Juega una carta "Not So Fast" en respuesta a una acción en progreso.
+    (Fase 2 NSF) Juega una carta "Not So Fast" en respuesta a una acción en progreso.
+    
+    Parameters
+    ----------
+    id_partida: int
+        ID de la partida donde se jugará el set o evento
+    
+    id_jugador: int
+        ID del jugador que jugará el set o evento
+
+    id_carta: int
+        ID de representación de la carta Not So Fast
+        (es decir, no el ID único, sino el usado para representar a todas las cartas del mismo tipo)
+    
+    Returns:
+    ----------
+    diccionario: dict
+        Diccionario que comunica al frontend que se jugó correctamente una carta Not So Fast
     """
     try:
         if not verif_evento("Not so fast", id_carta):
              raise HTTPException(status_code=400, detail="La carta no es Not So Fast.")
-             
-        # 1. Jugar la carta (valida que está en mano, la quita y la pone "en_la_pila")
-        carta_nsf = CartaService(db).jugar_carta_instantanea(id_partida, id_jugador, id_carta)
-        
-        # 2. Prepara el objeto de respuesta
-        carta_respuesta = {
-            "id_jugador": id_jugador,
-            "id_carta_db": carta_nsf.id,
-            "id_carta_tipo": carta_nsf.id_carta,
-            "nombre": carta_nsf.nombre
-        }
-        
-        # 3. Añade la respuesta a la pila (bloquea y guarda)
-        PartidaService(db).actualizar_pila_de_respuesta(id_partida, carta_respuesta)
-        
-        accion_context = PartidaService(db).obtener_accion_en_progreso(id_partida)
+          
+        accion_context = jugar_not_so_fast(id_partida, id_jugador, id_carta, db)
 
-        # 4. Notifica al frontend que REINICIE el timer
+        # Notifica al frontend que reinicie el timer
         await manager.broadcast(id_partida, json.dumps({
             "evento": "pila-actualizada",
             "data": accion_context,
             "mensaje": f"Jugador {id_jugador} respondió con 'Not So Fast'!"
         }))
         return {"detail": "Not So Fast jugado."}
-
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
     
+    except ValueError as e:
+        msg = str(e)
+        if ("No se ha encontrado" in msg):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=msg
+            )
+        elif ("El jugador no esta en turno" in msg):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=msg
+            )
+        elif(("no pertenece a" in msg)
+            or ("Partida no iniciada" in msg)
+            or ("no es Not So Fast" in msg)
+            ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=msg
+            )
+        else:
+            raise HTTPException(status_code=400, detail=f"Error de validación: {msg}")
+
+
 @partidas_router.post(path='/{id_partida}/resolver-accion', status_code=status.HTTP_200_OK)
 async def resolver_accion(id_partida: int, db=Depends(get_db)):
     """
-    (Fase 3) El frontend llama a esto cuando se acaba el timer.
-    Responde si la acción se ejecuta o se cancela, y limpia la pila.
+    (Fase 3 NSF) Determina si la acción se ejecuta o se cancela, y limpia la pila.
+    El frontend llama a esto cuando se acaba el timer.
+
+    Parameters
+    ----------
+    id_partida: int
+        ID de la partida donde se resolverá (o no) la acción llevada a cabo (evento o set)
+        dependiendo si se jugaron cartas Not So Fast y en qué cantidad
+
+    Returns
+    ---------
+    diccionario: dict
+        Detalle sobre la decisión, si se ejecuta la acción o se cancela.
+        Si se ejecuta la acción, luego el frontend llama al endpoint correspondiente.
     """
     try:
-        print("\n" + "="*50)
-        print(f"--- 3. RESOLVER ACCION (Partida {id_partida}) ---")
-        # 1. Obtiene la acción pendiente (con bloqueo)
-        accion_context = PartidaService(db).obtener_accion_en_progreso(id_partida)
-        cs = CartaService(db)
-        
-        print(f"CONTEXTO LEÍDO DE BBDD: {accion_context}")
-        
-        # 2. Recolecta IDs de BBDD de las cartas NSF
-        cartas_nsf_db_ids = [nsf["id_carta_db"] for nsf in accion_context["pila_respuestas"]]
-        
-        # 3. Limpia la pila ANTES de decidir
-        PartidaService(db).limpiar_accion_en_progreso(id_partida)
-
-        # 4. Decide el resultado
-        cantidad_nsf = len(cartas_nsf_db_ids)
-        
-        print(f"Total de 'Not So Fast' contados: {cantidad_nsf}")
-        
-        if cantidad_nsf % 2 == 0:
-            # --- PAR: La acción original SE EJECUTA ---
-            
-            print("Decisión: PAR. La acción SE EJECUTA.")
-            print(f"Descartando {len(cartas_nsf_db_ids)} cartas NSF de la pila.")
-            print("="*50 + "\n")
-            
-            # Descarta solo las cartas NSF (de "en_la_pila" a "descarte")
-            cs.descartar_cartas_de_pila(cartas_nsf_db_ids, id_partida)
-            
-            # Avisa al frontend que EJECUTE el endpoint original
+        resolucion = resolver_accion_turno(id_partida, db)
+        if resolucion == "Acción ejecutada":
+            # Avisa al frontend que ejecute el endpoint original
             mensaje = "Acción aprobada. Ejecutando..."
             await manager.broadcast(id_partida, json.dumps({
                 "evento": "accion-resuelta-exitosa", 
                 "detail": mensaje
             }))
             return {"decision": "ejecutar"}
-            
+        
         else:
-            # --- IMPAR: La acción original SE CANCELA ---
-            print("Decisión: IMPAR. La acción SE CANCELA.")
-            print(f"Descartando {len(cartas_nsf_db_ids)} cartas NSF de la pila.")
-            
-            # 1. Descarta las cartas NSF 
-            cs.descartar_cartas_de_pila(cartas_nsf_db_ids, id_partida)
-            
-            print("="*50 + "\n")
-            
-            # 2. Obtiene los datos de la acción original
-            jugador_id_original = accion_context["id_jugador_original"]
-            cartas_db_ids_originales = accion_context["cartas_originales_db_ids"]
-            
-            # Busca los TIPO_ID (`id_carta`) correspondientes a los DB_ID (`id`)
-            cartas_a_descartar_query = (
-                cs._db.query(Carta.id_carta)
-                .filter(Carta.id.in_(cartas_db_ids_originales))
-            )
-            lista_de_tipo_ids = [c[0] for c in cartas_a_descartar_query.all()]
-
-            # 4. Llama al servicio de descarte con los IDs de TIPO
-            if lista_de_tipo_ids:
-                cs.descartar_cartas(jugador_id_original, lista_de_tipo_ids)
-                
-            nueva_carta_tope = CartaService(db).obtener_cartas_descarte(id_partida, 1)
-            id_carta: int = nueva_carta_tope[0].id_carta if nueva_carta_tope else None
+            id_carta_tope_descarte = resolucion["tope_descarte"]
+            accion_context = resolucion["accion_context"]
             await manager.broadcast(id_partida, json.dumps({
-                "evento": "carta-descartada", 
-                            "payload": {
-                        "discardted":
-                        [id_carta]
-                    } 
+            "evento": "carta-descartada", 
+                        "payload": {
+                    "discardted":
+                    [id_carta_tope_descarte]
+                } 
             }, default=str))
             
-            # 5. Avisa al frontend que NO ejecute nada
+            # Avisa al frontend que no ejecute nada
             nombre_accion = accion_context.get("nombre_accion", "Acción")
             mensaje = f"La acción '{nombre_accion}' fue cancelada."
             await manager.broadcast(id_partida, json.dumps({
@@ -1993,12 +1854,26 @@ async def resolver_accion(id_partida: int, db=Depends(get_db)):
                 "detail": mensaje
             }))
             return {"decision": "cancelar"}
-
+        
     except ValueError as e:
-        # (Si no hay acción, puede que otro ya la haya resuelto. No es un error fatal)
-        if "No hay ninguna acción" in str(e):
+        msg = str(e)
+        # (Si no hay acción, puede que otro ya la haya resuelto)
+        if "No hay ninguna acción" in msg:
             return {"decision": "ignorar", "detail": "La acción ya fue resuelta."}
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail="Error interno al resolver la acción.")
+        
+        elif ("No se ha encontrado" in msg):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=msg
+            )
+        elif ("Partida no iniciada" in msg):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=msg
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=str(e)
+            )
+

@@ -3,7 +3,7 @@ from game.jugadores.models import Jugador
 from game.cartas.models import Carta, SetJugado
 from game.cartas.constants import *
 from game.jugadores.schemas import JugadorOut
-from game.partidas.schemas import PartidaData, PartidaResponse, IniciarPartidaData
+from game.partidas.schemas import PartidaData, PartidaResponse, IniciarPartidaData, AccionGenericaPayload
 from game.partidas.services import PartidaService
 from game.partidas.dtos import *
 from game.cartas.services import CartaService
@@ -423,6 +423,18 @@ def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> C
 
 
 def verif_evento(evento: str, id_carta: int) -> bool:
+    """
+    Verifica si un nombre (de carta) se corresponde con la carta dado su ID
+
+    Parameters
+    ------------
+    evento: str
+        String que representa el nombre de una carta
+
+    id_carta: int
+        ID de representación de la carta
+        (es decir, no el ID único, sino el usado para representar a todas las cartas del mismo tipo)
+    """
     carta = next((v for v in cartasDict.values() if v["id"] == id_carta), None)
     if carta is None:
         return False
@@ -695,3 +707,224 @@ def jugar_point_your_suspicions(id_partida: int, id_jugador: int, id_votante: in
         ps.fin_votacion(id_partida)
         ps.borrar_votacion(id_partida)
         return sospechoso
+
+def iniciar_accion_cancelable(id_partida: int, id_jugador: int, accion: AccionGenericaPayload, db):
+    """
+    Método encargado de guardar el estado de contexto de la partida,
+    abriendo paso a la ventana de respuesta de una potencial Not So Fast
+
+    Parameters
+    -----------
+    id_partida: int
+        ID de la partida donde se iniciará la acción (set, evento)
+
+    id_jugador: int
+        ID del jugador que jugará el set o evento
+    
+    accion: AccionGenericaPayload
+        Un payload genérico que el frontend construye para cualquier acción
+        que pueda ser cancelada (Eventos, Sets, etc.).
+
+    Returns
+    ----------
+    (accion_context, mensaje): tuple
+        -accion_context- es un diccionario que contiene mayor detalle sobre
+        el contexto de la partida: tipo y nombre de accion jugada, lista de IDs de cartas jugadas,
+        jugador que ejecutó la acción, el payload necesario que el endpoint original necesitará
+        si la acción se ejecuta, la pila de respuestas (pila de cartas NSF, en principio vacía),
+        y el id de representación de esa carta.
+         -mensaje- es un string que informa que un jugador ejecutó determinada acción, y en caso de
+         haberlo hecho sobre otro jugador, sobre qué otro jugador
+
+    """
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    
+    if partida is None:
+        raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}") 
+    
+    if partida.iniciada == False:
+        raise ValueError(f"Partida no iniciada") 
+    
+    if partida.accion_en_progreso:
+        raise ValueError("Ya hay una acción en progreso.") 
+    
+    jugador = JugadorService(db).obtener_jugador(id_jugador)
+    if jugador is None:
+        raise ValueError(f"No se ha encontrado el jugador {id_jugador}.") 
+
+    if jugador.partida_id != id_partida:
+        raise ValueError(f"El jugador con ID {id_jugador} no pertenece a la partida {id_partida}.") 
+    
+    if partida.turno_id != id_jugador:
+        raise ValueError(f"El jugador no esta en turno.") 
+
+    # 1. Empaquetar la acción (confiando en los datos del frontend)
+    accion_context = {
+        "tipo_accion": accion.tipo_accion,
+        "cartas_originales_db_ids": accion.cartas_db_ids, # Confiamos en esta lista
+        "id_jugador_original": id_jugador,
+        "nombre_accion": accion.nombre_accion,
+        "payload_original": accion.payload_original,
+        "pila_respuestas": [],    
+        "id_carta_tipo_original": accion.id_carta_tipo_original
+    }
+    
+    # 2. Iniciar la "pausa" en la BBDD y establecer la accion que se quiere realizar
+    PartidaService(db).iniciar_accion(id_partida, accion_context)
+
+    # 3. Construir y enviar el Broadcast (con nombres)
+    jugador_nombre = jugador.nombre if jugador else f"Jugador {id_jugador}"
+    
+    mensaje = f"{jugador_nombre} jugó '{accion.nombre_accion}'"
+    
+    # Chequeamos si la acción que se quiere realizar involucra un jugador objetivo (por ej. al robar un secreto, jugar another victim)
+    id_objetivo = None
+    if isinstance(accion.payload_original, dict):
+        id_objetivo = accion.payload_original.get('id_objetivo')
+    
+    if id_objetivo:
+        objetivo = JugadorService(db).obtener_jugador(id_objetivo)
+        
+        if objetivo is None:
+            raise ValueError(f"No se ha encontrado el jugador {id_objetivo}.") 
+        
+        if objetivo.partida_id != id_partida:
+            raise ValueError(f"El jugador con ID {id_objetivo} no pertenece a la partida {id_partida}.") 
+        
+        objetivo_nombre = objetivo.nombre if objetivo else f"Jugador {id_objetivo}"
+        mensaje += f" sobre {objetivo_nombre}"
+    
+    return accion_context, mensaje
+
+
+def jugar_not_so_fast(id_partida: int, id_jugador: int, id_carta: int, db) -> dict:
+    """
+    Se encarga de jugar la carta Not So Fast.
+
+    Parameters
+    ----------
+    id_partida: int
+        ID de la partida donde se juega la carta NSF
+
+    id_jugador: int
+        ID del jugador que jugará la carta NSF
+
+    id_carta: int
+        ID de representación de la carta Not So Fast
+        (es decir, no el ID único, sino el usado para representar a todas las cartas del mismo tipo)
+    
+    Return
+    ---------
+    accion_context: dict
+        diccionario con el contexto de acción de la partida. Lo más importante es la pila de cartas NSF
+    """
+    
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    
+    if partida is None:
+        raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
+    
+    if partida.iniciada == False:
+        raise ValueError(f"Partida no iniciada")
+    
+    jugador = JugadorService(db).obtener_jugador(id_jugador)
+    if jugador is None:
+        raise ValueError(f"No se ha encontrado el jugador {id_jugador}.")
+
+    if jugador.partida_id != id_partida:
+        raise ValueError(f"El jugador con ID {id_jugador} no pertenece a la partida {id_partida}.")
+    
+    cartas_mano = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
+    
+    en_mano = False
+    for c in cartas_mano:
+        if c.id_carta == id_carta:
+            en_mano = True
+    if en_mano == False:
+        raise ValueError(f"La carta no pertenece al jugador.")
+
+    carta_nsf = CartaService(db).jugar_carta_instantanea(id_partida, id_jugador, id_carta)
+    
+    # 2. Prepara el objeto de respuesta
+    carta_respuesta = {
+        "id_jugador": id_jugador,
+        "id_carta_db": carta_nsf.id,
+        "id_carta_tipo": carta_nsf.id_carta,
+        "nombre": carta_nsf.nombre
+    }
+    
+    # 3. Añade la respuesta a la pila (bloquea y guarda)
+    PartidaService(db).actualizar_pila_de_respuesta(id_partida, carta_respuesta)
+    
+    accion_context = PartidaService(db).obtener_accion_en_progreso(id_partida)
+    return accion_context
+
+
+def resolver_accion_turno(id_partida: int, db):
+    """
+    Resuelve la acción (o no) llevada a cabo en el turno en una partida específica
+    
+    Parameters
+    ----------
+    id_partida: int
+        ID de la partida donde se resuelve si la acción se ejecuta o no (set o evento jugado)
+    
+    Return
+    ---------
+    mensaje: str
+        string que avisa que la acción fue ejecutada
+    
+    diccionario: dict
+        Diccionario que contiene el contexto de accion de la partida, y el ID de la carta
+        que queda en el tope del mazo de descarte.
+    """
+    # 1. Obtiene la acción pendiente (con bloqueo)
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    if partida is None:
+        raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
+    
+    if partida.iniciada == False:
+        raise ValueError(f"Partida no iniciada")
+        
+    accion_context = PartidaService(db).obtener_accion_en_progreso(id_partida)    
+    
+    # 2. Recolecta IDs de BBDD de las cartas NSF
+    cartas_nsf_db_ids = [nsf["id_carta_db"] for nsf in accion_context["pila_respuestas"]]
+    
+    # 3. Limpia la pila ANTES de decidir
+    PartidaService(db).limpiar_accion_en_progreso(id_partida)
+
+    # 4. Decide el resultado
+    cantidad_nsf = len(cartas_nsf_db_ids)
+    
+    if cantidad_nsf % 2 == 0:
+        # --- PAR: La acción original SE EJECUTA ---
+        # Descarta solo las cartas NSF (de "en_la_pila" a "descarte")
+        CartaService(db).descartar_cartas_de_pila(cartas_nsf_db_ids, id_partida)
+        
+        return "Acción ejecutada"
+
+    else:
+        # --- IMPAR: La acción original SE CANCELA ---
+        # 1. Descarta las cartas NSF 
+        CartaService(db).descartar_cartas_de_pila(cartas_nsf_db_ids, id_partida)
+
+        # 2. Obtiene los datos de la acción original
+        jugador_id_original = accion_context["id_jugador_original"]
+        cartas_db_ids_originales = accion_context["cartas_originales_db_ids"]
+        
+        # Busca los TIPO_ID (`id_carta`) correspondientes a los DB_ID (`id`)
+        cartas_a_descartar_query = (
+            CartaService(db)._db.query(Carta.id_carta)
+            .filter(Carta.id.in_(cartas_db_ids_originales))
+        )
+        lista_de_tipo_ids = [c[0] for c in cartas_a_descartar_query.all()]
+
+        # 4. Llama al servicio de descarte con los IDs de TIPO
+        if lista_de_tipo_ids:
+            CartaService(db).descartar_cartas(jugador_id_original, lista_de_tipo_ids)
+            
+        nueva_carta_tope = CartaService(db).obtener_cartas_descarte(id_partida, 1)
+        id_carta_tope_descarte: int = nueva_carta_tope[0].id_carta if nueva_carta_tope else None
+
+        return {"accion_context": accion_context, "tope_descarte": id_carta_tope_descarte}

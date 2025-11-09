@@ -72,7 +72,8 @@ class AnotherVictimPayload(BaseModel):
     ids_cartas: list[int]
 
 class OneMorePayload(BaseModel):
-    """Payload para el evento 'And then there was one more...'
+    """
+    Payload para el evento 'And then there was one more...'
     - id_fuente: jugador desde el cual se roba el secreto (debe tenerlo revelado)
     - id_destino: jugador que recibirá el secreto (se agrega oculto)
     - id_unico_secreto: ID único del secreto a trasladar
@@ -95,7 +96,7 @@ class AccionGenericaPayload(BaseModel):
     
     cartas_db_ids: List[int]
     """
-    ¡LA CLAVE! El frontend DEBE enviar la lista de IDs de BBDD
+    El frontend debe enviar la lista de IDs de BBDD
     (los 'Carta.id' únicos) de las cartas que se están jugando.
     - Para AnotherVictim (ID BBDD 245): [245]
     - Para un Set (IDs BBDD 101, 102, 110): [101, 102, 110]
@@ -111,6 +112,6 @@ class AccionGenericaPayload(BaseModel):
     """
     El payload que el endpoint original necesitará si la acción se ejecuta.
     - Para AnotherVictim: { "id_objetivo": 2, ... }
-    - Para JugarSet: { "set_cartas": [7, 7, 14] } (IDs de *tipo* de carta)
+    - Para JugarSet: { "set_cartas": [7, 7, 14] } (IDs de representación de carta)
     """
     id_carta_tipo_original: int = 0

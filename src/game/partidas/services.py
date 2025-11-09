@@ -412,7 +412,23 @@ class PartidaService:
 
 
     def iniciar_accion(self, id_partida: int, accion_context: dict):
-        partida = self.obtener_partida_con_bloqueo(id_partida) 
+        """
+        Se encarga de establecer el contexto de la partida
+
+        Parameters
+        ----------
+        id_partida: int
+            ID de la partida a la que se le establecerá el contexto de la acción ejecutada
+
+        accion_context: dict
+            Diccionario que contiene mayor detalle sobre
+            el contexto de la partida: tipo y nombre de accion jugada, lista de IDs de cartas jugadas,
+            jugador que ejecutó la acción, el payload necesario que el endpoint original necesitará
+            si la acción se ejecuta, la pila de respuestas (pila de cartas NSF, en principio vacía),
+            y el id de representación de esa carta.
+        """
+        # Bloqueamos la BD para que no se hagan otras transacciones
+        partida = self.obtener_partida_con_bloqueo(id_partida)
         if partida.accion_en_progreso:
             raise ValueError("Ya hay una acción en progreso.")
         partida.accion_en_progreso = accion_context
@@ -420,6 +436,9 @@ class PartidaService:
 
 
     def obtener_accion_en_progreso(self, id_partida: int) -> dict:
+        """
+        Devuelve el contexto de la acción en progreso en la partida
+        """
         partida = self.obtener_partida_con_bloqueo(id_partida)
         if not partida.accion_en_progreso:
             raise ValueError("No hay ninguna acción en progreso.")
@@ -427,19 +446,16 @@ class PartidaService:
 
 
     def actualizar_pila_de_respuesta(self, id_partida: int, carta_respuesta: dict):
+        """
+        Se encarga de actualizar la pila de respuesta
+        (donde se acumulan las NSF que se juegan).
+        """
+        
         partida = self.obtener_partida_con_bloqueo(id_partida)
         if not partida.accion_en_progreso:
              raise ValueError("No hay ninguna acción a la cual responder.")
-         
-        print("\n" + "="*50)
-        print(f"--- 2. ACTUALIZAR PILA (Partida {id_partida}) ---")
-        print(f"Añadiendo carta: {carta_respuesta.get('nombre')}")
-        print(f"CONTEXTO ANTES: {partida.accion_en_progreso}")
         
-        accion_context = dict(partida.accion_en_progreso) 
-        
-        print(f"CONTEXTO DESPUÉS: {partida.accion_en_progreso}")
-        
+        accion_context = dict(partida.accion_en_progreso)
         if "pila_respuestas" not in accion_context:
              accion_context["pila_respuestas"] = []
              
@@ -450,6 +466,10 @@ class PartidaService:
         
         
     def limpiar_accion_en_progreso(self, id_partida: int):
+        """
+        Limpia la acción en progreso de una partida
+        (luego de haberse decidido si dicha acción se ejecuta o no)
+        """
         partida = self.obtener_partida_con_bloqueo(id_partida)
         partida.accion_en_progreso = None
         self._db.commit()
