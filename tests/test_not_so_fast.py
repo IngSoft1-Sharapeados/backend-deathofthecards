@@ -6,23 +6,11 @@ from main import app
 from fastapi.testclient import TestClient
 from unittest.mock import MagicMock, patch, AsyncMock
 from game.modelos.db import get_db
-from sqlalchemy import create_engine
-from sqlalchemy.pool import StaticPool
-from game.modelos.db import Base, get_db, get_session_local
+from game.modelos.db import get_db
 from game.partidas.utils import *
 from game.partidas.models import Partida
 from game.jugadores.models import Jugador
 from game.cartas.models import Carta
-
-# ---------- FIXTURE DE DB ----------
-@pytest.fixture(name="session")
-def dbTesting_fixture():
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    TestingSessionLocal = get_session_local(engine)
-    Base.metadata.create_all(bind=engine)
-    with TestingSessionLocal() as session:
-        yield session
-
 
 # -----------------------------------TESTS A NIVEL API------------------------------------------------------
 
@@ -117,25 +105,24 @@ def test_API_not_so_fast_carta_incorrecta(
     ID_JUGADOR = 10
     ID_CARTA = 101
     
-    # Configurar verif_evento para que falle la validación (retorna False)
     mock_verif_evento.return_value = False
     
-    # --- EJECUCIÓN ---
     response = client.put(
         f"/partidas/{ID_PARTIDA}/respuesta/not_so_fast?id_jugador={ID_JUGADOR}&id_carta={ID_CARTA}"
     )
     
-    # --- ASSERTIONS ---
     assert response.status_code == 400
     assert response.json()["detail"] == "La carta no es Not So Fast."
     
-    # Aseguramos que la lógica de juego NO se ejecutó
     mock_jugar_not_so_fast.assert_not_called()
     
     app.dependency_overrides.clear()
 
 
 # -----------------------------------TESTS A NIVEL LOGICA NEGOCIOS------------------------------------------
+# ----------------------------------------------------------------------
+# Test Not So Fast (caso todo ok)
+# ----------------------------------------------------------------------
 @patch('game.partidas.utils.CartaService')
 @patch('game.partidas.utils.JugadorService')
 @patch('game.partidas.utils.PartidaService')
@@ -143,13 +130,12 @@ def test_jugar_not_so_fast_ok(
     MockPartidaService,
     MockJugadorService,
     MockCartaService,
-    session # Aunque no se use directamente, la función lo recibe
+    session # No se usa
 ):
     """
     Verifica que jugar_not_so_fast() ejecuta la lógica de juego y 
     devuelve el contexto de acción correcto.
     """
-    # --- Configuración de Mocks ---
     ID_PARTIDA = 1
     ID_JUGADOR = 5
     ID_CARTA = 16
@@ -183,28 +169,28 @@ def test_jugar_not_so_fast_ok(
     
     resultado = jugar_not_so_fast(ID_PARTIDA, ID_JUGADOR, ID_CARTA, session)
     
-    # --- Assertions ---
-    
-    # 1. Verifica el resultado
+    # Verifica el resultado
     assert resultado == contexto_accion_esperado
     
-    # 2. Verifica las llamadas a los services
+    # Llamadas a los services
     partida_service_instance.obtener_por_id.assert_called_once_with(ID_PARTIDA)
     jugador_service_instance.obtener_jugador.assert_called_once_with(ID_JUGADOR)
     
-    # 3. Verifica la llamada principal a la lógica de juego
+    # Verifica la llamada principal a la lógica de juego
     carta_service_instance.jugar_carta_instantanea.assert_called_once_with(
         ID_PARTIDA, ID_JUGADOR, ID_CARTA
     )
 
 
+# ----------------------------------------------------------------------
+# Test Not So Fast partida inexistente
+# ----------------------------------------------------------------------
 @patch('game.partidas.utils.CartaService')
 @patch('game.partidas.utils.JugadorService')
 @patch('game.partidas.utils.PartidaService')
 def test_jugar_not_so_fast_fail_partida_no_existe(
-    MockPartidaService, 
-    MockJugadorService, 
-    MockCartaService,
+    MockPartidaService,
+    MockJugadorService,
     session
 ):
     """
@@ -241,13 +227,6 @@ def test_integracion_jugar_not_so_fast_ok(session):
     ID_TIPO_CARTA_EVENTO = 85
     ID_UNICO_EVENTO = 90
 
-    
-    # 1. Inicialización de Servicios (usando la sesión real de la DB en memoria)
-    # partida_service = PartidaService(session)
-    # jugador_service = JugadorService(session)
-    # carta_service = CartaService(session)
-    
-    # 2. Setup: Crear Entidades Reales en la DB
     carta_a_cancelar = {
         "id_jugador": ID_JUGADOR_2,
         "id_carta_db": ID_UNICO_EVENTO,
@@ -264,7 +243,7 @@ def test_integracion_jugar_not_so_fast_ok(session):
         "id_carta_tipo_original": 22,
     }
     
-    # A. Crear Partida (campos no nulos: nombre, anfitrionId, cantJugadores)
+    # Crear Partida
     partida = Partida(
         id=ID_PARTIDA, 
         nombre="Partida 1", 
@@ -277,7 +256,7 @@ def test_integracion_jugar_not_so_fast_ok(session):
         accion_en_progreso=accion_context
     )
     
-    # B. Crear Jugador (campos no nulos: nombre, fecha_nacimiento, desgracia_social, partida_id)
+    # Crear Jugador
     jugador1 = Jugador(
         id=ID_JUGADOR_1, 
         nombre="J1", 
@@ -286,7 +265,7 @@ def test_integracion_jugar_not_so_fast_ok(session):
         desgracia_social=False
     )
     
-    # C. Crear Carta 'Not So Fast' en la MANO del Jugador
+    # Crear Carta 'Not So Fast' en la mano del Jugador
     carta_nsf = Carta(
         id=ID_UNICO_NSF, 
         partida_id=partida.id, 
@@ -302,24 +281,56 @@ def test_integracion_jugar_not_so_fast_ok(session):
     session.add_all([partida, jugador1, carta_nsf])
     session.commit() 
     
-    # 3. Ejecución (Llamar a la lógica de negocio REAL)
     from game.partidas.utils import jugar_not_so_fast
     
     resultado_contexto = jugar_not_so_fast(ID_PARTIDA, ID_JUGADOR_1, ID_TIPO_CARTA_NSF, session) 
-    
-    # 4. Assertions: Verificar Cambios en la DB y el Retorno
-    
-    # A. Verificar la ubicación de la carta después de jugarse
+        
+    # Verificar la ubicación de la carta después de jugarse
     carta_despues = session.query(Carta).filter(Carta.id == ID_UNICO_NSF).first()
     
-    assert carta_despues.ubicacion == "en_la_pila" 
+    assert carta_despues.ubicacion == "en_la_pila"
     assert carta_despues.jugador_id == 5 # Sigue siendo del jugador, se descarta una vez que termina el flujo de NSF
     
-    # B. Verificar que la función devolvió el contexto de acción
+    # Verificar que la función devolvió el contexto de acción
     assert isinstance(resultado_contexto, dict)
     assert len(resultado_contexto["pila_respuestas"]) > 1
     
-    # C. Verificar el cambio en el campo JSON 'accion_en_progreso' de la partida
+    # Verificar el cambio en el campo JSON 'accion_en_progreso' de la partida
+    partida_actualizada = session.query(Partida).filter(Partida.id == ID_PARTIDA).first()
+    assert partida_actualizada.accion_en_progreso == resultado_contexto
+    
+    session.rollback()
+
+
+def test_integracion_jugar_not_so_fast_ok_conftest(session, partida1, jugador1, carta_nsf):
+    """
+    Verifica la ejecución completa de jugar_not_fast con la DB de testing (RAM),
+    asegurando que la carta se mueva a la pila y que la acción se registre.
+    """
+    
+    ID_PARTIDA = 1
+    ID_JUGADOR_1 = 5
+    ID_UNICO_NSF = 101
+    ID_TIPO_CARTA_NSF = 16
+
+    session.add_all([partida1, jugador1, carta_nsf])
+    session.commit() 
+    
+    from game.partidas.utils import jugar_not_so_fast
+    
+    resultado_contexto = jugar_not_so_fast(ID_PARTIDA, ID_JUGADOR_1, ID_TIPO_CARTA_NSF, session) 
+        
+    # Verificar la ubicación de la carta después de jugarse
+    carta_despues = session.query(Carta).filter(Carta.id == ID_UNICO_NSF).first()
+    
+    assert carta_despues.ubicacion == "en_la_pila"
+    assert carta_despues.jugador_id == 5 # Sigue siendo del jugador, se descarta una vez que termina el flujo de NSF
+    
+    # Verificar que la función devolvió el contexto de acción
+    assert isinstance(resultado_contexto, dict)
+    assert len(resultado_contexto["pila_respuestas"]) > 1
+    
+    # Verificar el cambio en el campo JSON 'accion_en_progreso' de la partida
     partida_actualizada = session.query(Partida).filter(Partida.id == ID_PARTIDA).first()
     assert partida_actualizada.accion_en_progreso == resultado_contexto
     
