@@ -1,7 +1,7 @@
 from typing import List, Optional
 from fastapi import HTTPException, status
 from game.partidas.dtos import PartidaDTO
-from game.partidas.models import Partida
+from game.partidas.models import Partida, VotacionEvento
 from game.jugadores.models import Jugador
 from game.jugadores.schemas import JugadorDTO
 import random
@@ -12,6 +12,7 @@ import logging
 from sqlalchemy.orm.attributes import flag_modified
 from datetime import date
 import json
+from sqlalchemy import func
 
 
 logger = logging.getLogger(__name__)
@@ -471,4 +472,56 @@ class PartidaService:
         """
         partida = self.obtener_partida_con_bloqueo(id_partida)
         partida.accion_en_progreso = None
+        self._db.commit()
+        
+        
+    def inicia_votacion(self, id_partida: int):
+        partida = self.obtener_por_id(id_partida)
+        partida.votacion_activa = True
+        self._db.commit()
+        
+        
+    def registrar_voto(self, id_partida: int, id_votante: int, id_votado: int):
+        ya_voto = self._db.query(VotacionEvento).filter_by(
+                                                    partida_id=id_partida,
+                                                    votante_id=id_votante
+                                                    ).first()
+        # Veo que el jugador no haya votado antes, para que no vote mas de una vez.
+        if ya_voto:
+            raise ValueError(f"El jugador ya voto.")
+        
+        voto = VotacionEvento(partida_id = id_partida,
+                              votante_id = id_votante,
+                              votado_id = id_votado
+                              ) 
+        self._db.add(voto)
+        self._db.commit()
+        
+    def numero_de_votos(self, id_partida: int):
+        total_votos = self._db.query(VotacionEvento).filter_by(partida_id=id_partida).count()
+        return total_votos
+    
+    
+    def resolver_votacion(self, id_partida: int):
+        resultado = self._db.query(
+                        VotacionEvento.votado_id,
+                        func.count(VotacionEvento.votado_id).label("cantidad")
+                        ).filter_by(partida_id=id_partida).group_by(VotacionEvento.votado_id).all()
+            
+        max_cantidad = max(r.cantidad for r in resultado)
+        candidatos = [r.votado_id for r in resultado if r.cantidad == max_cantidad]
+        sospechoso = random.choice(candidatos)  # desempate aleatorio si hay empate.
+        
+        return sospechoso
+    
+    
+    def borrar_votacion(self, id_partida: int):
+        # Limpiar tabla de votos
+        self._db.query(VotacionEvento).filter_by(partida_id=id_partida).delete()
+        self._db.commit()
+    
+    
+    def fin_votacion(self, id_partida: int):
+        partida = self.obtener_por_id(id_partida)
+        partida.votacion_activa = False
         self._db.commit()

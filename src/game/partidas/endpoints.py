@@ -1425,6 +1425,8 @@ async def look_into_the_ashes(id_partida: int, id_jugador: int, db=Depends(get_d
             
             if "no se encontro" in msg:
                 raise HTTPException(status_code=404, detail=msg)
+            elif "No se ha encontrado la partida" in msg:
+                raise HTTPException(status_code=404, detail=msg)
             elif "Partida no iniciada" in msg:
                 raise HTTPException(status_code=403, detail=msg)
             elif "no pertenece a la partida" in msg:
@@ -1603,6 +1605,84 @@ async def early_train_to_paddington(id_partida: int, id_jugador: int, id_carta: 
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
+@partidas_router.put(path='/{id_partida}/evento/PointYourSuspicions', status_code=status.HTTP_200_OK)
+async def point_your_suspicions(id_partida: int, id_jugador: int, id_carta: int, db=Depends(get_db)):
+    
+    try:
+        if verif_evento("Point your suspicions", id_carta):
+            carta_evento = jugar_carta_evento(id_partida, id_jugador, id_carta, db)
+            await manager.broadcast(id_partida, json.dumps({
+                "evento": "se-jugo-point-your-suspicions",
+                "jugador_id": id_jugador
+            }))
+            
+            votacion_activada(id_partida, db)
+    
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La carta no corresponde al evento Point Your Suspicions."
+        
+        )
+    except ValueError as e:
+        msg = str(e)
+        
+        if "No se encontro" in msg:
+            raise HTTPException(status_code=404, detail=msg)
+        elif "No se ha encontrado la partida" in msg:
+            raise HTTPException(status_code=404, detail=msg)
+        elif "Partida no iniciada" in msg:
+            raise HTTPException(status_code=403, detail=msg)
+        elif "no pertenece a la partida" in msg:
+            raise HTTPException(status_code=403, detail=msg)
+        elif "no esta en turno" in msg:
+            raise HTTPException(status_code=403, detail=msg)
+        elif "una carta de evento por turno" in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        elif "La carta no se encuentra en la mano del jugador" in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        elif "no es de tipo evento" in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        elif "desgracia social" in msg:
+            raise HTTPException(status_code=403, detail=msg)
+        else:
+            raise HTTPException(status_code=500, detail="Error inesperado.")
+        
+        
+
+@partidas_router.put(path='/{id_partida}/evento/PointYourSuspicions/votacion', status_code=status.HTTP_200_OK)
+async def resolver_point_your_suspicions(id_partida: int, id_jugador: int, id_votante: int, id_votado: int, db=Depends(get_db)):
+    
+    try:
+        sospechoso = jugar_point_your_suspicions(id_partida, id_jugador, id_votante, id_votado, db)
+        await manager.broadcast(id_partida, json.dumps({
+            "evento": "voto-registrado",
+            "votante_id": id_votante,
+            "votado_id": id_votado
+        }))
+        
+        if sospechoso:
+            await manager.broadcast(id_partida, json.dumps({
+                "evento": "votacion-finalizada",
+                "sospechoso_id": sospechoso
+            }))
+            return sospechoso
+            
+    except ValueError as e:
+        msg = str(e)
+        if "No se jugo el evento Point Your Suspicions." in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        elif "No hay votacion en proceso actualmente" in msg:
+            raise HTTPException(status_code=403, detail=msg)
+        elif "No se encontro" in msg:
+            raise HTTPException(status_code=404, detail=msg)
+        elif "no pertenece" in msg:
+            raise HTTPException(status_code=403, detail=msg)
+        elif "ya voto" in msg:
+            raise HTTPException(status_code=400, detail=msg)
+            
+        
+            
 @partidas_router.post(path='/{id_partida}/iniciar-accion', status_code=status.HTTP_200_OK)
 async def iniciar_accion_generica(id_partida: int, id_jugador: int,
                                   accion: AccionGenericaPayload,
