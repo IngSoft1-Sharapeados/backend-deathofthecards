@@ -423,6 +423,18 @@ def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> C
 
 
 def verif_evento(evento: str, id_carta: int) -> bool:
+    """
+    Verifica si un nombre (de carta) se corresponde con la carta dado su ID
+
+    Parameters
+    ------------
+    evento: str
+        String que representa el nombre de una carta
+
+    id_carta: int
+        ID de representación de la carta
+        (es decir, no el ID único, sino el usado para representar a todas las cartas del mismo tipo)
+    """
     carta = next((v for v in cartasDict.values() if v["id"] == id_carta), None)
     if carta is None:
         return False
@@ -648,7 +660,32 @@ def validar_accion_evento(id_partida: int, id_jugador: int, id_carta: int, db) -
 
 def iniciar_accion_cancelable(id_partida: int, id_jugador: int, accion: AccionGenericaPayload, db):
     """
-        Método encargado de 
+    Método encargado de guardar el estado de contexto de la partida,
+    abriendo paso a la ventana de respuesta de una potencial Not So Fast
+
+    Parameters
+    -----------
+    id_partida: int
+        ID de la partida donde se iniciará la acción (set, evento)
+
+    id_jugador: int
+        ID del jugador que jugará el set o evento
+    
+    accion: AccionGenericaPayload
+        Un payload genérico que el frontend construye para cualquier acción
+        que pueda ser cancelada (Eventos, Sets, etc.).
+
+    Returns
+    ----------
+    (accion_context, mensaje): tuple
+        -accion_context- es un diccionario que contiene mayor detalle sobre
+        el contexto de la partida: tipo y nombre de accion jugada, lista de IDs de cartas jugadas,
+        jugador que ejecutó la acción, el payload necesario que el endpoint original necesitará
+        si la acción se ejecuta, la pila de respuestas (pila de cartas NSF, en principio vacía),
+        y el id de representación de esa carta.
+         -mensaje- es un string que informa que un jugador ejecutó determinada acción, y en caso de
+         haberlo hecho sobre otro jugador, sobre qué otro jugador
+
     """
     partida = PartidaService(db).obtener_por_id(id_partida)
     
@@ -711,7 +748,27 @@ def iniciar_accion_cancelable(id_partida: int, id_jugador: int, accion: AccionGe
 
 
 def jugar_not_so_fast(id_partida: int, id_jugador: int, id_carta: int, db) -> dict:
-# 1. Jugar la carta (valida que está en mano, la quita y la pone "en_la_pila")
+    """
+    Se encarga de jugar la carta Not So Fast.
+
+    Parameters
+    ----------
+    id_partida: int
+        ID de la partida donde se juega la carta NSF
+
+    id_jugador: int
+        ID del jugador que jugará la carta NSF
+
+    id_carta: int
+        ID de representación de la carta Not So Fast
+        (es decir, no el ID único, sino el usado para representar a todas las cartas del mismo tipo)
+    
+    Return
+    ---------
+    accion_context: dict
+        diccionario con el contexto de acción de la partida. Lo más importante es la pila de cartas NSF
+    """
+    
     partida = PartidaService(db).obtener_por_id(id_partida)
     
     if partida is None:
@@ -754,6 +811,23 @@ def jugar_not_so_fast(id_partida: int, id_jugador: int, id_carta: int, db) -> di
 
 
 def resolver_accion_turno(id_partida: int, db):
+    """
+    Resuelve la acción (o no) llevada a cabo en el turno en una partida específica
+    
+    Parameters
+    ----------
+    id_partida: int
+        ID de la partida donde se resuelve si la acción se ejecuta o no (set o evento jugado)
+    
+    Return
+    ---------
+    mensaje: str
+        string que avisa que la acción fue ejecutada
+    
+    diccionario: dict
+        Diccionario que contiene el contexto de accion de la partida, y el ID de la carta
+        que queda en el tope del mazo de descarte.
+    """
     # 1. Obtiene la acción pendiente (con bloqueo)
     partida = PartidaService(db).obtener_por_id(id_partida)
     if partida is None:

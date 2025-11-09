@@ -10,9 +10,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.pool import StaticPool
 from game.modelos.db import Base, get_db, get_session_local
 from game.partidas.utils import *
-from game.partidas.services import PartidaService
-from game.jugadores.services import JugadorService
-from game.cartas.services import CartaService 
 from game.partidas.models import Partida
 from game.jugadores.models import Jugador
 from game.cartas.models import Carta
@@ -230,7 +227,7 @@ def test_jugar_not_so_fast_fail_partida_no_existe(
 
 #------------------------------------------TEST INTEGRACION-------------------------------------------------
 
-def test_INTEGRACION_jugar_not_so_fast_ok(session):
+def test_integracion_jugar_not_so_fast_ok(session):
     """
     Verifica la ejecución completa de jugar_not_fast con la DB de testing (RAM),
     asegurando que la carta se mueva a la pila y que la acción se registre.

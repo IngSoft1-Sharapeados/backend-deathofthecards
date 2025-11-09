@@ -1642,29 +1642,32 @@ async def early_train_to_paddington(id_partida: int, id_jugador: int, id_carta: 
 
 
 @partidas_router.post(path='/{id_partida}/iniciar-accion', status_code=status.HTTP_200_OK)
-async def iniciar_accion_generica(id_partida: int, id_jugador: int, 
-                                  accion: AccionGenericaPayload, 
-                                  request: Request,
-                                  db=Depends(get_db)):
+async def iniciar_accion_generica(id_partida: int, id_jugador: int,
+                                  accion: AccionGenericaPayload,
+                                  db=Depends(get_db)) -> dict:
     """
-    (Fase 1) GENÉRICO: Propone una acción cancelable (Evento O Set).
-    ¡¡CONFÍA 100% EN EL FRONTEND!! No valida NADA.
-    Solo guarda el estado y abre la ventana de respuesta.
+    (Fase 1 NSF) Inicia una acción cancelable (Evento o Set).
+    Solo guarda el estado del contexto y abre la ventana de respuesta.
+    
+    Parameters
+    ----------
+    id_partida: int
+        ID de la partida donde se jugará el set o evento
+    
+    id_jugador: int
+        ID del jugador que jugará el set o evento
+
+    accion: AccionGenericaPayload
+        Un payload genérico que el frontend construye para cualquier acción
+        que pueda ser cancelada (Eventos, Sets, etc.).
+    
+    Returns:
+    ----------
+    diccionario: dict
+        Diccionario que comunica al frontend que se puede llamar al endpoint
+        correspondiente a la acción ejecutada y abrir la ventana para jugar una NSF
     """
     try:
-        # --- LOG: What was sent ---------------------------------------------------------------
-        raw_body = await request.body()
-        print("\n--- DEBUG /iniciar-accion ---")
-        print(f"Query param id_partida={id_partida}, id_jugador={id_jugador}")
-        print("Raw body (as received):", raw_body.decode("utf-8"))
-        print("Parsed AccionGenericaPayload:")
-        print("  tipo_accion:", accion.tipo_accion)
-        print("  cartas_db_ids:", accion.cartas_db_ids)
-        print("  nombre_accion:", accion.nombre_accion)
-        print("  payload_original:", accion.payload_original)
-        print("------------------------------\n")
-        # ---------------------------------------------------------------------------------------
-
         accion_context, mensaje = iniciar_accion_cancelable(id_partida, id_jugador, accion, db)
 
         await manager.broadcast(id_partida, json.dumps({
@@ -1699,18 +1702,29 @@ async def iniciar_accion_generica(id_partida: int, id_jugador: int,
             )
         else:
             raise HTTPException(status_code=400, detail=f"Error de validación: {msg}")
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error interno al iniciar acción."
-            )
     
 
 @partidas_router.put(path='/{id_partida}/respuesta/not_so_fast', status_code=status.HTTP_200_OK)
 async def not_so_fast(id_partida: int, id_jugador: int, id_carta: int, db=Depends(get_db)):
     """
-    (Fase 2) Juega una carta "Not So Fast" en respuesta a una acción en progreso.
+    (Fase 2 NSF) Juega una carta "Not So Fast" en respuesta a una acción en progreso.
+    
+    Parameters
+    ----------
+    id_partida: int
+        ID de la partida donde se jugará el set o evento
+    
+    id_jugador: int
+        ID del jugador que jugará el set o evento
+
+    id_carta: int
+        ID de representación de la carta Not So Fast
+        (es decir, no el ID único, sino el usado para representar a todas las cartas del mismo tipo)
+    
+    Returns:
+    ----------
+    diccionario: dict
+        Diccionario que comunica al frontend que se jugó correctamente una carta Not So Fast
     """
     try:
         if not verif_evento("Not so fast", id_carta):
@@ -1748,19 +1762,25 @@ async def not_so_fast(id_partida: int, id_jugador: int, id_carta: int, db=Depend
             )
         else:
             raise HTTPException(status_code=400, detail=f"Error de validación: {msg}")
-    # except Exception as e:
-    #     traceback.print_exc()
-    #     raise HTTPException(
-    #         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-    #         detail="Error interno al jugar Not So Fast."
-    #         )
 
 
 @partidas_router.post(path='/{id_partida}/resolver-accion', status_code=status.HTTP_200_OK)
 async def resolver_accion(id_partida: int, db=Depends(get_db)):
     """
-    (Fase 3) El frontend llama a esto cuando se acaba el timer.
-    Responde si la acción se ejecuta o se cancela, y limpia la pila.
+    (Fase 3 NSF) Determina si la acción se ejecuta o se cancela, y limpia la pila.
+    El frontend llama a esto cuando se acaba el timer.
+
+    Parameters
+    ----------
+    id_partida: int
+        ID de la partida donde se resolverá (o no) la acción llevada a cabo (evento o set)
+        dependiendo si se jugaron cartas Not So Fast y en qué cantidad
+
+    Returns
+    ---------
+    diccionario: dict
+        Detalle sobre la decisión, si se ejecuta la acción o se cancela.
+        Si se ejecuta la acción, luego el frontend llama al endpoint correspondiente.
     """
     try:
         print("\n" + "="*50)
@@ -1817,6 +1837,4 @@ async def resolver_accion(id_partida: int, db=Depends(get_db)):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=str(e)
             )
-    # except Exception as e:
-    #     traceback.print_exc()
-    #     raise HTTPException(status_code=500, detail="Error interno al resolver la acción.")
+
