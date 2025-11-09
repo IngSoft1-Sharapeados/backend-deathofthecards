@@ -933,3 +933,8 @@ def verif_send_card(id_partida: int, id_carta: int, id_jugador: int, id_objetivo
         se_puede_enviar = True
 
     return se_puede_enviar
+
+def obtener_id_de_tipo(id_unico: int, db) -> int:
+    carta = CartaService(db).obtener_carta_por_id(id_unico)
+
+    return carta.id_carta

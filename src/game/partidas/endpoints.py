@@ -1810,13 +1810,14 @@ async def card_trade(id_partida: int, id_jugador: int, id_carta: int, id_objetiv
         id_objetivo: id del jugador con el que se quiere realizar el intercambio
     """
     try:
-        if verif_evento("Card trade", id_carta):
-            jugar_carta_evento(id_partida, id_jugador, id_carta, db)
+        id_tipo = obtener_id_de_tipo(id_carta, db)
+        if verif_evento("Card trade", id_tipo):
+            jugar_carta_evento(id_partida, id_jugador, id_tipo, db)
             
             payload = {
                 "evento": "se-jugo-card-trade",
-                "jugador": id_jugador,
-                "objetivo": id_objetivo,
+                "jugador_id": id_jugador,
+                "objetivo_id": id_objetivo,
             }
             await manager.broadcast(id_partida, json.dumps(payload))
 
