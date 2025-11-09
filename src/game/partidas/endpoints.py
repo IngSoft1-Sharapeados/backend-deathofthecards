@@ -1694,7 +1694,7 @@ async def not_so_fast(id_partida: int, id_jugador: int, id_carta: int, db=Depend
           
         accion_context = jugar_not_so_fast(id_partida, id_jugador, id_carta, db)
 
-        # 4. Notifica al frontend que REINICIE el timer
+        # Notifica al frontend que reinicie el timer
         await manager.broadcast(id_partida, json.dumps({
             "evento": "pila-actualizada",
             "data": accion_context,
@@ -1747,7 +1747,7 @@ async def resolver_accion(id_partida: int, db=Depends(get_db)):
     try:
         resolucion = resolver_accion_turno(id_partida, db)
         if resolucion == "Acción ejecutada":
-            # Avisa al frontend que EJECUTE el endpoint original
+            # Avisa al frontend que ejecute el endpoint original
             mensaje = "Acción aprobada. Ejecutando..."
             await manager.broadcast(id_partida, json.dumps({
                 "evento": "accion-resuelta-exitosa", 
@@ -1766,7 +1766,7 @@ async def resolver_accion(id_partida: int, db=Depends(get_db)):
                 } 
             }, default=str))
             
-            # 5. Avisa al frontend que NO ejecute nada
+            # Avisa al frontend que no ejecute nada
             nombre_accion = accion_context.get("nombre_accion", "Acción")
             mensaje = f"La acción '{nombre_accion}' fue cancelada."
             await manager.broadcast(id_partida, json.dumps({
@@ -1777,7 +1777,7 @@ async def resolver_accion(id_partida: int, db=Depends(get_db)):
         
     except ValueError as e:
         msg = str(e)
-        # (Si no hay acción, puede que otro ya la haya resuelto. No es un error fatal)
+        # (Si no hay acción, puede que otro ya la haya resuelto)
         if "No hay ninguna acción" in msg:
             return {"decision": "ignorar", "detail": "La acción ya fue resuelta."}
         
