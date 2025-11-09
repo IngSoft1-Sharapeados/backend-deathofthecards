@@ -719,7 +719,7 @@ def iniciar_accion_cancelable(id_partida: int, id_jugador: int, accion: AccionGe
         "id_carta_tipo_original": accion.id_carta_tipo_original
     }
     
-    # 2. Iniciar la "pausa" en la BBDD
+    # 2. Iniciar la "pausa" en la BBDD y establecer la accion que se quiere realizar
     PartidaService(db).iniciar_accion(id_partida, accion_context)
 
     # 3. Construir y enviar el Broadcast (con nombres)
@@ -836,10 +836,7 @@ def resolver_accion_turno(id_partida: int, db):
     if partida.iniciada == False:
         raise ValueError(f"Partida no iniciada")
         
-    accion_context = PartidaService(db).obtener_accion_en_progreso(id_partida)
-    #cs = CartaService(db)
-    
-    print(f"CONTEXTO LEÍDO DE BBDD: {accion_context}")
+    accion_context = PartidaService(db).obtener_accion_en_progreso(id_partida)    
     
     # 2. Recolecta IDs de BBDD de las cartas NSF
     cartas_nsf_db_ids = [nsf["id_carta_db"] for nsf in accion_context["pila_respuestas"]]
@@ -850,15 +847,8 @@ def resolver_accion_turno(id_partida: int, db):
     # 4. Decide el resultado
     cantidad_nsf = len(cartas_nsf_db_ids)
     
-    print(f"Total de 'Not So Fast' contados: {cantidad_nsf}")
-    
     if cantidad_nsf % 2 == 0:
         # --- PAR: La acción original SE EJECUTA ---
-        
-        print("Decisión: PAR. La acción SE EJECUTA.")
-        print(f"Descartando {len(cartas_nsf_db_ids)} cartas NSF de la pila.")
-        print("="*50 + "\n")
-        
         # Descarta solo las cartas NSF (de "en_la_pila" a "descarte")
         CartaService(db).descartar_cartas_de_pila(cartas_nsf_db_ids, id_partida)
         
@@ -866,14 +856,9 @@ def resolver_accion_turno(id_partida: int, db):
 
     else:
         # --- IMPAR: La acción original SE CANCELA ---
-        print("Decisión: IMPAR. La acción SE CANCELA.")
-        print(f"Descartando {len(cartas_nsf_db_ids)} cartas NSF de la pila.")
-        
         # 1. Descarta las cartas NSF 
         CartaService(db).descartar_cartas_de_pila(cartas_nsf_db_ids, id_partida)
-        
-        print("="*50 + "\n")
-        
+
         # 2. Obtiene los datos de la acción original
         jugador_id_original = accion_context["id_jugador_original"]
         cartas_db_ids_originales = accion_context["cartas_originales_db_ids"]

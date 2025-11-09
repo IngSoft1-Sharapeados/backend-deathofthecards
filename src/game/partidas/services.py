@@ -453,16 +453,8 @@ class PartidaService:
         partida = self.obtener_partida_con_bloqueo(id_partida)
         if not partida.accion_en_progreso:
              raise ValueError("No hay ninguna acción a la cual responder.")
-         
-        print("\n" + "="*50)
-        print(f"--- 2. ACTUALIZAR PILA (Partida {id_partida}) ---")
-        print(f"Añadiendo carta: {carta_respuesta.get('nombre')}")
-        print(f"CONTEXTO ANTES: {partida.accion_en_progreso}")
         
-        accion_context = dict(partida.accion_en_progreso) 
-        
-        print(f"CONTEXTO DESPUÉS: {partida.accion_en_progreso}")
-        
+        accion_context = dict(partida.accion_en_progreso)
         if "pila_respuestas" not in accion_context:
              accion_context["pila_respuestas"] = []
              

@@ -103,44 +103,6 @@ class ConnectionManager:
 
             logger.info(f"Limpieza WS completa de partida {id_partida} ({len(conexiones)} sockets cerrados)")
     
-    async def clean_connectionss(self, id_partida: int):
-        # if id_partida in self.active_connections:
-        #     del self.active_connections[id_partida]
-
-        # jugadores_a_borrar = [
-        #     jid for jid, websockets in self.active_connections_personal.items()
-        #     if any(ws in self.active_connections.get(id_partida, []) for ws in websockets)
-        # ]
-        # for jid in jugadores_a_borrar:
-        #     del self.active_connections_personal[jid]
-        sockets = self.active_connections.get(id_partida, [])
-        for ws in list(sockets):
-            try:
-                await ws.close(code=1000)
-                print(f"[manager] websocket cerrado correctamente: {ws}")
-            except Exception as e:
-                print(f"[manager] websocket ya cerrado o error : {ws}, {e}")
-        conexiones = self.active_connections.pop(id_partida, [])
-
-        # # Cerrar websockets de la partida
-        # for ws in conexiones:
-        #     try:
-        #         await ws.close(code=1000)
-        #     except Exception as e:
-        #         logger.warning(f"Error al cerrar WS de partida {id_partida}: {e}")
-
-        # Borrar referencias personales de jugadores
-        jugadores_a_borrar = []
-        for id_jugador, websockets in list(self.active_connections_personal.items()):
-            # Eliminar si alguno de sus websockets pertenecía a esta partida
-            if any(ws in conexiones for ws in websockets):
-                jugadores_a_borrar.append(id_jugador)
-
-        for id_jugador in jugadores_a_borrar:
-            del self.active_connections_personal[id_jugador]
-
-        logger.info(f"Limpieza WS completa de partida {id_partida} ({len(conexiones)} sockets cerrados)")
-
 
 manager = ConnectionManager()
     
@@ -1035,7 +997,7 @@ async def cards_off_the_table(id_partida: int, id_jugador: int, id_objetivo: int
             for jugador in [id_jugador, id_objetivo]:
                 mano_jugador = CartaService(db).obtener_mano_jugador(jugador, id_partida)
                 cartas_a_enviar = [{"id": carta.id_carta, "nombre": carta.nombre, "id_instancia": carta.id} for carta in mano_jugador]
-                
+
                 await manager.send_personal_message(
                     jugador,
                     json.dumps({
@@ -1783,9 +1745,6 @@ async def resolver_accion(id_partida: int, db=Depends(get_db)):
         Si se ejecuta la acción, luego el frontend llama al endpoint correspondiente.
     """
     try:
-        print("\n" + "="*50)
-        print(f"--- 3. RESOLVER ACCION (Partida {id_partida}) ---")
-
         resolucion = resolver_accion_turno(id_partida, db)
         if resolucion == "Acción ejecutada":
             # Avisa al frontend que EJECUTE el endpoint original
