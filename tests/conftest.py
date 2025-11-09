@@ -1,20 +1,16 @@
 import pytest
 import os
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
-from game.modelos.db import get_db
 from sqlalchemy import create_engine
 from sqlalchemy.pool import StaticPool
 from game.modelos.db import Base, get_db, get_session_local
 
 import pytest
 import os
-import json
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 from main import app
 from fastapi.testclient import TestClient
 from unittest.mock import MagicMock, patch, AsyncMock
-from game.modelos.db import get_db
-from game.modelos.db import get_db
 from game.partidas.utils import *
 from game.partidas.models import Partida
 from game.jugadores.models import Jugador
