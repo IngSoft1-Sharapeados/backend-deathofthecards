@@ -1770,15 +1770,14 @@ async def card_trade(id_partida: int, id_jugador: int, id_carta: int, id_objetiv
 async def send_card(id_partida: int, id_jugador: int, id_objetivo: int, id_carta: int, db=Depends(get_db)):
     try:
         if verif_send_card(id_partida, id_carta, id_jugador, id_objetivo, db):
-            enviar_carta(id_partida, id_carta, id_objetivo, db)
-
+            enviar_carta(id_carta, id_objetivo, db)
             cartas_a_enviar = id_carta
 
             payload = {
                 "evento": "actualizacion-mano",
                 "data": cartas_a_enviar
                 }
-            await manager.send_personal_message(id_objetivo, payload)
+            await manager.send_personal_message(id_objetivo, json.dumps(payload))
 
             return {"detail": "Carta enviada correctamente"}
         

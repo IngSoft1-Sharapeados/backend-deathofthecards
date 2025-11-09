@@ -593,13 +593,9 @@ def verif_cantidad(id_partida: int, cantidad: int, db):
     if len(cantidad_cartas_descarte) < cantidad:
         raise ValueError("No hay suficientes cartas en el mazo de descarte.")
 
-def enviar_carta(id_partida: int, id_carta: int, id_objetivo: int, db):
+def enviar_carta(id_carta: int, id_objetivo: int, db):
 
-    partida = PartidaService(db).obtener_por_id(id_partida)
-
-    carta_a_enviar = CartaService(db).obtener_carta(id_carta)
-
-    CartaService(db).mover_carta_a_objetivo(partida, carta_a_enviar, id_objetivo)
+    CartaService(db).mover_carta_a_objetivo(id_carta, id_objetivo)
 
 
 
@@ -642,12 +638,13 @@ def verif_send_card(id_partida: int, id_carta: int, id_jugador: int, id_objetivo
     en_mano = False
     
     for c in cartas_mano:
-        if c.id_carta == id_carta:
+        if c.id == id_carta:
             en_mano = True
     if en_mano == False:
         raise ValueError(f"La carta no se encuentra en la mano del jugador.")
     
     else:
+       
         se_puede_enviar = True
 
     return se_puede_enviar

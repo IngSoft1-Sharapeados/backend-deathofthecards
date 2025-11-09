@@ -850,9 +850,14 @@ class CartaService:
             "jugador_revela_secreto": set_destino.jugador_id,
         }
 
-    def mover_carta_a_objetivo(self, carta: Carta, id_objetivo: int):
+    def mover_carta_a_objetivo(self, id_carta, id_objetivo: int):
+
+        carta = self._db.query(Carta).filter(Carta.id == id_carta).first()
+
         carta.jugador_id = id_objetivo
         self._db.commit()
+        self._db.refresh(carta)
+
         return {
             "mensaje": "carta enviada correctamente",
             "carta-actualizada": {carta.jugador_id}
