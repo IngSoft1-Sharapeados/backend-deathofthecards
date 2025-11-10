@@ -1806,7 +1806,7 @@ async def card_trade(id_partida: int, id_jugador: int, id_carta: int, id_objetiv
     parametros:
         id_partida: id de la partida donde se intenta jugar la carta
         id_jugador: jugador que intenta jugar la carta
-        id_carta: id de la carta que se intenta jugar
+        id_carta: id de instancia de la carta que se intenta jugar
         id_objetivo: id del jugador con el que se quiere realizar el intercambio
     """
     try:
@@ -1866,13 +1866,23 @@ async def send_card(id_partida: int, id_jugador: int, id_objetivo: int, id_carta
     try:
         if verif_send_card(id_partida, id_carta, id_jugador, id_objetivo, db):
             enviar_carta(id_carta, id_objetivo, db)
-            cartas_a_enviar = id_carta
-
-            payload = {
-                "evento": "actualizacion-mano",
-                "data": cartas_a_enviar
+           
+            mano_jugador = CartaService(db).obtener_mano_jugador(id_objetivo, id_partida)
+            cartas_a_enviar = [
+                {
+                    "id": carta.id_carta,
+                    "nombre": carta.nombre,
+                    "id_instancia": carta.id
                 }
-            await manager.send_personal_message(id_objetivo, json.dumps(payload))
+                for carta in mano_jugador
+            ]
+            await manager.send_personal_message(
+                id_objetivo,
+                json.dumps({
+                    "evento": "actualizacion-mano",
+                    "data": cartas_a_enviar
+                })
+            )
 
             return {"detail": "Carta enviada correctamente"}
         
