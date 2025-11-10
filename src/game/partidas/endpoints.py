@@ -1953,7 +1953,7 @@ async def enviar_mensaje_chat(id_partida: int, id_jugador: int, mensaje: Mensaje
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=msg
             )
-        elif("No pertenece a" in msg):
+        elif("no pertenece a" in msg):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=msg
@@ -1973,3 +1973,4 @@ async def enviar_mensaje_chat(id_partida: int, id_jugador: int, mensaje: Mensaje
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Hubo un error al enviar el mensaje: {msg}"
             )
+

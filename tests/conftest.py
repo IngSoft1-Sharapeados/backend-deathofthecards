@@ -107,3 +107,32 @@ def mock_jugadorChat():
 @pytest.fixture(name="mensaje")
 def mock_mensaje():
     return Mensaje(nombreJugador="Fran", texto="hola como andas")
+
+@pytest.fixture(name="db_partida_chat")
+def setup_data(session):
+    """ Configura los datos de prueba para la base de datos """
+    partida = Partida(
+            id = 1,
+            nombre = "PartidaChat",
+            anfitrionId = 1,
+            cantJugadores = 2,
+            iniciada = True
+        )
+
+    jugador = Jugador(
+        id = 1,
+        nombre = "Fran",
+        partida_id = 1,
+        fecha_nacimiento = date(1990, 3, 3),  
+        desgracia_social = False
+    )
+    session.add(partida)
+    session.add(jugador)
+    session.commit()
+
+    def get_db_override():
+        yield session
+    
+    app.dependency_overrides[get_db] = get_db_override
+
+    return session

@@ -140,3 +140,80 @@ def test_integracion_enviar_mensaje_ok(session):
 
     assert response.status_code == 200
     assert response.json() == {"nombre": payload["nombreJugador"], "texto": payload["texto"]}
+
+
+def test_error_partida_no_encontrada(db_partida_chat):
+    """ Test para cuando la partida no existe """
+    client = TestClient(app)
+    payload = {"nombreJugador": "Fran", "texto": "hola como andas"}
+    
+    response = client.post(f"/partidas/999/envio-mensaje?id_jugador=1", json=payload)
+    
+    assert response.status_code == 404
+    assert response.json() == {"detail": "No se ha encontrado la partida con el ID:999"}
+
+
+def test_error_partida_no_iniciada(db_partida_chat):
+    """ Test para cuando la partida no está iniciada """
+    client = TestClient(app)
+    payload = {"nombreJugador": "Fran", "texto": "hola como andas"}
+
+    partida_iniciada = db_partida_chat.query(Partida).filter(Partida.id == 1).first()
+    partida_iniciada.iniciada = False
+    db_partida_chat.commit()
+
+    response = client.post(f"/partidas/1/envio-mensaje?id_jugador=1", json=payload)
+    
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Partida no iniciada"}
+
+
+def test_error_jugador_no_encontrado(db_partida_chat):
+    """ Test para cuando el jugador no existe """
+    client = TestClient(app)
+    payload = {"nombreJugador": "Fran", "texto": "hola como andas"}
+
+    response = client.post(f"/partidas/1/envio-mensaje?id_jugador=999", json=payload)
+    
+    assert response.status_code == 404
+    assert response.json() == {"detail": "No se ha encontrado el jugador 999."}
+
+
+def test_error_jugador_no_pertenece_a_partida(db_partida_chat):
+    """ Test para cuando el jugador no pertenece a la partida """
+    client = TestClient(app)
+    payload = {"nombreJugador": "Fran", "texto": "hola como andas"}
+
+    jugador = db_partida_chat.query(Jugador).filter(Jugador.id == 1).first()
+    jugador.partida_id = 2
+    db_partida_chat.commit()
+
+    response = client.post(f"/partidas/1/envio-mensaje?id_jugador=1", json=payload)
+    
+    assert response.status_code == 403
+    assert response.json() == {"detail": "El jugador con ID 1 no pertenece a la partida 1."}
+
+
+def test_error_mensaje_demasiado_largo(db_partida_chat):
+    """ Test para cuando el mensaje es demasiado largo """
+    client = TestClient(app)
+    mensaje_largo = "A" * 201
+    payload = {"nombreJugador": "Fran", "texto": mensaje_largo}
+
+    response = client.post(f"/partidas/1/envio-mensaje?id_jugador=1", json=payload)
+    
+    assert response.status_code == 413
+    assert response.json() == {"detail": "Mensaje demasiado largo. No puede tener más de 200 caracteres"}
+
+
+def test_error_nombre_jugador_no_coincide(db_partida_chat):
+    """ Test para cuando el nombre del jugador no coincide con el nombre en el mensaje """
+    client = TestClient(app)
+    payload = {"nombreJugador": "Fran", "texto": "hola como andas"}
+
+    payload["nombreJugador"] = "Juan"
+
+    response = client.post(f"/partidas/1/envio-mensaje?id_jugador=1", json=payload)
+    
+    assert response.status_code == 400
+    assert response.json() == {"detail": "El nombre del jugador no coincide con el nombre del mensaje"}
