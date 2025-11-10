@@ -789,7 +789,6 @@ async def ocultar_secreto(id_partida: int, id_jugador_turno: int, id_unico_secre
 
         desgracia_social = determinar_desgracia_social(id_partida, id_jugador_afectado, db)
         if desgraciaSocial_aux and (not desgracia_social):
-            print(f"desgracia social: El jugador {id_jugador_afectado} salio de desgracia social")
             await manager.broadcast(id_partida, json.dumps({
                 "desgracia_social": DESGRACIA_SOCIAL_1,
                 "Jugador": id_jugador_afectado

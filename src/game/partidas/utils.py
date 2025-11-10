@@ -383,7 +383,7 @@ def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> C
     if partida.turno_id != id_jugador:
         raise ValueError(f"El jugador no esta en turno.")
     
-    desgracia_social = PartidaService(db).desgracia_social(id_partida, id_jugador)
+    desgracia_social = determinar_desgracia_social(id_partida, id_jugador, db)
     if desgracia_social:
         raise ValueError(f"El jugador {id_jugador} esta en desgracia social")
 
@@ -628,7 +628,7 @@ def validar_accion_evento(id_partida: int, id_jugador: int, id_carta: int, db) -
     if jugador.partida_id != id_partida:
         raise ValueError(f"El jugador con ID {id_jugador} no pertenece a la partida {id_partida}.")
     
-    desgracia_social = PartidaService(db).desgracia_social(id_partida, id_jugador)
+    desgracia_social = determinar_desgracia_social(id_partida, id_jugador, db)
     if desgracia_social:
         raise ValueError(f"El jugador {id_jugador} esta en desgracia social")
 
