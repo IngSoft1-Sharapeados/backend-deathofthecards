@@ -1043,3 +1043,91 @@ def enviar_mensaje(id_partida: int, id_jugador: int, mensaje: Mensaje, db):
         raise ValueError("El nombre del jugador no coincide con el nombre del mensaje")
     
     return True
+def enviar_carta(id_carta: int, id_objetivo: int, db):
+    """
+    funcion que llama al servicio para mover la carta
+    
+    parametros:
+        id_carta: int (id de la carta que se quiere mover)
+        id_objetivo: int (id del jugador a donde se quiere mover la carta)
+
+    """
+
+    CartaService(db).mover_carta_a_objetivo(id_carta, id_objetivo)
+
+
+
+
+
+def verif_send_card(id_partida: int, id_carta: int, id_jugador: int, id_objetivo: int, db) -> bool:
+    """
+    funcion que se encarga de verificar si la carta se puede enviar
+
+    parametros:
+
+        id_partida: int (id de la partida donde se quiere enviar la carta)
+        id_carta: int (id de la carta que se quiere enviar)
+        id_jugador: int (id del jugador que quiere enviar)
+        id_objetivo: int (id del jugador al que se le quiere enviar la carta)
+
+
+    """
+
+
+    se_puede_enviar = False
+    
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    if partida is None:
+        raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
+    
+    jugador = JugadorService(db).obtener_jugador(id_jugador)
+    if jugador is None:
+        raise ValueError(f"No se encontro el jugador {id_jugador}.")
+    
+    jugador_objetivo = JugadorService(db).obtener_jugador(id_objetivo)
+    if jugador_objetivo is None:
+        raise ValueError(f"No se encontro el jugador objetivo {id_objetivo}.")
+    
+    if partida.iniciada == False:
+        raise ValueError(f"Partida no iniciada")
+    
+    if jugador.partida_id != id_partida:
+        raise ValueError(f"El jugador con ID {id_jugador} no pertenece a la partida {id_partida}.")
+    
+    if jugador_objetivo.partida_id != id_partida:
+        raise ValueError(f"El jugador con ID {id_objetivo} no pertenece a la partida {id_partida}.")
+    
+    desgracia_social = determinar_desgracia_social(id_partida, id_jugador, db)
+    if desgracia_social:
+        raise ValueError(f"El jugador {id_jugador} esta en desgracia social")
+    
+
+    cartas_mano = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
+    en_mano = False
+
+    for c in cartas_mano:
+        if c.id == id_carta:
+            en_mano = True
+    if en_mano == False:
+        raise ValueError(f"La carta no se encuentra en la mano del jugador.")
+    
+    else:
+       
+        se_puede_enviar = True
+
+    return se_puede_enviar
+
+def obtener_id_de_tipo(id_unico: int, db) -> int:
+    """
+    funcion que obtiene el id de tipo de la carta a travez del id unico
+
+    parametros: 
+        id_unico: int  (id unico de la carta en la base de datos)
+
+    return:
+        carta.id_carta: int  (id del tipo de carta, por ej 16 osea "not so fast")
+    
+    """
+    carta = CartaService(db).obtener_carta_por_id(id_unico)
+
+    return carta.id_carta

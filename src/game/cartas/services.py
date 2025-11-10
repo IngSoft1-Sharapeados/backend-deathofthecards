@@ -916,3 +916,18 @@ class CartaService:
         self._db.commit()
 
         return set_jugado
+
+    def mover_carta_a_objetivo(self, id_carta, id_objetivo: int):
+
+        carta = self._db.query(Carta).filter(Carta.id == id_carta).first()
+
+        carta.jugador_id = id_objetivo
+        self._db.commit()
+        self._db.refresh(carta)
+
+        return {
+            "mensaje": "carta enviada correctamente",
+            "carta_actualizada": {
+                "jugador_id": carta.jugador_id
+            }
+        }   

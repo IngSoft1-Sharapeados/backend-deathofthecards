@@ -1994,3 +1994,141 @@ async def enviar_mensaje_chat(id_partida: int, id_jugador: int, mensaje: Mensaje
                 detail=f"Hubo un error al enviar el mensaje: {msg}"
             )
 
+
+@partidas_router.post(path='/{id_partida}/evento/CardTrade', status_code=status.HTTP_200_OK)
+async def card_trade(id_partida: int, id_jugador: int, id_carta: int, id_objetivo: int, db=Depends(get_db)):
+    """
+    se juega la carta: Card trade
+
+    parametros:
+        id_partida: id de la partida donde se intenta jugar la carta
+        id_jugador: jugador que intenta jugar la carta
+        id_carta: id unico de la carta que se intenta jugar
+        id_objetivo: id del jugador con el que se quiere realizar el intercambio
+    """
+    try:
+        id_tipo = obtener_id_de_tipo(id_carta, db)
+        if verif_evento("Card trade", id_tipo):
+            jugar_carta_evento(id_partida, id_jugador, id_tipo, db)
+            
+            payload = {
+                "evento": "se-jugo-card-trade",
+                "jugador_id": id_jugador,
+                "objetivo_id": id_objetivo,
+            }
+            await manager.broadcast(id_partida, json.dumps(payload))
+
+            return {"detail": "Evento jugado correctamente"}
+        
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La carta no corresponde al evento Card Trade"
+            )
+        
+    except ValueError as e:
+        msg = str(e)
+        if "1 y 5" in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        elif "mazo de descarte" in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        elif "No se ha encontrado la partida" in msg:
+            raise HTTPException(status_code=404, detail=msg)
+        elif "jugador" in msg and "no se encontro" in msg.lower():
+            raise HTTPException(status_code=404, detail=msg)
+        elif "Partida no iniciada" in msg:
+            raise HTTPException(status_code=403, detail=msg)
+        elif "no esta en turno" in msg.lower():
+            raise HTTPException(status_code=403, detail=msg)
+        elif "no pertenece a la partida" in msg.lower():
+            raise HTTPException(status_code=403, detail=msg)
+        elif "desgracia social" in msg:
+            raise HTTPException(status_code=403, detail=msg)
+        elif "Solo se puede jugar una carta de evento" in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        elif "no se encuentra en la mano" in msg.lower():
+            raise HTTPException(status_code=400, detail=msg)
+        elif "no es de tipo evento" in msg.lower():
+            raise HTTPException(status_code=400, detail=msg)
+        else:
+            raise HTTPException(status_code=400, detail=f"Error de validación: {msg}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error al jugar carta de evento Card trade: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+    
+@partidas_router.post(path='/{id_partida}/evento/sendCard', status_code=status.HTTP_200_OK)
+async def send_card(id_partida: int, id_jugador: int, id_objetivo: int, id_carta: int, db=Depends(get_db)): 
+    """
+    endpoint encargado de enviar una carta a un jugador objetivo
+
+    parametros:
+    
+        id_partida: int  (id de la partida en la que se quiere enviar la carta)
+        id_jugador: int (id del jugador que envia la carta)
+        id_objetivo: int (id del jugador al que se quiere enviar la carta)
+        id_carta: int (id de la carta que se quiere enviar)
+
+    """
+
+    try:
+        if verif_send_card(id_partida, id_carta, id_jugador, id_objetivo, db):
+            enviar_carta(id_carta, id_objetivo, db)
+            id_devious = obtener_id_de_tipo(id_carta, db)
+            if id_devious in (BLACKMAILED,SOCIAL_FAUX_PAS):
+                broadcast_payload ={
+                    "evento": "devious-card",
+                    "data":{
+                        "tipo": id_devious,
+                        "jugador_emisor": id_jugador,
+                        "jugador_objetivo": id_objetivo
+                    }
+                }
+                await manager.broadcast(json.dumps(broadcast_payload), id_partida)
+           
+            mano_jugador = CartaService(db).obtener_mano_jugador(id_objetivo, id_partida)
+            cartas_a_enviar = [
+                {
+                    "id": carta.id_carta,
+                    "nombre": carta.nombre,
+                    "id_instancia": carta.id
+                }
+                for carta in mano_jugador
+            ]
+            await manager.send_personal_message(
+                id_objetivo,
+                json.dumps({
+                    "evento": "actualizacion-mano",
+                    "data": cartas_a_enviar
+                })
+            )
+
+            return {"detail": "Carta enviada correctamente"}
+        
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error al enviar la carta"
+            )
+    except ValueError as e:
+        msg = str(e)
+        if "No se ha encontrado la partida" in msg:
+            raise HTTPException(status_code=404, detail=msg)
+        elif "jugador" in msg and "no se encontro" in msg.lower():
+            raise HTTPException(status_code=404, detail=msg)
+        elif "Partida no iniciada" in msg:
+            raise HTTPException(status_code=403, detail=msg)
+        elif "no pertenece a la partida" in msg.lower():
+            raise HTTPException(status_code=403, detail=msg)
+        elif "desgracia social" in msg:
+            raise HTTPException(status_code=403, detail=msg)
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error alintentar enviar la carta (id: {id_carta}): {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+        
+
+
+
