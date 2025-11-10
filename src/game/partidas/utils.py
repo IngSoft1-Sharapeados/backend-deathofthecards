@@ -12,6 +12,7 @@ from game.jugadores.services import *
 from fastapi import HTTPException, status
 from game.modelos.db import get_db
 from datetime import date
+import json
 
 
 def listar_jugadores(partida: Partida) -> list[JugadorOut]:
@@ -1131,3 +1132,20 @@ def obtener_id_de_tipo(id_unico: int, db) -> int:
     carta = CartaService(db).obtener_carta_por_id(id_unico)
 
     return carta.id_carta
+
+def obtener_turnos(id_partida: int, db) -> List[int]:
+    """ 
+    funcion que obtiene el orden de turnos de una partida
+
+    parametros:
+        id_partida: int  (id de la partida la cual se quieren obtener los turnos)
+
+    return: 
+        trunos: List[int] (lista con los id de los jugadores en orden)
+    
+    """
+
+    partida = PartidaService(db).obtener_por_id(id_partida)
+
+    orden = json.loads(partida.ordenTurnos)
+    return orden

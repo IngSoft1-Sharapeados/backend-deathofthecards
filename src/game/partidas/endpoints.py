@@ -2130,5 +2130,72 @@ async def send_card(id_partida: int, id_jugador: int, id_objetivo: int, id_carta
         raise HTTPException(status_code=500, detail="Error interno del servidor")
         
 
+@partidas_router.post(path='/{id_partida}/evento/DeadCardFolly', status_code=status.HTTP_200_OK)
+async def dead_card_folly(id_partida: int, id_jugador: int, id_carta: int, direccion: str, db=Depends(get_db)):
+    """
+    se juega la carta: Dead Card Folly
+
+    parametros:
+        id_partida: int (id de la partida donde se intenta jugar la carta)
+        id_jugador: int (jugador que intenta jugar la carta)
+        id_carta: int (id unico de la carta que se intenta jugar)
+        direccion: str  (string que indica si la ronda va hacia la izquierda o la derecha)
+    """
+    try:
+        id_tipo = obtener_id_de_tipo(id_carta, db)
+        if verif_evento("Dead card folly", id_tipo):
+            jugar_carta_evento(id_partida, id_jugador, id_tipo, db)
+            
+            orden_turnos = obtener_turnos(id_partida, db)
+
+            await manager.broadcast(id_partida,
+                                     json.dumps({
+                                "evento": "se-jugo-dead-card-folly",
+                                "jugador_id": id_jugador,
+                                "direccion": direccion,
+                                "orden": orden_turnos
+                                })
+                            )
+
+            return {"detail": "Evento jugado correctamente"}
+        
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La carta no corresponde al evento Dead Card Folly"
+            )
+        
+    except ValueError as e:
+        msg = str(e)
+        if "1 y 5" in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        elif "mazo de descarte" in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        elif "No se ha encontrado la partida" in msg:
+            raise HTTPException(status_code=404, detail=msg)
+        elif "jugador" in msg and "no se encontro" in msg.lower():
+            raise HTTPException(status_code=404, detail=msg)
+        elif "Partida no iniciada" in msg:
+            raise HTTPException(status_code=403, detail=msg)
+        elif "no esta en turno" in msg.lower():
+            raise HTTPException(status_code=403, detail=msg)
+        elif "no pertenece a la partida" in msg.lower():
+            raise HTTPException(status_code=403, detail=msg)
+        elif "desgracia social" in msg:
+            raise HTTPException(status_code=403, detail=msg)
+        elif "Solo se puede jugar una carta de evento" in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        elif "no se encuentra en la mano" in msg.lower():
+            raise HTTPException(status_code=400, detail=msg)
+        elif "no es de tipo evento" in msg.lower():
+            raise HTTPException(status_code=400, detail=msg)
+        else:
+            raise HTTPException(status_code=400, detail=f"Error de validación: {msg}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error al jugar carta de evento Dead Card Folly: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
 
 
