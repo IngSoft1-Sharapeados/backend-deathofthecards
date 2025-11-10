@@ -2055,6 +2055,17 @@ async def send_card(id_partida: int, id_jugador: int, id_objetivo: int, id_carta
     try:
         if verif_send_card(id_partida, id_carta, id_jugador, id_objetivo, db):
             enviar_carta(id_carta, id_objetivo, db)
+            id_devious = obtener_id_de_tipo(id_carta, db)
+            if id_devious in (BLACKMAILED,SOCIAL_FAUX_PAS):
+                broadcast_payload ={
+                    "evento": "devious-card",
+                    "data":{
+                        "tipo": id_devious,
+                        "jugador_emisor": id_jugador,
+                        "jugador_objetivo": id_objetivo
+                    }
+                }
+                await manager.broadcast(json.dumps(broadcast_payload), id_partida)
            
             mano_jugador = CartaService(db).obtener_mano_jugador(id_objetivo, id_partida)
             cartas_a_enviar = [
