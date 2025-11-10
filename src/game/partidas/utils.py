@@ -383,7 +383,7 @@ def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> C
     if partida.turno_id != id_jugador:
         raise ValueError(f"El jugador no esta en turno.")
     
-    desgracia_social = PartidaService(db).desgracia_social(id_partida, id_jugador)
+    desgracia_social = determinar_desgracia_social(id_partida, id_jugador, db)
     if desgracia_social:
         raise ValueError(f"El jugador {id_jugador} esta en desgracia social")
 
@@ -628,7 +628,7 @@ def validar_accion_evento(id_partida: int, id_jugador: int, id_carta: int, db) -
     if jugador.partida_id != id_partida:
         raise ValueError(f"El jugador con ID {id_jugador} no pertenece a la partida {id_partida}.")
     
-    desgracia_social = PartidaService(db).desgracia_social(id_partida, id_jugador)
+    desgracia_social = determinar_desgracia_social(id_partida, id_jugador, db)
     if desgracia_social:
         raise ValueError(f"El jugador {id_jugador} esta en desgracia social")
 
@@ -928,6 +928,80 @@ def resolver_accion_turno(id_partida: int, db):
         id_carta_tope_descarte: int = nueva_carta_tope[0].id_carta if nueva_carta_tope else None
 
         return {"accion_context": accion_context, "tope_descarte": id_carta_tope_descarte}
+
+def determinar_desgracia_social(id_partida: int, id_jugador: int, db) -> bool:
+    """
+    Recorre los secretos de un jugador y lo saca de estado de desgracia social o lo 
+    agrega al mismo.
+    
+    Parameters
+    ----------
+    id_jugado: int
+        ID del jugador al cual se pondra o sacara del estado desgracia social.
+
+    id_partida: int
+        ID de la partida para la cual se obtiene los secretos.
+    
+    Returns
+    -------
+    bool
+        devuelve True en caso de que este en desgracia social o False en caso contrario.
+    """
+    PartidaService(db).obtener_por_id(id_partida)
+    jugador = JugadorService(db).obtener_jugador(id_jugador)
+    if jugador is None:
+        raise ValueError(f"No se ha encontrado al jugador con id:{id_jugador}")
+    secretos = CartaService(db).obtener_secretos_jugador(id_jugador, id_partida)
+    if secretos is None:
+        raise ValueError(f"No se ha encontrado los secretos del jugador{id_jugador} y la partida:{id_partida}")
+    desgracia_social = PartidaService(db).desgracia_social(jugador, secretos)
+    return desgracia_social
+
+def ganar_por_desgracia_social(id_partida: int, db) -> bool:
+    """
+    Recorre todos los secretos de todos los jugadores vindo el estado de bocaArriba para
+    determinar el resultado.
+    
+    Parameters
+
+    id_partida: int
+        ID de la partida para la cual se obtiene los secretos.
+    
+    Returns
+    -------
+    bool
+        devuelve True en caso de que el asesino haya ganado y False en caso contrario.
+    """
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    resultado = PartidaService(db).ganar_desgracia_social(partida) 
+    return resultado
+
+def obtener_jugador_por_id_carta(id_partida: int, id_carta: int, db) -> int:
+    """
+    Determina el id de un jugador mediante una carta dada.
+    
+    Parameters
+
+    id_partida: int
+        ID de la partida para buscar al jugador.
+    
+    id_carta: int
+        Id de la carta para buscar al jugador.
+    
+    Returns
+    -------
+    bool
+        devuelve True en caso de que el asesino haya ganado y False en caso contrario.
+    """
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    if not partida:
+        raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
+    carta = CartaService(db).obtener_carta_por_id(id_carta)
+    if not carta:
+        raise ValueError(f"No se ha encontrado la carta con el ID:{id_carta}")
+    jugador = JugadorService(db).obtener_jugador_id_carta(partida, carta)
+    return jugador
+
 
 
 def enviar_mensaje(id_partida: int, id_jugador: int, mensaje: Mensaje, db):

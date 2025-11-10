@@ -73,11 +73,15 @@ def test_robar_secreto_otro_jugador_ok(
     carta_service_instance = MagicMock()
     carta_service_instance.obtener_carta_por_id.return_value = carta_a_robar_mock
     
-    # Uso de side_effect para la doble llamada (destino y víctima)
-    carta_service_instance.obtener_secretos_jugador.side_effect = [
-        secretos_destino_post_robo, # Primera llamada: Jugador Destino
-        secretos_victima_post_robo   # Segunda llamada: Jugador Víctima
-    ]
+    carta_service_instance.obtener_secretos_jugador.side_effect = (
+        lambda id_jugador, id_partida:
+        secretos_destino_post_robo
+        if id_jugador == jugador_destino.id
+        else secretos_victima_post_robo
+        if id_jugador == id_jugador_victima
+        else []
+    )
+
     
     # CLAVE: Configurar ambos mocks de CLASE para devolver la misma INSTANCIA
     mock_CartaService_utils.return_value = carta_service_instance 
@@ -95,7 +99,8 @@ def test_robar_secreto_otro_jugador_ok(
     mock_PartidaService.return_value = partida_service_instance
 
     # Manager
-    mock_manager.broadcast = AsyncMock()
+    mock_manager.broadcast = AsyncMock(return_value=None)
+    mock_manager.clean_connections = AsyncMock(return_value=None)
     
     # --- 3. EJECUCIÓN ---
     response = client.patch(
@@ -118,7 +123,7 @@ def test_robar_secreto_otro_jugador_ok(
     )
     
     # Broadcasts
-    assert mock_manager.broadcast.call_count == 2
+    assert mock_manager.broadcast.call_count == 3
     
     # Primer broadcast (Jugador Destino)
     broadcast_destino_data = json.loads(mock_manager.broadcast.call_args_list[0].args[1])
