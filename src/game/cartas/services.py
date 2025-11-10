@@ -706,16 +706,6 @@ class CartaService:
             carta_objetivo.orden_descarte = None
             self._db.commit()
             self._db.refresh(carta_objetivo)
-        
-        
-    # def anular_look_into(self, id_jugador: int, carta_evento_jugada_id: int):
-    #     carta_evento_jugada =  self._db.get(Carta, carta_evento_jugada_id)
-                                                                
-    #     carta_evento_jugada.jugador_id = id_jugador
-    #     carta_evento_jugada.ubicacion = "mano"
-    #     carta_evento_jugada.orden_descarte = None
-    #     carta_evento_jugada.bocaArriba = False
-    #     self._db.commit()
 
     
     def descartar_eventos(self, id_partida: int, id_jugador: int):
@@ -733,6 +723,7 @@ class CartaService:
             self._db.commit()
         else:
             self.descartar_cartas(id_jugador, [carta_jugada.id_carta])
+            
 
     def jugar_delay_the_murderer_escape(self, id_partida: int, id_jugador: int,cantidad: int):
     
@@ -786,6 +777,7 @@ class CartaService:
         except Exception as e:
             self._db.rollback()
             raise ValueError(f"Error al eliminar la carta: {str(e)}")
+        
 
     def jugar_early_train_to_paddington(self, id_partida: int, id_jugador: int):
             """
@@ -820,6 +812,7 @@ class CartaService:
             
             self._db.commit()
             
+            
     def jugar_carta_instantanea(self, id_partida: int, id_jugador: int, id_carta_tipo: int) -> Carta:
         """
         Mueve una carta de la mano del jugador a "en_la_pila".
@@ -835,6 +828,7 @@ class CartaService:
         self._db.commit()
         self._db.refresh(carta)
         return carta
+
 
     def descartar_cartas_de_pila(self, ids_cartas_db: list[int], id_partida: int):
         """
@@ -886,6 +880,42 @@ class CartaService:
                 "cartas_ids": ids_actuales,
             },
             "jugador_revela_secreto": set_destino.jugador_id,
+        }   
+               
+        
+    def agregar_carta_a_set(self, id_jugador_set: int, id_tipo_set: int, id_carta_instancia: int):
+        """
+        Busca el set usando el ID de TIPO (representacion_id_carta) y el ID del JUGADOR,
+        porque el frontend no tiene el ID (PK) del set.
+
+        Luego, agrega la carta (por instancia) y la MUEVE fuera de la mano.
+        """
+
+        set_jugado = self._db.query(SetJugado).filter(
+            SetJugado.jugador_id == id_jugador_set,
+            SetJugado.representacion_id_carta == id_tipo_set
+        ).first()
+
+        if not set_jugado:
+            raise Exception(f"No se encontró el Set para el jugador {id_jugador_set} con tipo {id_tipo_set}")
+
+#Obtener la carta por INSTANCIA
+        carta = self.obtener_carta_por_id(id_carta_instancia) 
+        if not carta:
+            raise Exception(f"No se encontró la Carta con instancia id {id_carta_instancia}")
+
+#Mover la carta (la saca de la mano)
+        carta.ubicacion = "set_jugado" 
+        self._db.add(carta)
+
+        nuevas_cartas_ids = set_jugado.cartas_ids_csv.split(',') if set_jugado.cartas_ids_csv else []
+        nuevas_cartas_ids.append(str(carta.id_carta)) 
+        set_jugado.cartas_ids_csv = ",".join(nuevas_cartas_ids)
+        self._db.add(set_jugado)
+
+        self._db.commit()
+
+        return set_jugado
         }
 
     def mover_carta_a_objetivo(self, id_carta, id_objetivo: int):
