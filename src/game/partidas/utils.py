@@ -3,7 +3,7 @@ from game.jugadores.models import Jugador
 from game.cartas.models import Carta, SetJugado
 from game.cartas.constants import *
 from game.jugadores.schemas import JugadorOut
-from game.partidas.schemas import PartidaData, PartidaResponse, IniciarPartidaData, AccionGenericaPayload
+from game.partidas.schemas import PartidaData, PartidaResponse, IniciarPartidaData, AccionGenericaPayload, Mensaje
 from game.partidas.services import PartidaService
 from game.partidas.dtos import *
 from game.cartas.services import CartaService
@@ -928,3 +928,28 @@ def resolver_accion_turno(id_partida: int, db):
         id_carta_tope_descarte: int = nueva_carta_tope[0].id_carta if nueva_carta_tope else None
 
         return {"accion_context": accion_context, "tope_descarte": id_carta_tope_descarte}
+
+
+def enviar_mensaje(id_partida: int, id_jugador: int, mensaje: Mensaje, db):
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    
+    if partida is None:
+        raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
+    
+    if partida.iniciada == False:
+        raise ValueError(f"Partida no iniciada")
+    
+    jugador = JugadorService(db).obtener_jugador(id_jugador)
+    if jugador is None:
+        raise ValueError(f"No se ha encontrado el jugador {id_jugador}.")
+
+    if jugador.partida_id != id_partida:
+        raise ValueError(f"El jugador con ID {id_jugador} no pertenece a la partida {id_partida}.")
+    
+    if len(mensaje.texto)>200:
+        raise ValueError(f"Mensaje demasiado largo. No puede tener más de 200 caracteres")
+    
+    if mensaje.nombreJugador != jugador.nombre:
+        raise ValueError("El nombre del jugador no coincide con el nombre del mensaje")
+    
+    return True

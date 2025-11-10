@@ -4,10 +4,6 @@ os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 from sqlalchemy import create_engine
 from sqlalchemy.pool import StaticPool
 from game.modelos.db import Base, get_db, get_session_local
-
-import pytest
-import os
-os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 from main import app
 from fastapi.testclient import TestClient
 from unittest.mock import MagicMock, patch, AsyncMock
@@ -79,3 +75,35 @@ def cartaNSF_fixture():
     bocaArriba=True
     )
     return carta_nsf
+
+# Mock para base de datos
+@pytest.fixture(name="mock_db")
+def mock_db():
+    return MagicMock()
+
+@pytest.fixture(name="partida_iniciada")
+def mock_partida():
+    mock = MagicMock()
+    mock.id = 1
+    mock.nombre = "PartidaChat"
+    mock.anfitrionId = 1
+    mock.cantJugadores = 2    
+    mock.iniciada = True
+    return mock
+
+
+@pytest.fixture(name="jugadorChat")
+def mock_jugadorChat():
+    # Mock de un objeto Partida con los atributos necesarios
+    mock = MagicMock()
+    mock.id = 1
+    mock.nombre = "Fran"
+    mock.partida_id = 1
+    mock.fechaNacimiento = date(1990, 3, 3)    
+    mock.desgracia_social = False
+    return mock
+
+
+@pytest.fixture(name="mensaje")
+def mock_mensaje():
+    return Mensaje(nombreJugador="Fran", texto="hola como andas")
