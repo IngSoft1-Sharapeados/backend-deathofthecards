@@ -916,7 +916,6 @@ class CartaService:
         self._db.commit()
 
         return set_jugado
-        }
 
     def mover_carta_a_objetivo(self, id_carta, id_objetivo: int):
 
