@@ -3,7 +3,7 @@ from game.jugadores.models import Jugador
 from game.cartas.models import Carta, SetJugado
 from game.cartas.constants import *
 from game.jugadores.schemas import JugadorOut
-from game.partidas.schemas import PartidaData, PartidaResponse, IniciarPartidaData, AccionGenericaPayload, Mensaje
+from game.partidas.schemas import *
 from game.partidas.services import PartidaService
 from game.partidas.dtos import *
 from game.cartas.services import CartaService
@@ -1005,6 +1005,16 @@ def obtener_jugador_por_id_carta(id_partida: int, id_carta: int, db) -> int:
     return jugador
 
 
+def actualizar_set(payload: AgregarCartaSetPayload, db):
+        set_actualizado = CartaService(db).agregar_carta_a_set(
+                    id_jugador_set=payload.id_jugador_set, 
+                    id_tipo_set=payload.id_tipo_set,
+                    id_carta_instancia=payload.id_carta_instancia
+                )
+        
+        return set_actualizado 
+    
+    
 def enviar_mensaje(id_partida: int, id_jugador: int, mensaje: Mensaje, db):
     # try/except porque el servicio levanta una excepcion HTTP
     # y si lo cambio fallan tests

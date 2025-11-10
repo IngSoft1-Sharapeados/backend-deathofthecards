@@ -115,7 +115,11 @@ class AccionGenericaPayload(BaseModel):
     - Para JugarSet: { "set_cartas": [7, 7, 14] } (IDs de representación de carta)
     """
     id_carta_tipo_original: int = 0
-
+    
+class AgregarCartaSetPayload(BaseModel):
+    id_carta_instancia: int
+    id_jugador_set: int
+    id_tipo_set: int
 
 class Mensaje(BaseModel):
     nombreJugador: str
