@@ -4,6 +4,7 @@ from game.jugadores.models import Jugador
 from game.jugadores.services import JugadorService
 from game.cartas.services import CartaService 
 from game.partidas.services import PartidaService
+from game.partidas.utils import determinar_desgracia_social
 
 from fastapi import HTTPException, status
 
@@ -88,7 +89,7 @@ def jugar_set_detective(id_partida: int, id_jugador: int,set_destino_id: int, se
 
     #fin de la verificacion de que sean todos detectives ------------------------------
 
-    desgracia_social = PartidaService(db).desgracia_social(id_partida, id_jugador)
+    desgracia_social = determinar_desgracia_social(id_partida, id_jugador, db)
     if desgracia_social:
         raise HTTPException(status_code=403, detail=f"El jugador {id_jugador} se encuentra en desgracia social")
 

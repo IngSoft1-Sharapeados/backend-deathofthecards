@@ -27,3 +27,7 @@ secretosDict = {
     2: {"id":4, "tipo": "secreto", "carta" : "accomplice", "cantidad": 1, "bocaArriba": False, "ubicacion": "mesa"},
     3: {"id":6, "tipo": "secreto", "carta": "secreto_comun", "cantidad":16, "bocaArriba": False, "ubicacion": "mesa"}
 }
+
+ARIADNE_OLIVER=15
+DESGRACIA_SOCIAL_0=True
+DESGRACIA_SOCIAL_1=False

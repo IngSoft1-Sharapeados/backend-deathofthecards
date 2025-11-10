@@ -1,5 +1,7 @@
 from game.partidas.dtos import PartidaDTO
 from game.jugadores.models import Jugador
+from game.cartas.models import Carta
+from game.partidas.models import Partida
 #from game.cartas.models import Carta
 from game.jugadores.dtos import JugadorDTO
 
@@ -99,3 +101,8 @@ class JugadorService:
         except Exception as e:
             self._db.rollback()
             raise ValueError(f"Error al eliminar el jugador: {str(e)}")
+        
+    def obtener_jugador_id_carta(self, partida: Partida, carta: Carta) -> int:
+        jugador = self._db.query(Jugador).filter(Jugador.partida_id == partida.id,
+                                                  Jugador.id == carta.jugador_id).first()
+        return jugador.id
