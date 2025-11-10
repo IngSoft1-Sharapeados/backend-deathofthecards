@@ -499,6 +499,9 @@ class CartaService:
         secreto = self._db.get(Carta, id_unico_secreto)
         return (secreto.nombre == "murderer")
 
+    def es_complice(self, id_unico_secreto: int):
+        secreto = self._db.get(Carta, id_unico_secreto)
+        return (secreto.nombre == "accomplice")
 
     def obtener_asesino_complice(self, id_partida):
         carta_asesino = self._db.query(Carta).filter_by(partida_id=id_partida, tipo="secreto", nombre="murderer").first()
@@ -615,7 +618,6 @@ class CartaService:
         
         secreto_a_ocultar.bocaArriba = False
         self._db.commit()
-        #secreto_ocultado = {"id-secreto": secreto_a_ocultar.id}
 
         return secreto_a_ocultar
 

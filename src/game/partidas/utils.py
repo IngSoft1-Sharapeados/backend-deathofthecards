@@ -1,9 +1,9 @@
-from game.partidas.models import Partida
+from game.partidas.models import Partida, VotacionEvento
 from game.jugadores.models import Jugador
 from game.cartas.models import Carta, SetJugado
 from game.cartas.constants import *
 from game.jugadores.schemas import JugadorOut
-from game.partidas.schemas import PartidaData, PartidaResponse, IniciarPartidaData, AccionGenericaPayload
+from game.partidas.schemas import PartidaData, PartidaResponse, IniciarPartidaData, AccionGenericaPayload, Mensaje
 from game.partidas.services import PartidaService
 from game.partidas.dtos import *
 from game.cartas.services import CartaService
@@ -383,7 +383,7 @@ def jugar_carta_evento(id_partida: int, id_jugador: int, id_carta: int, db) -> C
     if partida.turno_id != id_jugador:
         raise ValueError(f"El jugador no esta en turno.")
     
-    desgracia_social = PartidaService(db).desgracia_social(id_partida, id_jugador)
+    desgracia_social = determinar_desgracia_social(id_partida, id_jugador, db)
     if desgracia_social:
         raise ValueError(f"El jugador {id_jugador} esta en desgracia social")
 
@@ -628,7 +628,7 @@ def validar_accion_evento(id_partida: int, id_jugador: int, id_carta: int, db) -
     if jugador.partida_id != id_partida:
         raise ValueError(f"El jugador con ID {id_jugador} no pertenece a la partida {id_partida}.")
     
-    desgracia_social = PartidaService(db).desgracia_social(id_partida, id_jugador)
+    desgracia_social = determinar_desgracia_social(id_partida, id_jugador, db)
     if desgracia_social:
         raise ValueError(f"El jugador {id_jugador} esta en desgracia social")
 
@@ -657,6 +657,56 @@ def validar_accion_evento(id_partida: int, id_jugador: int, id_carta: int, db) -
     # Si todo es válido, retorna la carta (sin moverla)
     return carta_evento
 
+    
+def votacion_activada(id_partida: int, db):
+    PartidaService(db).inicia_votacion(id_partida)
+
+    
+def jugar_point_your_suspicions(id_partida: int, id_jugador: int, id_votante: int, id_votado: int, db): 
+    ps = PartidaService(db)
+    js = JugadorService(db)
+    cs = CartaService(db)
+    
+    # Verifico que el evento Point Your Suspicions este efectivamente jugado.
+    carta_evento_jugada = cs.obtener_cartas_jugadas(id_partida,
+                                                    id_jugador,
+                                                    "Point your suspicions",
+                                                    "evento_jugado"
+                                                    )
+    if not carta_evento_jugada:
+        raise ValueError(f"No se jugo el evento Point Your Suspicions.")
+    
+    partida = ps.obtener_por_id(id_partida)
+    if partida.votacion_activa == False:
+        raise ValueError(f"No hay votacion en proceso actualmente.")
+    
+    votante = js.obtener_jugador(id_votante)
+    votado = js.obtener_jugador(id_votado)
+    
+    # Chequeo que el jugador votante exista y este dentro de la partida.
+    if not votante:
+        raise ValueError(f"No se encontro el votante.")
+    
+    if votante.partida_id != id_partida:
+        raise ValueError(f"El jugador votante no pertenece a la partida.")
+    
+    # Chequeo que el jugador votado exista y este dentro de la partida.
+    if not votado:
+        raise ValueError(f"No se encontro el votado.")
+    
+    if votado.partida_id != id_partida:
+        raise ValueError(f"El jugador votado no pertenece a la partida.")
+    
+    ps.registrar_voto(id_partida, id_votante, id_votado)
+    total_votos = ps.numero_de_votos(id_partida)
+    
+    total_jugadores = len(partida.jugadores)
+    
+    if total_votos == total_jugadores:
+        sospechoso = ps.resolver_votacion(id_partida)
+        ps.fin_votacion(id_partida)
+        ps.borrar_votacion(id_partida)
+        return sospechoso
 
 def iniciar_accion_cancelable(id_partida: int, id_jugador: int, accion: AccionGenericaPayload, db):
     """
@@ -828,7 +878,7 @@ def resolver_accion_turno(id_partida: int, db):
         Diccionario que contiene el contexto de accion de la partida, y el ID de la carta
         que queda en el tope del mazo de descarte.
     """
-    # 1. Obtiene la acción pendiente (con bloqueo)
+    # Obtener la acción pendiente (con bloqueo)
     partida = PartidaService(db).obtener_por_id(id_partida)
     if partida is None:
         raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
@@ -838,39 +888,38 @@ def resolver_accion_turno(id_partida: int, db):
         
     accion_context = PartidaService(db).obtener_accion_en_progreso(id_partida)    
     
-    # 2. Recolecta IDs de BBDD de las cartas NSF
+    # Junta los IDs de las cartas NSF de la pila
     cartas_nsf_db_ids = [nsf["id_carta_db"] for nsf in accion_context["pila_respuestas"]]
     
-    # 3. Limpia la pila ANTES de decidir
+    # Limpiar la pila 
     PartidaService(db).limpiar_accion_en_progreso(id_partida)
 
-    # 4. Decide el resultado
     cantidad_nsf = len(cartas_nsf_db_ids)
     
     if cantidad_nsf % 2 == 0:
-        # --- PAR: La acción original SE EJECUTA ---
-        # Descarta solo las cartas NSF (de "en_la_pila" a "descarte")
+        # Cantidad par de NSF: La acción original se realiza
+        # Descartar solo las cartas NSF (de "en_la_pila" a "descarte")
         CartaService(db).descartar_cartas_de_pila(cartas_nsf_db_ids, id_partida)
         
         return "Acción ejecutada"
 
     else:
-        # --- IMPAR: La acción original SE CANCELA ---
-        # 1. Descarta las cartas NSF 
+        # Cantidad impar de NSF: La acción original no se realiza
+        # Descartar las cartas NSF
         CartaService(db).descartar_cartas_de_pila(cartas_nsf_db_ids, id_partida)
 
-        # 2. Obtiene los datos de la acción original
+        # Obtener los datos de la acción original
         jugador_id_original = accion_context["id_jugador_original"]
         cartas_db_ids_originales = accion_context["cartas_originales_db_ids"]
         
-        # Busca los TIPO_ID (`id_carta`) correspondientes a los DB_ID (`id`)
+        # Buscar los ID de representación (id_carta) correspondientes a los ID únicos
         cartas_a_descartar_query = (
             CartaService(db)._db.query(Carta.id_carta)
             .filter(Carta.id.in_(cartas_db_ids_originales))
         )
         lista_de_tipo_ids = [c[0] for c in cartas_a_descartar_query.all()]
 
-        # 4. Llama al servicio de descarte con los IDs de TIPO
+        # Descartamos las cartas
         if lista_de_tipo_ids:
             CartaService(db).descartar_cartas(jugador_id_original, lista_de_tipo_ids)
             
@@ -878,6 +927,112 @@ def resolver_accion_turno(id_partida: int, db):
         id_carta_tope_descarte: int = nueva_carta_tope[0].id_carta if nueva_carta_tope else None
 
         return {"accion_context": accion_context, "tope_descarte": id_carta_tope_descarte}
+
+
+def determinar_desgracia_social(id_partida: int, id_jugador: int, db) -> bool:
+    """
+    Recorre los secretos de un jugador y lo saca de estado de desgracia social o lo 
+    agrega al mismo.
+    
+    Parameters
+    ----------
+    id_jugado: int
+        ID del jugador al cual se pondra o sacara del estado desgracia social.
+
+    id_partida: int
+        ID de la partida para la cual se obtiene los secretos.
+    
+    Returns
+    -------
+    bool
+        devuelve True en caso de que este en desgracia social o False en caso contrario.
+    """
+    PartidaService(db).obtener_por_id(id_partida)
+    jugador = JugadorService(db).obtener_jugador(id_jugador)
+    if jugador is None:
+        raise ValueError(f"No se ha encontrado al jugador con id:{id_jugador}")
+    secretos = CartaService(db).obtener_secretos_jugador(id_jugador, id_partida)
+    if secretos is None:
+        raise ValueError(f"No se ha encontrado los secretos del jugador{id_jugador} y la partida:{id_partida}")
+    desgracia_social = PartidaService(db).desgracia_social(jugador, secretos)
+    return desgracia_social
+
+
+def ganar_por_desgracia_social(id_partida: int, db) -> bool:
+    """
+    Recorre todos los secretos de todos los jugadores vindo el estado de bocaArriba para
+    determinar el resultado.
+    
+    Parameters
+
+    id_partida: int
+        ID de la partida para la cual se obtiene los secretos.
+    
+    Returns
+    -------
+    bool
+        devuelve True en caso de que el asesino haya ganado y False en caso contrario.
+    """
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    resultado = PartidaService(db).ganar_desgracia_social(partida) 
+    return resultado
+
+
+def obtener_jugador_por_id_carta(id_partida: int, id_carta: int, db) -> int:
+    """
+    Determina el id de un jugador mediante una carta dada.
+    
+    Parameters
+
+    id_partida: int
+        ID de la partida para buscar al jugador.
+    
+    id_carta: int
+        Id de la carta para buscar al jugador.
+    
+    Returns
+    -------
+    bool
+        devuelve True en caso de que el asesino haya ganado y False en caso contrario.
+    """
+    partida = PartidaService(db).obtener_por_id(id_partida)
+    if not partida:
+        raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
+    carta = CartaService(db).obtener_carta_por_id(id_carta)
+    if not carta:
+        raise ValueError(f"No se ha encontrado la carta con el ID:{id_carta}")
+    jugador = JugadorService(db).obtener_jugador_id_carta(partida, carta)
+    return jugador
+
+
+def enviar_mensaje(id_partida: int, id_jugador: int, mensaje: Mensaje, db):
+    # try/except porque el servicio levanta una excepcion HTTP
+    # y si lo cambio fallan tests
+    try:
+        partida = PartidaService(db).obtener_por_id(id_partida)
+    except Exception as e:
+        if "No se encontró" in str(e.detail):
+            raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
+    if partida is None:
+        raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
+    
+    if partida.iniciada == False:
+        raise ValueError(f"Partida no iniciada")
+    
+    jugador = JugadorService(db).obtener_jugador(id_jugador)
+    if jugador is None:
+        raise ValueError(f"No se ha encontrado el jugador {id_jugador}.")
+
+    if jugador.partida_id != id_partida:
+        raise ValueError(f"El jugador con ID {id_jugador} no pertenece a la partida {id_partida}.")
+    
+    if len(mensaje.texto)>200:
+        raise ValueError(f"Mensaje demasiado largo. No puede tener más de 200 caracteres")
+    
+    if mensaje.nombreJugador != jugador.nombre:
+        raise ValueError("El nombre del jugador no coincide con el nombre del mensaje")
+    
+    return True
 def enviar_carta(id_carta: int, id_objetivo: int, db):
     """
     funcion que llama al servicio para mover la carta

@@ -92,7 +92,7 @@ def test_jugar_set_ok(mock_jugar_set_detective, mock_CartaService, client, sessi
 @patch("game.cartas.services.CartaService")   
 @patch("game.cartas.utils.CartaService")      
 @patch("game.cartas.utils.PartidaService")    
-def test_jugar_set_ariadne_behavior(mock_PartidaService, mock_CartaService_utils, mock_CartaService_services, session):
+def test_jugar_set_ariadne_oliver(mock_PartidaService, mock_CartaService_utils, mock_CartaService_services, session):
     """
     Test de comportamiento para Ariadne Oliver correctamnete.
     """
@@ -103,37 +103,39 @@ def test_jugar_set_ariadne_behavior(mock_PartidaService, mock_CartaService_utils
 
     client = TestClient(app)
 
-    partida_service = MagicMock()
-    partida_service.obtener_por_id.return_value = SimpleNamespace(id=1, iniciada=True)
-    partida_service.obtener_turno_actual.return_value = 1
-    partida_service.desgracia_social.return_value = False
-    mock_PartidaService.return_value = partida_service
+    with patch("game.cartas.utils.determinar_desgracia_social", return_value=False):
+        partida_service = MagicMock()
+        partida_service.obtener_por_id.return_value = SimpleNamespace(id=1, iniciada=True)
+        partida_service.obtener_turno_actual.return_value = 1
+        partida_service.desgracia_social.return_value = False
+        mock_PartidaService.return_value = partida_service
 
-    carta_service = MagicMock()
-    mock_CartaService_utils.return_value = carta_service
+        carta_service = MagicMock()
+        mock_CartaService_utils.return_value = carta_service
 
-    carta_en_mano = SimpleNamespace(id=100, id_carta=15, nombre="Ariadne Oliver", tipo="Detective", ubicacion="mano")
-    carta_service.obtener_mano_jugador.return_value = [carta_en_mano]
-    carta_service.obtener_carta_por_id.side_effect = lambda id_: SimpleNamespace(id=id_, id_carta=15, nombre="Ariadne Oliver", tipo="Detective")
+        carta_en_mano = SimpleNamespace(id=100, id_carta=15, nombre="Ariadne Oliver", tipo="Detective", ubicacion="mano")
+        carta_service.obtener_mano_jugador.return_value = [carta_en_mano]
+        carta_service.obtener_carta_por_id.side_effect = lambda id_: SimpleNamespace(id=id_, id_carta=15, nombre="Ariadne Oliver", tipo="Detective")
 
-    set_destino_id = 10
-    carta_service.obtener_sets_jugados.return_value = [
-        {"jugador_id": 2, "representacion_id_carta": set_destino_id, "cartas_ids": [set_destino_id, 9]}
-    ]
-    carta_service.mover_set.return_value = [carta_en_mano]
+        set_destino_id = 10
+        carta_service.obtener_sets_jugados.return_value = [
+            {"jugador_id": 2, "representacion_id_carta": set_destino_id, "cartas_ids": [set_destino_id, 9]}
+        ]
+        carta_service.mover_set.return_value = [carta_en_mano]
 
-    mock_service = MagicMock()
-    mock_CartaService_services.return_value = mock_service
-    jugar_ariadne_result = {
-        "mensaje": "Ariadne Oliver jugada correctamente",
-        "set_actualizado": {"id_jugador_dueño": 2, "cartas_ids": ["7", "7", "15"]},
-        "jugador_revela_secreto": 2,
-    }
-    mock_service.jugar_ariadne_oliver.return_value = jugar_ariadne_result
+        mock_service = MagicMock()
+        mock_CartaService_services.return_value = mock_service
+        jugar_ariadne_result = {
+            "mensaje": "Ariadne Oliver jugada correctamente",
+            "set_actualizado": {"id_jugador_dueño": 2, "cartas_ids": ["7", "7", "15"]},
+            "jugador_revela_secreto": 2,
+        }
+        mock_service.jugar_ariadne_oliver.return_value = jugar_ariadne_result
 
-    response = client.post("/partidas/1/Jugar-set?id_jugador=1&set_destino_id=10", json=[15])
+        response = client.post("/partidas/1/Jugar-set?id_jugador=1&set_destino_id=10", json=[15])
 
     app.dependency_overrides.clear()
+    print("Response JSON:", response.json())
 
     assert response.status_code == 200
     assert response.json() == jugar_ariadne_result
