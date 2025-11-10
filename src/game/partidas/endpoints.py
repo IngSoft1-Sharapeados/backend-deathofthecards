@@ -7,6 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi import WebSocket, WebSocketException, WebSocketDisconnect
 from game.partidas.models import Partida
 from game.partidas.schemas import *
+#from game.partidas.schemas import PartidaData, AccionGenericaPayload, PartidaResponse, PartidaOut, PartidaListar, IniciarPartidaData, RecogerCartasPayload, AnotherVictimPayload, OneMorePayload
+#from game.partidas.services import PartidaService
 from game.jugadores.models import Jugador
 from game.cartas.models import Carta
 from game.jugadores.schemas import JugadorData, JugadorResponse, JugadorOut
@@ -1923,6 +1925,7 @@ async def resolver_accion(id_partida: int, db=Depends(get_db)):
                 detail=str(e)
             )
 
+
 @partidas_router.post(path='/{id_partida}/agregar-a-set', status_code=status.HTTP_200_OK)
 async def agregar_a_set( 
     payload: AgregarCartaSetPayload, 
@@ -1940,3 +1943,54 @@ async def agregar_a_set(
     except Exception as e:
         # Manejo de error simple
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# Enviar mensaje al chat
+@partidas_router.post("/{id_partida}/envio-mensaje")
+async def enviar_mensaje_chat(id_partida: int, id_jugador: int, mensaje: Mensaje, db=Depends(get_db)):
+    try:
+        enviar_mensaje(id_partida, id_jugador, mensaje, db)
+        
+        evento = {
+            "evento": "nuevo-mensaje",
+            "nombre": mensaje.nombreJugador,
+            "texto": mensaje.texto,
+        }
+
+        await manager.broadcast(id_partida, json.dumps(evento))
+
+        return {"nombre": mensaje.nombreJugador, "texto": mensaje.texto}
+    
+    except ValueError as e:
+        msg = str(e)
+        if ("No se ha encontrado" in msg):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=msg
+            )
+        elif ("Partida no iniciada" in msg):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=msg
+            )
+        elif("no pertenece a" in msg):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=msg
+            )
+        elif("Mensaje demasiado largo" in msg):
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=msg
+            )
+        elif("El nombre del jugador no coincide" in msg):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=msg
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Hubo un error al enviar el mensaje: {msg}"
+            )
+

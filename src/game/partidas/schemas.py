@@ -120,3 +120,7 @@ class AgregarCartaSetPayload(BaseModel):
     id_carta_instancia: int
     id_jugador_set: int
     id_tipo_set: int
+
+class Mensaje(BaseModel):
+    nombreJugador: str
+    texto: str

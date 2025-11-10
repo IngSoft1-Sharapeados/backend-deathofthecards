@@ -878,7 +878,7 @@ def resolver_accion_turno(id_partida: int, db):
         Diccionario que contiene el contexto de accion de la partida, y el ID de la carta
         que queda en el tope del mazo de descarte.
     """
-    # 1. Obtiene la acción pendiente (con bloqueo)
+    # Obtener la acción pendiente (con bloqueo)
     partida = PartidaService(db).obtener_por_id(id_partida)
     if partida is None:
         raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
@@ -888,39 +888,38 @@ def resolver_accion_turno(id_partida: int, db):
         
     accion_context = PartidaService(db).obtener_accion_en_progreso(id_partida)    
     
-    # 2. Recolecta IDs de BBDD de las cartas NSF
+    # Junta los IDs de las cartas NSF de la pila
     cartas_nsf_db_ids = [nsf["id_carta_db"] for nsf in accion_context["pila_respuestas"]]
     
-    # 3. Limpia la pila ANTES de decidir
+    # Limpiar la pila 
     PartidaService(db).limpiar_accion_en_progreso(id_partida)
 
-    # 4. Decide el resultado
     cantidad_nsf = len(cartas_nsf_db_ids)
     
     if cantidad_nsf % 2 == 0:
-        # --- PAR: La acción original SE EJECUTA ---
-        # Descarta solo las cartas NSF (de "en_la_pila" a "descarte")
+        # Cantidad par de NSF: La acción original se realiza
+        # Descartar solo las cartas NSF (de "en_la_pila" a "descarte")
         CartaService(db).descartar_cartas_de_pila(cartas_nsf_db_ids, id_partida)
         
         return "Acción ejecutada"
 
     else:
-        # --- IMPAR: La acción original SE CANCELA ---
-        # 1. Descarta las cartas NSF 
+        # Cantidad impar de NSF: La acción original no se realiza
+        # Descartar las cartas NSF
         CartaService(db).descartar_cartas_de_pila(cartas_nsf_db_ids, id_partida)
 
-        # 2. Obtiene los datos de la acción original
+        # Obtener los datos de la acción original
         jugador_id_original = accion_context["id_jugador_original"]
         cartas_db_ids_originales = accion_context["cartas_originales_db_ids"]
         
-        # Busca los TIPO_ID (`id_carta`) correspondientes a los DB_ID (`id`)
+        # Buscar los ID de representación (id_carta) correspondientes a los ID únicos
         cartas_a_descartar_query = (
             CartaService(db)._db.query(Carta.id_carta)
             .filter(Carta.id.in_(cartas_db_ids_originales))
         )
         lista_de_tipo_ids = [c[0] for c in cartas_a_descartar_query.all()]
 
-        # 4. Llama al servicio de descarte con los IDs de TIPO
+        # Descartamos las cartas
         if lista_de_tipo_ids:
             CartaService(db).descartar_cartas(jugador_id_original, lista_de_tipo_ids)
             
@@ -928,6 +927,7 @@ def resolver_accion_turno(id_partida: int, db):
         id_carta_tope_descarte: int = nueva_carta_tope[0].id_carta if nueva_carta_tope else None
 
         return {"accion_context": accion_context, "tope_descarte": id_carta_tope_descarte}
+
 
 def determinar_desgracia_social(id_partida: int, id_jugador: int, db) -> bool:
     """
@@ -957,6 +957,7 @@ def determinar_desgracia_social(id_partida: int, id_jugador: int, db) -> bool:
     desgracia_social = PartidaService(db).desgracia_social(jugador, secretos)
     return desgracia_social
 
+
 def ganar_por_desgracia_social(id_partida: int, db) -> bool:
     """
     Recorre todos los secretos de todos los jugadores vindo el estado de bocaArriba para
@@ -975,6 +976,7 @@ def ganar_por_desgracia_social(id_partida: int, db) -> bool:
     partida = PartidaService(db).obtener_por_id(id_partida)
     resultado = PartidaService(db).ganar_desgracia_social(partida) 
     return resultado
+
 
 def obtener_jugador_por_id_carta(id_partida: int, id_carta: int, db) -> int:
     """
@@ -1011,3 +1013,33 @@ def actualizar_set(payload: AgregarCartaSetPayload, db):
                 )
         
         return set_actualizado 
+    
+    
+def enviar_mensaje(id_partida: int, id_jugador: int, mensaje: Mensaje, db):
+    # try/except porque el servicio levanta una excepcion HTTP
+    # y si lo cambio fallan tests
+    try:
+        partida = PartidaService(db).obtener_por_id(id_partida)
+    except Exception as e:
+        if "No se encontró" in str(e.detail):
+            raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
+    if partida is None:
+        raise ValueError(f"No se ha encontrado la partida con el ID:{id_partida}")
+    
+    if partida.iniciada == False:
+        raise ValueError(f"Partida no iniciada")
+    
+    jugador = JugadorService(db).obtener_jugador(id_jugador)
+    if jugador is None:
+        raise ValueError(f"No se ha encontrado el jugador {id_jugador}.")
+
+    if jugador.partida_id != id_partida:
+        raise ValueError(f"El jugador con ID {id_jugador} no pertenece a la partida {id_partida}.")
+    
+    if len(mensaje.texto)>200:
+        raise ValueError(f"Mensaje demasiado largo. No puede tener más de 200 caracteres")
+    
+    if mensaje.nombreJugador != jugador.nombre:
+        raise ValueError("El nombre del jugador no coincide con el nombre del mensaje")
+    
+    return True
