@@ -1862,7 +1862,19 @@ async def card_trade(id_partida: int, id_jugador: int, id_carta: int, id_objetiv
         raise HTTPException(status_code=500, detail="Error interno del servidor")
     
 @partidas_router.post(path='/{id_partida}/evento/sendCard', status_code=status.HTTP_200_OK)
-async def send_card(id_partida: int, id_jugador: int, id_objetivo: int, id_carta: int, db=Depends(get_db)):
+async def send_card(id_partida: int, id_jugador: int, id_objetivo: int, id_carta: int, db=Depends(get_db)): 
+    """
+    endpoint encargado de enviar una carta a un jugador objetivo
+
+    parametros:
+    
+        id_partida: int  (id de la partida en la que se quiere enviar la carta)
+        id_jugador: int (id del jugador que envia la carta)
+        id_objetivo: int (id del jugador al que se quiere enviar la carta)
+        id_carta: int (id de la carta que se quiere enviar)
+
+    """
+
     try:
         if verif_send_card(id_partida, id_carta, id_jugador, id_objetivo, db):
             enviar_carta(id_carta, id_objetivo, db)

@@ -879,6 +879,14 @@ def resolver_accion_turno(id_partida: int, db):
 
         return {"accion_context": accion_context, "tope_descarte": id_carta_tope_descarte}
 def enviar_carta(id_carta: int, id_objetivo: int, db):
+    """
+    funcion que llama al servicio para mover la carta
+    
+    parametros:
+        id_carta: int (id de la carta que se quiere mover)
+        id_objetivo: int (id del jugador a donde se quiere mover la carta)
+
+    """
 
     CartaService(db).mover_carta_a_objetivo(id_carta, id_objetivo)
 
@@ -887,6 +895,19 @@ def enviar_carta(id_carta: int, id_objetivo: int, db):
 
 
 def verif_send_card(id_partida: int, id_carta: int, id_jugador: int, id_objetivo: int, db) -> bool:
+    """
+    funcion que se encarga de verificar si la carta se puede enviar
+
+    parametros:
+
+        id_partida: int (id de la partida donde se quiere enviar la carta)
+        id_carta: int (id de la carta que se quiere enviar)
+        id_jugador: int (id del jugador que quiere enviar)
+        id_objetivo: int (id del jugador al que se le quiere enviar la carta)
+
+
+    """
+
 
     se_puede_enviar = False
     
@@ -935,6 +956,16 @@ def verif_send_card(id_partida: int, id_carta: int, id_jugador: int, id_objetivo
     return se_puede_enviar
 
 def obtener_id_de_tipo(id_unico: int, db) -> int:
+    """
+    funcion que obtiene el id de tipo de la carta a travez del id unico
+
+    parametros: 
+        id_unico: int  (id unico de la carta en la base de datos)
+
+    return:
+        carta.id_carta: int  (id del tipo de carta, por ej 16 osea "not so fast")
+    
+    """
     carta = CartaService(db).obtener_carta_por_id(id_unico)
 
     return carta.id_carta
