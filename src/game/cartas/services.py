@@ -898,5 +898,7 @@ class CartaService:
 
         return {
             "mensaje": "carta enviada correctamente",
-            "carta-actualizada": {carta.jugador_id}
-            }  
+            "carta_actualizada": {
+                "jugador_id": carta.jugador_id
+            }
+        }   

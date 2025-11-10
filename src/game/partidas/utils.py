@@ -1087,17 +1087,14 @@ def verif_send_card(id_partida: int, id_carta: int, id_jugador: int, id_objetivo
     if jugador_objetivo.partida_id != id_partida:
         raise ValueError(f"El jugador con ID {id_objetivo} no pertenece a la partida {id_partida}.")
     
-    desgracia_social = PartidaService(db).desgracia_social(id_partida, id_jugador)
+    desgracia_social = determinar_desgracia_social(id_partida, id_jugador, db)
     if desgracia_social:
         raise ValueError(f"El jugador {id_jugador} esta en desgracia social")
     
-    desgracia_social = PartidaService(db).desgracia_social(id_partida, id_objetivo)
-    if desgracia_social:
-        raise ValueError(f"El jugador objetivo {id_objetivo} esta en desgracia social")
 
     cartas_mano = CartaService(db).obtener_mano_jugador(id_jugador, id_partida)
     en_mano = False
-    
+
     for c in cartas_mano:
         if c.id == id_carta:
             en_mano = True
