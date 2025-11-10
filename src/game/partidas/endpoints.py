@@ -1806,7 +1806,7 @@ async def card_trade(id_partida: int, id_jugador: int, id_carta: int, id_objetiv
     parametros:
         id_partida: id de la partida donde se intenta jugar la carta
         id_jugador: jugador que intenta jugar la carta
-        id_carta: id de instancia de la carta que se intenta jugar
+        id_carta: id unico de la carta que se intenta jugar
         id_objetivo: id del jugador con el que se quiere realizar el intercambio
     """
     try:
