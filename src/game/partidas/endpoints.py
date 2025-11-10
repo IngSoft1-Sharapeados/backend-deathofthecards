@@ -6,8 +6,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi import WebSocket, WebSocketException, WebSocketDisconnect
 from game.partidas.models import Partida
-from game.partidas.schemas import PartidaData, AccionGenericaPayload, PartidaResponse, PartidaOut, PartidaListar, IniciarPartidaData, RecogerCartasPayload, AnotherVictimPayload, OneMorePayload
-#from game.partidas.services import PartidaService
+from game.partidas.schemas import *
 from game.jugadores.models import Jugador
 from game.cartas.models import Carta
 from game.jugadores.schemas import JugadorData, JugadorResponse, JugadorOut
@@ -15,6 +14,7 @@ from game.jugadores.schemas import JugadorData, JugadorResponse, JugadorOut
 #from game.cartas.services import CartaService
 from game.modelos.db import get_db
 from game.partidas.utils import *
+from game.cartas.utils import *
 import game.partidas.utils as partidas_utils
 from game.cartas.utils import jugar_set_detective
 from game.jugadores.services import JugadorService
@@ -1923,3 +1923,20 @@ async def resolver_accion(id_partida: int, db=Depends(get_db)):
                 detail=str(e)
             )
 
+@partidas_router.post(path='/{id_partida}/agregar-a-set', status_code=status.HTTP_200_OK)
+async def agregar_a_set( 
+    payload: AgregarCartaSetPayload, 
+    db=Depends(get_db)
+):
+    """
+    Agrega una carta (por instancia) a un set.
+    """
+    try:
+
+        set_actualizado = actualizar_set(payload, db)
+
+        return {"detail": "Carta agregada al set", "set_id": set_actualizado.id}
+
+    except Exception as e:
+        # Manejo de error simple
+        raise HTTPException(status_code=400, detail=str(e))

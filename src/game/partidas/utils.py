@@ -3,7 +3,7 @@ from game.jugadores.models import Jugador
 from game.cartas.models import Carta, SetJugado
 from game.cartas.constants import *
 from game.jugadores.schemas import JugadorOut
-from game.partidas.schemas import PartidaData, PartidaResponse, IniciarPartidaData, AccionGenericaPayload
+from game.partidas.schemas import *
 from game.partidas.services import PartidaService
 from game.partidas.dtos import *
 from game.cartas.services import CartaService
@@ -1002,3 +1002,12 @@ def obtener_jugador_por_id_carta(id_partida: int, id_carta: int, db) -> int:
     jugador = JugadorService(db).obtener_jugador_id_carta(partida, carta)
     return jugador
 
+
+def actualizar_set(payload: AgregarCartaSetPayload, db):
+        set_actualizado = CartaService(db).agregar_carta_a_set(
+                    id_jugador_set=payload.id_jugador_set, 
+                    id_tipo_set=payload.id_tipo_set,
+                    id_carta_instancia=payload.id_carta_instancia
+                )
+        
+        return set_actualizado 
