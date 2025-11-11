@@ -292,8 +292,6 @@ def revelarSecreto(id_partida: int, id_jugador_turno: int, id_unico_secreto: int
     jugador_turno = JugadorService(db).obtener_jugador(id_jugador_turno)
     if not jugador_turno:
         raise ValueError(f"No se ha encontrado el jugador con el ID: {id_jugador_turno}")
-    if jugador_turno.id != partida.turno_id:
-        raise ValueError(f"Solo el jugador del turno puede realizar esta acción")
     secreto_a_revelar = CartaService(db).obtener_carta_por_id(id_unico_secreto)
     if not secreto_a_revelar:
         raise ValueError(f"No se ha encontrado el secreto con el ID:{id_unico_secreto}")

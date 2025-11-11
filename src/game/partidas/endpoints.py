@@ -679,11 +679,11 @@ async def revelar_secreto(id_partida: int, id_jugador_turno: int, id_unico_secre
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=str(e)
             )
-        elif ("Solo el jugador del turno puede realizar esta acción" in str(e)):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=str(e)
-            )
+        # elif ("Solo el jugador del turno puede realizar esta acción" in str(e)):
+        #     raise HTTPException(
+        #         status_code=status.HTTP_401_UNAUTHORIZED,
+        #         detail=str(e)
+        #     )
         elif("no pertenece a" in str(e)):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -2075,17 +2075,6 @@ async def send_card(id_partida: int, id_jugador: int, id_objetivo: int, id_carta
     try:
         if verif_send_card(id_partida, id_carta, id_jugador, id_objetivo, db):
             enviar_carta(id_carta, id_objetivo, db)
-            id_devious = obtener_id_de_tipo(id_carta, db)
-            if id_devious in (BLACKMAILED,SOCIAL_FAUX_PAS):
-                broadcast_payload ={
-                    "evento": "devious-card",
-                    "data":{
-                        "tipo": id_devious,
-                        "jugador_emisor": id_jugador,
-                        "jugador_objetivo": id_objetivo
-                    }
-                }
-                await manager.broadcast(json.dumps(broadcast_payload), id_partida)
            
             mano_jugador = CartaService(db).obtener_mano_jugador(id_objetivo, id_partida)
             cartas_a_enviar = [
@@ -2103,7 +2092,21 @@ async def send_card(id_partida: int, id_jugador: int, id_objetivo: int, id_carta
                     "data": cartas_a_enviar
                 })
             )
-
+            tipo_carta = obtener_id_de_tipo(id_carta, db)
+            print(f"[DEBUG] Verificando tipo_carta: {tipo_carta}")
+            if (tipo_carta == 27 or tipo_carta == 26):
+                print(f"[DEBUG] Es carta tipo 27 (Devius), preparando broadcast")
+                broadcast_payload = {
+                    "evento": "devius-card",
+                    "data": {
+                        "tipo": tipo_carta, 
+                        "jugador_emisor": id_jugador,
+                        "jugador_objetivo": id_objetivo
+                    }
+                }
+                print(f"[DEBUG] Payload del broadcast: {broadcast_payload}")
+                await manager.broadcast( id_partida, json.dumps(broadcast_payload))
+                print(f"[DEBUG] Broadcast enviado exitosamente")
             return {"detail": "Carta enviada correctamente"}
         
         else:
@@ -2111,6 +2114,7 @@ async def send_card(id_partida: int, id_jugador: int, id_objetivo: int, id_carta
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Error al enviar la carta"
             )
+                   
     except ValueError as e:
         msg = str(e)
         if "No se ha encontrado la partida" in msg:
@@ -2126,7 +2130,7 @@ async def send_card(id_partida: int, id_jugador: int, id_objetivo: int, id_carta
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error alintentar enviar la carta (id: {id_carta}): {e}")
+        print(f"Error al intentar enviar la carta (id: {id_carta}): {e}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
         
 
