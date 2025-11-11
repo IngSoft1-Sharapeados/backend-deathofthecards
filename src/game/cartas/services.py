@@ -499,6 +499,9 @@ class CartaService:
         secreto = self._db.get(Carta, id_unico_secreto)
         return (secreto.nombre == "murderer")
 
+    def es_complice(self, id_unico_secreto: int):
+        secreto = self._db.get(Carta, id_unico_secreto)
+        return (secreto.nombre == "accomplice")
 
     def obtener_asesino_complice(self, id_partida):
         carta_asesino = self._db.query(Carta).filter_by(partida_id=id_partida, tipo="secreto", nombre="murderer").first()
@@ -545,28 +548,6 @@ class CartaService:
         self._db.add(registro)
         self._db.commit()
         return registro
-
-
-    def obtener_sets_jugados(self, id_partida: int):
-        """Devuelve [{ jugador_id, representacion_id_carta, cartas_ids: [int,int...] }]"""
-        registros = self._db.query(SetJugado).filter(SetJugado.partida_id == id_partida).all()
-        WILDCARD_ID = 14
-        salida = []
-        for r in registros:
-            ids = [int(x) for x in r.cartas_ids_csv.split(",") if x]
-            rep = r.representacion_id_carta
-            # Corrección retroactiva: si por error quedó comodín como representación, usar primer no comodín
-            if rep == WILDCARD_ID:
-                rep_candidates = [i for i in ids if i != WILDCARD_ID]
-                if rep_candidates:
-                    rep = rep_candidates[0]
-            salida.append({
-                "jugador_id": r.jugador_id,
-                "representacion_id_carta": rep,
-                "cartas_ids": ids,
-            })
-        return salida
-
 
     def obtener_asesino_complice(self, id_partida):
         carta_asesino = self._db.query(Carta).filter_by(partida_id=id_partida, tipo="secreto", nombre="murderer").first()
@@ -637,7 +618,6 @@ class CartaService:
         
         secreto_a_ocultar.bocaArriba = False
         self._db.commit()
-        #secreto_ocultado = {"id-secreto": secreto_a_ocultar.id}
 
         return secreto_a_ocultar
 
@@ -646,7 +626,6 @@ class CartaService:
         """Obtiene una carta dado su ID único"""
         carta = self._db.get(Carta, id_unico_secreto)
         return carta
-
 
     def robar_secreto(self, secreto_a_robar: Carta, id_jugador_destino: int):
         secreto_a_robar.bocaArriba = False
@@ -688,33 +667,45 @@ class CartaService:
         carta_evento = self._db.query(Carta).filter_by(partida_id=id_partida,
                                                         jugador_id=id_jugador, 
                                                         ubicacion=ubicacion,
-                                                        nombre=nombre).all()
+                                                        nombre=nombre).first()
         return carta_evento
     
     
     def tomar_into_the_ashes(self, id_partida: int, id_jugador: int, id_carta_objetivo: int):
         
-        carta_objetivo = self._db.query(Carta).filter_by(partida_id=id_partida,
-                                                    jugador_id=0,
+        if id_carta_objetivo == 20:
+            carta_objetivo = self._db.query(Carta).filter_by(partida_id=id_partida,
                                                     id_carta=id_carta_objetivo,
                                                     ubicacion="descarte"
+                                                    ).order_by(Carta.orden_descarte.desc()).first()
+            carta_objetivo.orden_descarte = self.ultimo_orden_descarte(id_partida) + 1
+            self._db.commit()
+            self._db.refresh(carta_objetivo)
+        
+            carta_evento_vuelve = self._db.query(Carta).filter_by(partida_id=id_partida,
+                                                    id_carta=id_carta_objetivo,
+                                                    ubicacion="evento_jugado"
                                                     ).first()
+
+            carta_evento_vuelve.jugador_id = id_jugador
+            carta_evento_vuelve.ubicacion = "mano"
+            carta_evento_vuelve.bocaArriba = False
+            carta_evento_vuelve.orden_descarte = None
+            self._db.commit()
+            self._db.refresh(carta_evento_vuelve)
         
-        carta_objetivo.jugador_id = id_jugador
-        carta_objetivo.ubicacion = "mano"
-        carta_objetivo.bocaArriba = False
-        self._db.commit()
-        self._db.refresh(carta_objetivo)
-        
-        
-    def anular_look_into(self, id_jugador: int, carta_evento_jugada_id: int):
-        carta_evento_jugada =  self._db.get(Carta, carta_evento_jugada_id)
-                                                                
-        carta_evento_jugada.jugador_id = id_jugador
-        carta_evento_jugada.ubicacion = "mano"
-        carta_evento_jugada.bocaArriba = False
-        self._db.commit()
-        self.descartar_cartas(id_jugador, [carta_evento_jugada.id_carta])
+        else:
+            carta_objetivo = self._db.query(Carta).filter_by(partida_id=id_partida,
+                                                        id_carta=id_carta_objetivo,
+                                                        ubicacion="descarte"
+                                                        ).order_by(Carta.orden_descarte.desc()).first()
+            
+            carta_objetivo.jugador_id = id_jugador
+            carta_objetivo.ubicacion = "mano"
+            carta_objetivo.bocaArriba = False
+            carta_objetivo.orden_descarte = None
+            self._db.commit()
+            self._db.refresh(carta_objetivo)
 
     
     def descartar_eventos(self, id_partida: int, id_jugador: int):
@@ -732,6 +723,7 @@ class CartaService:
             self._db.commit()
         else:
             self.descartar_cartas(id_jugador, [carta_jugada.id_carta])
+            
 
     def jugar_delay_the_murderer_escape(self, id_partida: int, id_jugador: int,cantidad: int):
     
@@ -785,6 +777,7 @@ class CartaService:
         except Exception as e:
             self._db.rollback()
             raise ValueError(f"Error al eliminar la carta: {str(e)}")
+        
 
     def jugar_early_train_to_paddington(self, id_partida: int, id_jugador: int):
             """
@@ -805,7 +798,7 @@ class CartaService:
                 for i, carta in enumerate(cartas_a_mover, start=1):
                     carta.ubicacion = "descarte"
                     carta.bocaArriba = True
-                    carta.orden_mazo = max_orden_descarte + i
+                    carta.orden_descarte = max_orden_descarte + i
 
             carta_evento_jugada = self._db.query(Carta).filter_by(
                 partida_id=id_partida,
@@ -818,3 +811,123 @@ class CartaService:
                 carta_evento_jugada.ubicacion = "removida"
             
             self._db.commit()
+            
+            
+    def jugar_carta_instantanea(self, id_partida: int, id_jugador: int, id_carta_tipo: int) -> Carta:
+        """
+        Mueve una carta de la mano del jugador a "en_la_pila".
+        """
+        carta = self.obtener_carta_de_mano(id_carta_tipo, id_jugador) 
+        if not carta:
+             raise ValueError("La carta no se encuentra en la mano del jugador.")
+        if carta.partida_id != id_partida:
+             raise ValueError("La carta no pertenece a esta partida.")
+             
+        carta.ubicacion = "en_la_pila"
+        carta.bocaArriba = True
+        self._db.commit()
+        self._db.refresh(carta)
+        return carta
+
+
+    def descartar_cartas_de_pila(self, ids_cartas_db: list[int], id_partida: int):
+        """
+        Toma una lista de IDs de BBDD (Carta.id) y las mueve a "descarte".
+        """
+        if not ids_cartas_db:
+            return
+
+        ultimo_orden = self.ultimo_orden_descarte(id_partida) 
+        cartas = self._db.query(Carta).filter(Carta.id.in_(ids_cartas_db)).all()
+        
+        for i, carta in enumerate(cartas):
+            carta.ubicacion = "descarte" 
+            carta.jugador_id = 0
+            carta.orden_mazo = None
+            carta.bocaArriba = False
+            carta.orden_descarte = ultimo_orden + 1 + i
+            carta.partida_id = id_partida
+
+        self._db.commit()
+
+    
+    def jugar_ariadne_oliver(self, id_partida:int, set_destino_id: int):
+        """
+        Mueve la carta jugada de ariadne oliver a un set existente de otro jugador
+        para que muestre un secreto de su eleccion.
+        """
+        
+        set_destino = (
+            self._db.query(SetJugado)
+            .filter(
+                SetJugado.partida_id == id_partida,
+                SetJugado.representacion_id_carta == set_destino_id
+            )
+            .first()
+        )
+
+        ids_actuales = set_destino.cartas_ids_csv.split(",") if set_destino.cartas_ids_csv else []
+        ids_actuales.append(str(15))
+        set_destino.cartas_ids_csv = ",".join(ids_actuales)
+
+        self._db.add(set_destino)
+        self._db.commit()
+
+        return {
+            "mensaje": "Ariadne Oliver jugada correctamente",
+            "set_actualizado": {
+                "id_jugador_dueño": set_destino.jugador_id,
+                "cartas_ids": ids_actuales,
+            },
+            "jugador_revela_secreto": set_destino.jugador_id,
+        }   
+               
+        
+    def agregar_carta_a_set(self, id_jugador_set: int, id_tipo_set: int, id_carta_instancia: int):
+        """
+        Busca el set usando el ID de TIPO (representacion_id_carta) y el ID del JUGADOR,
+        porque el frontend no tiene el ID (PK) del set.
+
+        Luego, agrega la carta (por instancia) y la MUEVE fuera de la mano.
+        """
+
+        set_jugado = self._db.query(SetJugado).filter(
+            SetJugado.jugador_id == id_jugador_set,
+            SetJugado.representacion_id_carta == id_tipo_set
+        ).first()
+
+        if not set_jugado:
+            raise Exception(f"No se encontró el Set para el jugador {id_jugador_set} con tipo {id_tipo_set}")
+
+#Obtener la carta por INSTANCIA
+        carta = self.obtener_carta_por_id(id_carta_instancia) 
+        if not carta:
+            raise Exception(f"No se encontró la Carta con instancia id {id_carta_instancia}")
+
+#Mover la carta (la saca de la mano)
+        carta.ubicacion = "set_jugado" 
+        self._db.add(carta)
+
+        nuevas_cartas_ids = set_jugado.cartas_ids_csv.split(',') if set_jugado.cartas_ids_csv else []
+        nuevas_cartas_ids.append(str(carta.id_carta)) 
+        set_jugado.cartas_ids_csv = ",".join(nuevas_cartas_ids)
+        self._db.add(set_jugado)
+
+        self._db.commit()
+
+        return set_jugado
+
+    def mover_carta_a_objetivo(self, id_carta, id_objetivo: int):
+
+        carta = self._db.query(Carta).filter(Carta.id == id_carta).first()
+
+        carta.jugador_id = id_objetivo
+        self._db.commit()
+        self._db.refresh(carta)
+
+        return {
+            "mensaje": "carta enviada correctamente",
+            "carta_actualizada": {
+                "jugador_id": carta.jugador_id
+            }
+        }   

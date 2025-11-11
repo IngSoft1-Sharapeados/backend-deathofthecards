@@ -893,10 +893,12 @@ def test_obtener_mano_ok(mock_CartaService, session):
     mock_carta1 = MagicMock()
     mock_carta1.id_carta = 16
     mock_carta1.nombre = "Not so fast"
+    mock_carta1.id = 1
 
     mock_carta2 = MagicMock()
     mock_carta2.id_carta = 9
     mock_carta2.nombre = "Mr Satterthwaite"
+    mock_carta2.id = 2
 
     #Configurar instancia mock de CartaService
     mock_carta_service_instance = MagicMock()
@@ -909,8 +911,8 @@ def test_obtener_mano_ok(mock_CartaService, session):
 
     assert response.status_code == 200
     assert response.json() == [
-        {"id": 16, "nombre": "Not so fast"},
-        {"id": 9, "nombre": "Mr Satterthwaite"},
+        {"id": 16, "nombre": "Not so fast", "id_instancia": 1},
+        {"id": 9, "nombre": "Mr Satterthwaite", "id_instancia": 2},
     ]
 
     # Verificamos que el método se llamó correctamente
@@ -951,54 +953,59 @@ def test_obtener_mano_error(mock_CartaService, session):
  
 # ------------------------- Caso 1: Descarte exitoso -------------------------
 @patch("game.partidas.endpoints.manager")
+@patch("game.partidas.utils.PartidaService")
 @patch("game.partidas.endpoints.PartidaService")
 @patch("game.partidas.endpoints.CartaService")
+@patch("game.partidas.utils.JugadorService")
 @patch("game.partidas.endpoints.JugadorService")
-def test_descartar_carta_ok(mock_JugadorService,mock_CartaService, mock_PartidaService, mock_manager, session):
+def test_descartar_carta_ok(mock_JugadorService_end, mock_JugadorService_utils, mock_CartaService,
+                            mock_PartidaService_end, mock_PartidaService_utils, mock_manager, session):
     def get_db_override():
         yield session
     app.dependency_overrides[get_db] = get_db_override
     client = TestClient(app)
-
-    # Mock del manager (para evitar error en await)
+    
     mock_manager.broadcast = AsyncMock()
-
-    # Mock de la partida
     mock_partida = MagicMock()
     mock_partida.turno_id = 1
-    mock_PartidaService.return_value.obtener_por_id.return_value = mock_partida
-    mock_PartidaService.return_value.desgracia_social.return_value = False
+
+    mock_PartidaService_end.return_value.obtener_por_id.return_value = mock_partida
+    mock_PartidaService_end.return_value.desgracia_social.return_value = False
+
+    mock_PartidaService_utils.return_value.obtener_por_id.return_value = mock_partida
+    mock_PartidaService_utils.return_value.desgracia_social.return_value = False
 
     mock_jugador = MagicMock()
     mock_jugador.id = 1
     mock_jugador.desgracia_social = False
-    mock_JugadorService.return_value = mock_jugador
 
-    # Mock de CartaService
+    mock_JugadorService_end.return_value.obtener_jugador.return_value = mock_jugador
+    mock_JugadorService_utils.return_value.obtener_jugador.return_value = mock_jugador
+
     mock_carta_service_instance = MagicMock()
     mock_CartaService.return_value = mock_carta_service_instance
     mock_carta_service_instance.descartar_cartas.return_value = None
     mock_carta_service_instance.obtener_cantidad_mazo.return_value = 42
 
-    # Llamada al endpoint
     response = client.put(
         "/partidas/1/descarte?id_jugador=1",
         json=[2, 3, 4]
     )
-
     app.dependency_overrides.clear()
 
-    # Verificaciones
     assert response.status_code == 200
     assert response.json() == {"detail": "Descarte exitoso"}
     mock_carta_service_instance.descartar_cartas.assert_called_once_with(1, [2, 3, 4])
-    mock_manager.broadcast.assert_awaited()  # verifica que se haya llamado al menos una vez
+    mock_manager.broadcast.assert_awaited()
 
 
 # ------------------- Caso 2: Carta no encontrada (400) ---------------------
+@patch("game.partidas.utils.PartidaService")
+@patch("game.partidas.utils.JugadorService")
 @patch("game.partidas.endpoints.PartidaService")
 @patch("game.partidas.endpoints.CartaService")
-def test_descartar_carta_no_encontrada(mock_CartaService, mock_PartidaService, session):
+def test_descartar_carta_no_encontrada(mock_CartaService, mock_PartidaService_endpoints, 
+                                       mock_JugadorService_utils, mock_PartidaService_utils, session):
     def get_db_override():
         yield session
     app.dependency_overrides[get_db] = get_db_override
@@ -1006,12 +1013,16 @@ def test_descartar_carta_no_encontrada(mock_CartaService, mock_PartidaService, s
 
     mock_partida = MagicMock()
     mock_partida.turno_id = 1
-    mock_PartidaService.return_value.obtener_por_id.return_value = mock_partida
+
+    mock_PartidaService_endpoints.return_value.obtener_por_id.return_value = mock_partida
+    mock_PartidaService_utils.return_value.obtener_por_id.return_value = mock_partida
+    mock_jugador = MagicMock()
+    mock_jugador.id = 1
+    mock_JugadorService_utils.return_value.obtener_jugador.return_value = mock_jugador
 
     mock_CartaService.return_value.descartar_cartas.side_effect = Exception(
         "Una o mas cartas no se encuentran en la mano del jugador"
     )
-
     response = client.put(
         "/partidas/1/descarte?id_jugador=1",
         json=[99]
@@ -1070,25 +1081,33 @@ def test_descartar_carta_partida_inexistente(mock_CartaService, mock_PartidaServ
 
 
 # ------------------- Caso 5: Error inesperado (500 controlado) -------------
+@patch("game.partidas.utils.PartidaService")
+@patch("game.partidas.utils.JugadorService")
 @patch("game.partidas.endpoints.PartidaService")
 @patch("game.partidas.endpoints.CartaService")
-def test_descartar_carta_error_interno(mock_CartaService, mock_PartidaService, session):
+def test_descartar_carta_error_interno(mock_CartaService, mock_PartidaService_endpoints, 
+                                       mock_JugadorService_utils, mock_PartidaService_utils, session):
+
     def get_db_override():
         yield session
     app.dependency_overrides[get_db] = get_db_override
+
     client = TestClient(app)
 
     mock_partida = MagicMock()
     mock_partida.turno_id = 1
-    mock_PartidaService.return_value.obtener_por_id.return_value = mock_partida
+    mock_PartidaService_endpoints.return_value.obtener_por_id.return_value = mock_partida
+    mock_PartidaService_utils.return_value.obtener_por_id.return_value = mock_partida
 
+    mock_jugador = MagicMock()
+    mock_jugador.id = 1
+    mock_JugadorService_utils.return_value.obtener_jugador.return_value = mock_jugador
     mock_CartaService.return_value.descartar_cartas.side_effect = Exception("Falla inesperada")
 
     response = client.put(
         "/partidas/1/descarte?id_jugador=1",
         json=[1]
     )
-
     app.dependency_overrides.clear()
 
     assert response.status_code == 400

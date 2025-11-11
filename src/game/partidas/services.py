@@ -1,17 +1,19 @@
 from typing import List, Optional
 from fastapi import HTTPException, status
 from game.partidas.dtos import PartidaDTO
-from game.partidas.models import Partida
+from game.partidas.models import Partida, VotacionEvento
 from game.jugadores.models import Jugador
 from game.jugadores.schemas import JugadorDTO
 import random
 from game.cartas.services import CartaService
+from game.cartas.models import Carta
 from game.cartas.services import JugadorService
 from typing import List, Dict, Any
 import logging
-
+from sqlalchemy.orm.attributes import flag_modified
 from datetime import date
 import json
+from sqlalchemy import func
 
 
 logger = logging.getLogger(__name__)
@@ -332,26 +334,33 @@ class PartidaService:
         }
 
 
-    def desgracia_social(self, id_partida: int, id_jugador: int):
-        PartidaService(self._db).obtener_por_id(id_partida)
-        jugador = JugadorService(self._db).obtener_jugador(id_jugador)
-        if jugador is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No se encontró al jugador con el ID proporcionado."
-                )
-        secretos = CartaService(self._db).obtener_secretos_jugador(id_jugador, id_partida)
+    def desgracia_social(self, id_jugador: int, secretos: list[Carta]) -> bool:
         if all(secreto.bocaArriba for secreto in secretos):
-                jugador.desgracia_social = True
+                id_jugador.desgracia_social = True
                 self._db.commit()
-                self._db.refresh(jugador)
+                self._db.refresh(id_jugador)
         if any((secreto.bocaArriba == False) for secreto in secretos):
-                jugador.desgracia_social = False
+                id_jugador.desgracia_social = False
                 self._db.commit()
-                self._db.refresh(jugador)
-        return jugador.desgracia_social
+                self._db.refresh(id_jugador)
+        return id_jugador.desgracia_social
 
+    def ganar_desgracia_social(self, partida: Partida) -> bool:
+        jugadores_en_desgracia = [jugador for jugador in partida.jugadores if jugador.desgracia_social]
+        if len(jugadores_en_desgracia) == len(partida.jugadores) - 1:
+            jugadores_no_desgracia = [jugador for jugador in partida.jugadores if not jugador.desgracia_social]
 
+            if len(jugadores_no_desgracia) == 1:
+                jugador_exento = jugadores_no_desgracia[0]
+                
+                secretos = CartaService(self._db).obtener_secretos_jugador(jugador_exento.id, partida.id)
+                for secreto in secretos:
+                    revelado = secreto.bocaArriba
+                    if (revelado is False) and (CartaService(self._db).es_asesino(secreto.id) or CartaService(self._db).es_complice(secreto.id)):
+                        return True
+
+        return False
+    
     def eliminar_partida(self, partida: Partida):
         """
         Método para eliminar una partida de la base de datos.
@@ -396,3 +405,134 @@ class PartidaService:
         except Exception as e:
             raise ValueError("Hubo un error al actualizar la cantidad de jugadores de la partida")
 
+
+    def obtener_partida_con_bloqueo(self, id_partida: int) -> Partida:
+        """
+        Obtiene una partida y la bloquea a nivel de BBDD (SELECT ... FOR UPDATE)
+        hasta que la transacción termine. Previene 'race conditions'.
+        """
+        partida = (
+            self._db.query(Partida)
+            .filter(Partida.id == id_partida)
+            .with_for_update()  # <-- Bloquea la fila
+            .first()
+        )
+        if not partida:
+            raise ValueError(f"No se encontró la partida con el ID:{id_partida}")
+        return partida
+
+
+    def iniciar_accion(self, id_partida: int, accion_context: dict):
+        """
+        Se encarga de establecer el contexto de la partida
+
+        Parameters
+        ----------
+        id_partida: int
+            ID de la partida a la que se le establecerá el contexto de la acción ejecutada
+
+        accion_context: dict
+            Diccionario que contiene mayor detalle sobre
+            el contexto de la partida: tipo y nombre de accion jugada, lista de IDs de cartas jugadas,
+            jugador que ejecutó la acción, el payload necesario que el endpoint original necesitará
+            si la acción se ejecuta, la pila de respuestas (pila de cartas NSF, en principio vacía),
+            y el id de representación de esa carta.
+        """
+        # Bloqueamos la BD para que no se hagan otras transacciones
+        partida = self.obtener_partida_con_bloqueo(id_partida)
+        if partida.accion_en_progreso:
+            raise ValueError("Ya hay una acción en progreso.")
+        partida.accion_en_progreso = accion_context
+        self._db.commit()
+
+
+    def obtener_accion_en_progreso(self, id_partida: int) -> dict:
+        """
+        Devuelve el contexto de la acción en progreso en la partida
+        """
+        partida = self.obtener_partida_con_bloqueo(id_partida)
+        if not partida.accion_en_progreso:
+            raise ValueError("No hay ninguna acción en progreso.")
+        return partida.accion_en_progreso
+
+
+    def actualizar_pila_de_respuesta(self, id_partida: int, carta_respuesta: dict):
+        """
+        Se encarga de actualizar la pila de respuesta
+        (donde se acumulan las NSF que se juegan).
+        """
+        
+        partida = self.obtener_partida_con_bloqueo(id_partida)
+        if not partida.accion_en_progreso:
+             raise ValueError("No hay ninguna acción a la cual responder.")
+        
+        accion_context = dict(partida.accion_en_progreso)
+        if "pila_respuestas" not in accion_context:
+             accion_context["pila_respuestas"] = []
+             
+        accion_context["pila_respuestas"].append(carta_respuesta)
+        partida.accion_en_progreso = accion_context
+        flag_modified(partida, "accion_en_progreso")
+        self._db.commit()
+        
+        
+    def limpiar_accion_en_progreso(self, id_partida: int):
+        """
+        Limpia la acción en progreso de una partida
+        (luego de haberse decidido si dicha acción se ejecuta o no)
+        """
+        partida = self.obtener_partida_con_bloqueo(id_partida)
+        partida.accion_en_progreso = None
+        self._db.commit()
+        
+        
+    def inicia_votacion(self, id_partida: int):
+        partida = self.obtener_por_id(id_partida)
+        partida.votacion_activa = True
+        self._db.commit()
+        
+        
+    def registrar_voto(self, id_partida: int, id_votante: int, id_votado: int):
+        ya_voto = self._db.query(VotacionEvento).filter_by(
+                                                    partida_id=id_partida,
+                                                    votante_id=id_votante
+                                                    ).first()
+        # Veo que el jugador no haya votado antes, para que no vote mas de una vez.
+        if ya_voto:
+            raise ValueError(f"El jugador ya voto.")
+        
+        voto = VotacionEvento(partida_id = id_partida,
+                              votante_id = id_votante,
+                              votado_id = id_votado
+                              ) 
+        self._db.add(voto)
+        self._db.commit()
+        
+    def numero_de_votos(self, id_partida: int):
+        total_votos = self._db.query(VotacionEvento).filter_by(partida_id=id_partida).count()
+        return total_votos
+    
+    
+    def resolver_votacion(self, id_partida: int):
+        resultado = self._db.query(
+                        VotacionEvento.votado_id,
+                        func.count(VotacionEvento.votado_id).label("cantidad")
+                        ).filter_by(partida_id=id_partida).group_by(VotacionEvento.votado_id).all()
+            
+        max_cantidad = max(r.cantidad for r in resultado)
+        candidatos = [r.votado_id for r in resultado if r.cantidad == max_cantidad]
+        sospechoso = random.choice(candidatos)  # desempate aleatorio si hay empate.
+        
+        return sospechoso
+    
+    
+    def borrar_votacion(self, id_partida: int):
+        # Limpiar tabla de votos
+        self._db.query(VotacionEvento).filter_by(partida_id=id_partida).delete()
+        self._db.commit()
+    
+    
+    def fin_votacion(self, id_partida: int):
+        partida = self.obtener_por_id(id_partida)
+        partida.votacion_activa = False
+        self._db.commit()
