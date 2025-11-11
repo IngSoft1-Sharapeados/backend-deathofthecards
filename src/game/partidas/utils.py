@@ -12,6 +12,7 @@ from game.jugadores.services import *
 from fastapi import HTTPException, status
 from game.modelos.db import get_db
 from datetime import date
+import json
 
 
 def listar_jugadores(partida: Partida) -> list[JugadorOut]:
@@ -291,8 +292,6 @@ def revelarSecreto(id_partida: int, id_jugador_turno: int, id_unico_secreto: int
     jugador_turno = JugadorService(db).obtener_jugador(id_jugador_turno)
     if not jugador_turno:
         raise ValueError(f"No se ha encontrado el jugador con el ID: {id_jugador_turno}")
-    if jugador_turno.id != partida.turno_id:
-        raise ValueError(f"Solo el jugador del turno puede realizar esta acción")
     secreto_a_revelar = CartaService(db).obtener_carta_por_id(id_unico_secreto)
     if not secreto_a_revelar:
         raise ValueError(f"No se ha encontrado el secreto con el ID:{id_unico_secreto}")
@@ -1131,3 +1130,20 @@ def obtener_id_de_tipo(id_unico: int, db) -> int:
     carta = CartaService(db).obtener_carta_por_id(id_unico)
 
     return carta.id_carta
+
+def obtener_turnos(id_partida: int, db) -> List[int]:
+    """ 
+    funcion que obtiene el orden de turnos de una partida
+
+    parametros:
+        id_partida: int  (id de la partida la cual se quieren obtener los turnos)
+
+    return: 
+        trunos: List[int] (lista con los id de los jugadores en orden)
+    
+    """
+
+    partida = PartidaService(db).obtener_por_id(id_partida)
+
+    orden = json.loads(partida.ordenTurnos)
+    return orden
